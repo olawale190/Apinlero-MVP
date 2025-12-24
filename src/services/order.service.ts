@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { OrderStatus, PaymentStatus, PaymentMethod } from '@prisma/client';
 import { cartService } from './cart.service';
+import { whatsappService } from './whatsapp.service';
 
 interface CreateOrderInput {
   userId: string;
@@ -142,7 +143,52 @@ export class OrderService {
       return newOrder;
     });
 
+    // Send WhatsApp notification (async, don't wait)
+    this.sendOrderConfirmationNotification(order.id).catch((err) => {
+      console.error('Failed to send order confirmation WhatsApp:', err);
+    });
+
     return order;
+  }
+
+  /**
+   * Send order confirmation WhatsApp notification
+   */
+  private async sendOrderConfirmationNotification(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { firstName: true, lastName: true, phone: true } },
+        items: true,
+        address: true,
+      },
+    });
+
+    if (!order || !order.user.phone) return;
+
+    const deliveryAddress = order.address
+      ? `${order.address.street}, ${order.address.city}, ${order.address.state}`
+      : undefined;
+
+    await whatsappService.sendOrderConfirmation(order.user.phone, {
+      orderNumber: order.orderNumber,
+      customerName: `${order.user.firstName} ${order.user.lastName}`,
+      total: order.total,
+      itemCount: order.items.length,
+      deliveryAddress,
+    });
+
+    // Also notify admin about new order
+    const adminPhone = process.env.ADMIN_WHATSAPP_PHONE;
+    if (adminPhone) {
+      await whatsappService.sendNewOrderAlert(adminPhone, {
+        orderNumber: order.orderNumber,
+        customerName: `${order.user.firstName} ${order.user.lastName}`,
+        total: order.total,
+        itemCount: order.items.length,
+        deliveryAddress,
+      });
+    }
   }
 
   /**
@@ -311,7 +357,63 @@ export class OrderService {
       },
     });
 
+    // Send WhatsApp notification based on status (async, don't wait)
+    this.sendStatusUpdateNotification(orderId, status, description).catch((err) => {
+      console.error('Failed to send status update WhatsApp:', err);
+    });
+
     return order;
+  }
+
+  /**
+   * Send order status update WhatsApp notification
+   */
+  private async sendStatusUpdateNotification(
+    orderId: string,
+    status: OrderStatus,
+    note?: string
+  ) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { firstName: true, lastName: true, phone: true } },
+        items: true,
+        address: true,
+      },
+    });
+
+    if (!order || !order.user.phone) return;
+
+    const orderDetails = {
+      orderNumber: order.orderNumber,
+      customerName: `${order.user.firstName} ${order.user.lastName}`,
+      total: order.total,
+      itemCount: order.items.length,
+      deliveryAddress: order.address
+        ? `${order.address.street}, ${order.address.city}, ${order.address.state}`
+        : undefined,
+    };
+
+    // Send specific notification based on status
+    switch (status) {
+      case OrderStatus.SHIPPED:
+        await whatsappService.sendOrderShipped(order.user.phone, orderDetails);
+        break;
+      case OrderStatus.DELIVERED:
+        await whatsappService.sendOrderDelivered(order.user.phone, orderDetails);
+        break;
+      case OrderStatus.CANCELLED:
+        await whatsappService.sendOrderCancelled(order.user.phone, orderDetails, note);
+        break;
+      default:
+        // For other statuses, send generic update
+        await whatsappService.sendOrderStatusUpdate(
+          order.user.phone,
+          orderDetails,
+          status,
+          note
+        );
+    }
   }
 
   /**

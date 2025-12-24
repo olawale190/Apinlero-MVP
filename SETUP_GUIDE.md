@@ -262,6 +262,7 @@ Apinlero-MVP/
 2. **Add Products** - Go to Admin Panel → Products → Add Product
 3. **Test Mobile App** - See `mobile/README.md` for React Native setup
 4. **Set Up Payments** - Add Paystack keys to `.env`
+5. **Set Up WhatsApp** - Add WhatsApp Business API keys to `.env` (see README.md)
 
 ---
 

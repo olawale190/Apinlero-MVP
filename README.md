@@ -13,6 +13,7 @@ A secure, production-ready API for **Isha Treat**, an online wholesale grocery b
 - [Mobile App Integration](#mobile-app-integration)
 - [Payment Integration](#payment-integration)
 - [Admin Panel](#admin-panel)
+- [WhatsApp Notifications](#whatsapp-notifications)
 - [Configuration](#configuration)
 
 ---
@@ -28,6 +29,7 @@ A secure, production-ready API for **Isha Treat**, an online wholesale grocery b
 - **Payment Integration** - Ready for Paystack/Flutterwave
 - **Admin Panel** - Web-based dashboard for managing products
 - **Image Uploads** - Cloudinary-powered product images
+- **WhatsApp Notifications** - Order confirmations & updates via WhatsApp
 
 ### Technical Features
 - **TypeScript** - Full type safety
@@ -129,6 +131,9 @@ npm run dev
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | For images |
 | `CLOUDINARY_API_KEY` | Cloudinary API key | For images |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret | For images |
+| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp phone number ID | For notifications |
+| `WHATSAPP_ACCESS_TOKEN` | WhatsApp API access token | For notifications |
+| `ADMIN_WHATSAPP_PHONE` | Admin phone for alerts | For notifications |
 | `PAYSTACK_SECRET_KEY` | Paystack API key | For payments |
 | `PAYSTACK_PUBLIC_KEY` | Paystack public key | For payments |
 
@@ -165,7 +170,8 @@ Apinlero-MVP/
 │   │   ├── cart.service.ts    # Cart operations
 │   │   ├── order.service.ts   # Order operations
 │   │   ├── payment.service.ts # Payment processing
-│   │   └── upload.service.ts  # Cloudinary uploads
+│   │   ├── upload.service.ts  # Cloudinary uploads
+│   │   └── whatsapp.service.ts # WhatsApp notifications
 │   └── server.ts              # App entry point
 ├── mobile/                    # React Native mobile app
 │   ├── App.tsx
@@ -433,6 +439,79 @@ npm run prisma:studio
 | Ogun | ₦3,000 |
 | Oyo | ₦3,500 |
 | Other states | ₦5,000 |
+
+---
+
+## WhatsApp Notifications
+
+Automatic WhatsApp notifications for orders using Meta's WhatsApp Business Cloud API.
+
+### Notification Types
+
+| Event | Message Sent To |
+|-------|-----------------|
+| **Order Placed** | Customer + Admin |
+| **Order Confirmed** | Customer |
+| **Order Shipped** | Customer |
+| **Order Delivered** | Customer |
+| **Order Cancelled** | Customer |
+| **Low Stock Alert** | Admin |
+
+### Setup WhatsApp Business API
+
+1. **Create Meta Business Account**
+   - Go to [business.facebook.com](https://business.facebook.com/)
+   - Create or select your business
+
+2. **Set Up WhatsApp Business**
+   - Go to [developers.facebook.com](https://developers.facebook.com/)
+   - Create an app with WhatsApp product
+   - Add a phone number for testing
+
+3. **Get Credentials**
+   - Phone Number ID: Found in WhatsApp > API Setup
+   - Access Token: Generate in API Setup (use permanent token for production)
+
+4. **Add to `.env`**
+   ```env
+   WHATSAPP_PHONE_NUMBER_ID=123456789012345
+   WHATSAPP_ACCESS_TOKEN=your-access-token
+   ADMIN_WHATSAPP_PHONE=2348012345678
+   ```
+
+### Message Examples
+
+**Order Confirmation:**
+```
+🛒 Order Confirmed!
+
+Thank you for your order from Isha Treat!
+
+📦 Order #ISH-ABC123-XYZ
+👤 John Doe
+🛍️ 5 item(s)
+💰 Total: ₦45,000
+
+📍 Delivery to:
+123 Main Street, Lagos
+
+We'll notify you when your order is on the way!
+```
+
+**Order Shipped:**
+```
+🚚 Your Order is On The Way!
+
+Hi John,
+
+Great news! Your order #ISH-ABC123-XYZ has been shipped!
+
+Our delivery team will contact you shortly.
+```
+
+### Development Mode
+
+If WhatsApp credentials are not configured, notifications are logged to console instead of being sent. This allows testing without a WhatsApp Business account.
 
 ---
 
