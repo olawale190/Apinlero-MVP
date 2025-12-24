@@ -12,6 +12,7 @@ A secure, production-ready API for **Isha Treat**, an online wholesale grocery b
 - [API Endpoints](#api-endpoints)
 - [Mobile App Integration](#mobile-app-integration)
 - [Payment Integration](#payment-integration)
+- [Admin Panel](#admin-panel)
 - [Configuration](#configuration)
 
 ---
@@ -25,6 +26,8 @@ A secure, production-ready API for **Isha Treat**, an online wholesale grocery b
 - **Order Tracking** - Real-time order status updates
 - **Multiple Addresses** - Customers can save delivery addresses
 - **Payment Integration** - Ready for Paystack/Flutterwave
+- **Admin Panel** - Web-based dashboard for managing products
+- **Image Uploads** - Cloudinary-powered product images
 
 ### Technical Features
 - **TypeScript** - Full type safety
@@ -123,6 +126,9 @@ npm run dev
 | `DATABASE_URL` | Database connection string | Yes |
 | `JWT_SECRET` | Secret for JWT (min 32 chars) | Yes |
 | `PORT` | Server port (default: 3000) | No |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | For images |
+| `CLOUDINARY_API_KEY` | Cloudinary API key | For images |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret | For images |
 | `PAYSTACK_SECRET_KEY` | Paystack API key | For payments |
 | `PAYSTACK_PUBLIC_KEY` | Paystack public key | For payments |
 
@@ -134,6 +140,9 @@ npm run dev
 Apinlero-MVP/
 ├── prisma/
 │   └── schema.prisma          # Database schema (Users, Products, Orders, etc.)
+├── public/
+│   └── admin/
+│       └── index.html         # Admin panel (single-page app)
 ├── src/
 │   ├── config/                # Environment configuration
 │   ├── lib/                   # Prisma client
@@ -147,14 +156,25 @@ Apinlero-MVP/
 │   │   ├── cart.routes.ts     # Shopping cart
 │   │   ├── order.routes.ts    # Orders & tracking
 │   │   ├── address.routes.ts  # Delivery addresses
-│   │   └── payment.routes.ts  # Payment processing
+│   │   ├── payment.routes.ts  # Payment processing
+│   │   ├── upload.routes.ts   # Image uploads
+│   │   └── admin.routes.ts    # Admin API endpoints
 │   ├── services/
 │   │   ├── auth.service.ts    # Authentication logic
 │   │   ├── product.service.ts # Product operations
 │   │   ├── cart.service.ts    # Cart operations
 │   │   ├── order.service.ts   # Order operations
-│   │   └── payment.service.ts # Payment processing
+│   │   ├── payment.service.ts # Payment processing
+│   │   └── upload.service.ts  # Cloudinary uploads
 │   └── server.ts              # App entry point
+├── mobile/                    # React Native mobile app
+│   ├── App.tsx
+│   └── src/
+│       ├── components/        # Reusable UI components
+│       ├── context/           # Auth & Cart state
+│       ├── navigation/        # React Navigation setup
+│       ├── screens/           # App screens
+│       └── services/          # API client
 └── README.md
 ```
 
@@ -220,6 +240,28 @@ Apinlero-MVP/
 | GET | `/api/payments/verify/:ref` | Verify payment | Yes |
 | GET | `/api/payments/order/:orderId` | Payment status | Yes |
 | POST | `/api/payments/webhook` | Provider webhook | No |
+
+### Image Uploads (Admin)
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/upload/image` | Upload single image | Admin |
+| POST | `/api/upload/images` | Upload multiple images (max 5) | Admin |
+| DELETE | `/api/upload/image/:publicId` | Delete image | Admin |
+
+### Admin Panel API
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/admin/dashboard` | Dashboard statistics | Admin |
+| POST | `/api/admin/categories` | Create category | Admin |
+| PUT | `/api/admin/categories/:id` | Update category | Admin |
+| DELETE | `/api/admin/categories/:id` | Delete category | Admin |
+| POST | `/api/admin/products` | Create product | Admin |
+| PUT | `/api/admin/products/:id` | Update product | Admin |
+| DELETE | `/api/admin/products/:id` | Delete product | Admin |
+| PATCH | `/api/admin/products/:id/toggle` | Toggle active status | Admin |
+| PATCH | `/api/admin/products/:id/stock` | Update stock | Admin |
+| GET | `/api/admin/orders` | List all orders | Admin |
+| PATCH | `/api/admin/orders/:id/status` | Update order status | Admin |
 
 ---
 
@@ -333,6 +375,54 @@ The API is ready for **Paystack** or **Flutterwave** integration.
 | `BANK_TRANSFER` | Direct bank transfer |
 | `USSD` | USSD payment |
 | `CASH_ON_DELIVERY` | Pay when delivered |
+
+---
+
+## Admin Panel
+
+A simple web-based dashboard for Isha Treat to manage products, categories, and orders.
+
+### Access
+```
+http://localhost:3000/admin
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Sales overview, order counts, revenue stats |
+| **Categories** | Add/edit/delete product categories with images |
+| **Products** | Manage products with images, pricing, stock |
+| **Orders** | View and update order status |
+| **Image Upload** | Drag-and-drop image uploads (auto-optimized) |
+
+### Login Requirements
+- Must have an account with `ADMIN` role
+- Create admin via API or database:
+
+```bash
+# Using Prisma Studio
+npm run prisma:studio
+# Navigate to 'User' table, change role to 'ADMIN'
+```
+
+### Image Upload Limits
+- **Max file size**: 5MB per image
+- **Max images per product**: 5
+- **Supported formats**: JPEG, PNG, WebP
+- **Auto-optimization**: Images are resized (max 800x800) and compressed
+
+### Cloudinary Setup
+
+1. Sign up at [cloudinary.com](https://cloudinary.com)
+2. Get your credentials from Dashboard > Settings
+3. Add to `.env`:
+   ```
+   CLOUDINARY_CLOUD_NAME=your-cloud-name
+   CLOUDINARY_API_KEY=your-api-key
+   CLOUDINARY_API_SECRET=your-api-secret
+   ```
 
 ### Delivery Fee Structure
 

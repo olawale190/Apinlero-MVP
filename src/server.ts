@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import { config } from './config';
 import {
   securityHeaders,
@@ -40,6 +41,16 @@ app.disable('x-powered-by');
 if (config.isProduction) {
   app.set('trust proxy', 1);
 }
+
+// ============================================
+// Static Files (Admin Panel)
+// ============================================
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Serve admin panel at /admin
+app.get('/admin', (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../public/admin/index.html'));
+});
 
 // ============================================
 // API Routes
@@ -86,12 +97,13 @@ const startServer = async () => {
     app.listen(config.port, () => {
       console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║                   APINLERO MVP SERVER                      ║
+║               ISHA TREAT - APINLERO MVP                    ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Status:      Running                                      ║
 ║  Port:        ${String(config.port).padEnd(44)}║
 ║  Environment: ${config.nodeEnv.padEnd(44)}║
-║  Time:        ${new Date().toISOString().padEnd(44)}║
+║  API:         http://localhost:${config.port}/api                         ║
+║  Admin Panel: http://localhost:${config.port}/admin                       ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Security Features Enabled:                                ║
 ║  ✓ Helmet (Security Headers)                               ║
@@ -102,6 +114,7 @@ const startServer = async () => {
 ║  ✓ Password Hashing (bcrypt)                               ║
 ║  ✓ JWT Authentication                                      ║
 ║  ✓ SQL Injection Prevention (Prisma ORM)                   ║
+║  ✓ Cloudinary Image Uploads                                ║
 ╚════════════════════════════════════════════════════════════╝
       `);
     });
