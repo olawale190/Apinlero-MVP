@@ -1,180 +1,130 @@
-# Apinlero MVP
+# Isha Treat - Wholesale Grocery Platform
 
-A secure, production-ready API boilerplate built with Express.js, TypeScript, and Prisma ORM.
+A secure, production-ready API for **Isha Treat**, an online wholesale grocery business. Built with Express.js, TypeScript, and Prisma ORM.
 
 ## Table of Contents
 
 - [Features](#features)
+- [What Customers Can Do](#what-customers-can-do)
 - [Security Measures](#security-measures)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [API Endpoints](#api-endpoints)
-- [Security Documentation](#security-documentation)
+- [Mobile App Integration](#mobile-app-integration)
+- [Payment Integration](#payment-integration)
 - [Configuration](#configuration)
-- [Development](#development)
 
 ---
 
 ## Features
 
-- **TypeScript** - Full type safety and better developer experience
-- **Express.js** - Fast, unopinionated web framework
-- **Prisma ORM** - Type-safe database access (prevents SQL injection)
-- **JWT Authentication** - Secure token-based authentication with refresh tokens
-- **Zod Validation** - Runtime type validation for all inputs
-- **Security First** - Multiple layers of protection against common attacks
+### Business Features
+- **Product Catalog** - Categories and products with wholesale pricing
+- **Shopping Cart** - Add, update, remove items with stock validation
+- **Order Management** - Place orders, track delivery status
+- **Order Tracking** - Real-time order status updates
+- **Multiple Addresses** - Customers can save delivery addresses
+- **Payment Integration** - Ready for Paystack/Flutterwave
+
+### Technical Features
+- **TypeScript** - Full type safety
+- **Express.js** - Fast, scalable API
+- **Prisma ORM** - Type-safe database (SQL injection protected)
+- **JWT Authentication** - Secure token-based auth
+- **Zod Validation** - Runtime input validation
+- **Rate Limiting** - Protection against abuse
+
+---
+
+## What Customers Can Do
+
+When Isha Treat customers login to the mobile app, they can:
+
+| Feature | Description |
+|---------|-------------|
+| **Browse Products** | View categories and grocery items |
+| **Search Products** | Find items by name or SKU |
+| **Add to Cart** | Add wholesale quantities to shopping cart |
+| **Manage Cart** | Update quantities, remove items |
+| **Save Addresses** | Store multiple delivery addresses |
+| **Place Orders** | Checkout with preferred payment method |
+| **Track Orders** | See real-time order status and location |
+| **Order History** | View past orders and reorder |
+| **Make Payments** | Pay via card, bank transfer, or cash on delivery |
+
+### Order Status Flow
+```
+PENDING → CONFIRMED → PROCESSING → SHIPPED → OUT_FOR_DELIVERY → DELIVERED
+                                                              ↓
+                                                          CANCELLED
+```
 
 ---
 
 ## Security Measures
 
-This project implements comprehensive security measures to protect against OWASP Top 10 vulnerabilities and other common threats.
+### SQL Injection Prevention
+- All queries through Prisma ORM (auto-parameterized)
+- No raw SQL queries
 
-### 1. SQL Injection Prevention
-
-| Implementation | Description |
-|----------------|-------------|
-| **Prisma ORM** | All database queries use Prisma's query builder, which automatically parameterizes queries |
-| **No Raw SQL** | Raw SQL queries are avoided; all interactions go through Prisma |
-| **Type Safety** | TypeScript ensures query parameters are correctly typed |
-
-**Example of safe query:**
-```typescript
-// Prisma automatically parameterizes this - safe from SQL injection
-const user = await prisma.user.findUnique({
-  where: { email: userInput }
-});
-```
-
-### 2. Authentication Security
-
+### Authentication Security
 | Feature | Implementation |
 |---------|----------------|
-| **Password Hashing** | bcrypt with configurable salt rounds (default: 12) |
-| **JWT Tokens** | Short-lived access tokens (15 min) + secure refresh tokens |
-| **Token Rotation** | Refresh tokens are rotated on use (one-time use) |
-| **Account Lockout** | 5 failed attempts = 30 minute lockout |
-| **Session Management** | Refresh tokens stored in DB, can be revoked |
+| Password Hashing | bcrypt (12 salt rounds) |
+| JWT Tokens | 15 min access + 7 day refresh |
+| Token Rotation | Single-use refresh tokens |
+| Account Lockout | 5 failed attempts = 30 min lock |
 
-**Password Requirements:**
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one lowercase letter
-- At least one number
-- At least one special character (@$!%*?&)
+### Input Validation (XSS Prevention)
+- Zod schemas for all inputs
+- String sanitization
+- Maximum length enforcement
 
-### 3. Input Validation (XSS Prevention)
+### HTTP Security (Helmet)
+- Content-Security-Policy
+- X-Frame-Options (clickjacking)
+- HSTS (force HTTPS)
+- XSS filter enabled
 
-| Protection | Implementation |
-|------------|----------------|
-| **Zod Schemas** | All input validated against strict schemas |
-| **Type Coercion** | Inputs are coerced to expected types |
-| **String Sanitization** | Script tags and event handlers removed |
-| **Length Limits** | Maximum lengths enforced on all string fields |
-
-**Location:** `src/middleware/validate.ts`
-
-### 4. HTTP Security Headers (Helmet)
-
-| Header | Protection |
-|--------|------------|
-| **Content-Security-Policy** | Prevents XSS by controlling resource loading |
-| **X-Frame-Options** | Prevents clickjacking attacks |
-| **X-Content-Type-Options** | Prevents MIME type sniffing |
-| **Strict-Transport-Security** | Forces HTTPS connections |
-| **X-XSS-Protection** | Browser XSS filter enabled |
-| **Referrer-Policy** | Controls referrer information |
-
-**Location:** `src/middleware/security.ts`
-
-### 5. Rate Limiting
-
-| Endpoint Type | Limit |
-|--------------|-------|
-| **General API** | 100 requests per 15 minutes |
-| **Auth Endpoints** | 5 requests per 15 minutes |
-
-**Location:** `src/middleware/security.ts`
-
-### 6. CORS Configuration
-
-- Whitelist-based origin control
-- Credentials support enabled
-- Configurable via environment variables
-
-### 7. Request Security
-
-| Feature | Description |
-|---------|-------------|
-| **Body Size Limit** | Maximum 10KB request body |
-| **JSON Only** | Only accepts application/json |
-| **Trust Proxy** | Properly configured for production |
-
-### 8. Audit Logging
-
-All security-relevant actions are logged:
-- Login attempts (success/failure)
-- Password changes
-- Token refresh
-- Logout events
-
-**Location:** Database table `audit_logs`
-
-### 9. Error Handling
-
-- Production errors don't expose stack traces
-- Consistent error response format
-- No sensitive data in error messages
+### Rate Limiting
+- General API: 100 req/15 min
+- Auth endpoints: 5 req/15 min
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-
 - Node.js 18+
-- PostgreSQL database
-- npm or yarn
+- SQLite (development) or PostgreSQL (production)
 
 ### Installation
 
-1. **Clone and install dependencies:**
-   ```bash
-   cd Apinlero-MVP
-   npm install
-   ```
+```bash
+# 1. Install dependencies
+npm install
 
-2. **Configure environment:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your settings
 
-3. **Set up database:**
-   ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
-   ```
+# 3. Generate Prisma client & run migrations
+npm run prisma:generate
+npm run prisma:migrate
 
-4. **Start development server:**
-   ```bash
-   npm run dev
-   ```
+# 4. Start development server
+npm run dev
+```
 
 ### Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `JWT_SECRET` | Secret key for JWT (min 32 chars) | Yes |
-| `JWT_EXPIRES_IN` | Access token expiry (default: 15m) | No |
-| `JWT_REFRESH_EXPIRES_IN` | Refresh token expiry (default: 7d) | No |
+| `DATABASE_URL` | Database connection string | Yes |
+| `JWT_SECRET` | Secret for JWT (min 32 chars) | Yes |
 | `PORT` | Server port (default: 3000) | No |
-| `NODE_ENV` | Environment (development/production) | No |
-| `ALLOWED_ORIGINS` | CORS allowed origins (comma-separated) | No |
-| `RATE_LIMIT_WINDOW_MS` | Rate limit window (default: 900000) | No |
-| `RATE_LIMIT_MAX_REQUESTS` | Max requests per window (default: 100) | No |
-| `BCRYPT_SALT_ROUNDS` | Password hashing rounds (default: 12) | No |
+| `PAYSTACK_SECRET_KEY` | Paystack API key | For payments |
+| `PAYSTACK_PUBLIC_KEY` | Paystack public key | For payments |
 
 ---
 
@@ -183,28 +133,29 @@ All security-relevant actions are logged:
 ```
 Apinlero-MVP/
 ├── prisma/
-│   └── schema.prisma       # Database schema
+│   └── schema.prisma          # Database schema (Users, Products, Orders, etc.)
 ├── src/
-│   ├── config/
-│   │   └── index.ts        # Configuration management
-│   ├── lib/
-│   │   └── prisma.ts       # Prisma client instance
+│   ├── config/                # Environment configuration
+│   ├── lib/                   # Prisma client
 │   ├── middleware/
-│   │   ├── auth.ts         # Authentication middleware
-│   │   ├── security.ts     # Security middleware (Helmet, CORS, Rate Limiting)
-│   │   ├── validate.ts     # Input validation middleware
-│   │   └── index.ts        # Middleware exports
+│   │   ├── auth.ts            # JWT authentication
+│   │   ├── security.ts        # Helmet, CORS, rate limiting
+│   │   └── validate.ts        # Zod validation
 │   ├── routes/
-│   │   ├── auth.routes.ts  # Authentication routes
-│   │   └── index.ts        # Route aggregation
+│   │   ├── auth.routes.ts     # Login, register, password
+│   │   ├── product.routes.ts  # Products & categories
+│   │   ├── cart.routes.ts     # Shopping cart
+│   │   ├── order.routes.ts    # Orders & tracking
+│   │   ├── address.routes.ts  # Delivery addresses
+│   │   └── payment.routes.ts  # Payment processing
 │   ├── services/
-│   │   └── auth.service.ts # Authentication business logic
-│   └── server.ts           # Application entry point
-├── .env.example            # Environment template
-├── .gitignore              # Git ignore rules
-├── package.json            # Dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-└── README.md               # This file
+│   │   ├── auth.service.ts    # Authentication logic
+│   │   ├── product.service.ts # Product operations
+│   │   ├── cart.service.ts    # Cart operations
+│   │   ├── order.service.ts   # Order operations
+│   │   └── payment.service.ts # Payment processing
+│   └── server.ts              # App entry point
+└── README.md
 ```
 
 ---
@@ -212,135 +163,218 @@ Apinlero-MVP/
 ## API Endpoints
 
 ### Authentication
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/auth/register` | Register new customer | No |
+| POST | `/api/auth/login` | Login | No |
+| POST | `/api/auth/refresh` | Refresh token | No |
+| POST | `/api/auth/logout` | Logout | Yes |
+| GET | `/api/auth/me` | Get profile | Yes |
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/register` | Register new user | No |
-| POST | `/api/auth/login` | Login user | No |
-| POST | `/api/auth/refresh` | Refresh access token | No (refresh token) |
-| POST | `/api/auth/logout` | Logout (revoke token) | Yes |
-| POST | `/api/auth/logout-all` | Logout all devices | Yes |
-| POST | `/api/auth/change-password` | Change password | Yes |
-| GET | `/api/auth/me` | Get current user | Yes |
+### Products & Categories
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/products/categories` | List all categories | No |
+| GET | `/api/products/categories/:id` | Category with products | No |
+| GET | `/api/products` | List products (paginated) | No |
+| GET | `/api/products/featured` | Featured products | No |
+| GET | `/api/products/search?q=` | Search products | No |
+| GET | `/api/products/:id` | Product details | No |
+| POST | `/api/products` | Create product | Admin |
+| PUT | `/api/products/:id` | Update product | Admin |
 
-### Health Check
+### Shopping Cart
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/cart` | Get cart | Yes |
+| POST | `/api/cart/items` | Add to cart | Yes |
+| PUT | `/api/cart/items/:productId` | Update quantity | Yes |
+| DELETE | `/api/cart/items/:productId` | Remove item | Yes |
+| DELETE | `/api/cart` | Clear cart | Yes |
+| GET | `/api/cart/validate` | Validate before checkout | Yes |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Server health status |
+### Orders
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/orders` | Place order | Yes |
+| GET | `/api/orders` | Order history | Yes |
+| GET | `/api/orders/stats` | Order statistics | Yes |
+| GET | `/api/orders/:id` | Order details | Yes |
+| GET | `/api/orders/:id/tracking` | Tracking history | Yes |
+| POST | `/api/orders/:id/cancel` | Cancel order | Yes |
+| PATCH | `/api/orders/:id/status` | Update status | Admin |
 
-### Request/Response Examples
+### Addresses
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/addresses` | List addresses | Yes |
+| POST | `/api/addresses` | Add address | Yes |
+| PUT | `/api/addresses/:id` | Update address | Yes |
+| DELETE | `/api/addresses/:id` | Delete address | Yes |
+| PATCH | `/api/addresses/:id/default` | Set as default | Yes |
 
-**Register:**
-```bash
-POST /api/auth/register
-Content-Type: application/json
+### Payments
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/payments/initialize` | Start payment | Yes |
+| GET | `/api/payments/verify/:ref` | Verify payment | Yes |
+| GET | `/api/payments/order/:orderId` | Payment status | Yes |
+| POST | `/api/payments/webhook` | Provider webhook | No |
 
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!",
-  "firstName": "John",
-  "lastName": "Doe"
-}
+---
+
+## Mobile App Integration
+
+### Example: Customer Login Flow
+
+```javascript
+// 1. Login
+const response = await fetch('https://api.ishatreat.com/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'customer@example.com',
+    password: 'SecurePass123!'
+  })
+});
+
+const { data } = await response.json();
+// Store tokens securely
+const { accessToken, refreshToken } = data.tokens;
 ```
 
-**Login:**
-```bash
-POST /api/auth/login
-Content-Type: application/json
+### Example: Browse Products
 
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!"
-}
+```javascript
+// Get categories
+const categories = await fetch('https://api.ishatreat.com/api/products/categories');
 
-# Response
-{
-  "message": "Login successful",
-  "data": {
-    "user": {
-      "id": "...",
-      "email": "user@example.com",
-      "role": "USER"
-    },
-    "tokens": {
-      "accessToken": "eyJhbG...",
-      "refreshToken": "a1b2c3..."
-    }
-  }
-}
+// Get products with pagination
+const products = await fetch('https://api.ishatreat.com/api/products?page=1&limit=20&categoryId=xxx');
+
+// Search products
+const results = await fetch('https://api.ishatreat.com/api/products/search?q=rice');
 ```
 
-**Authenticated Request:**
-```bash
-GET /api/auth/me
-Authorization: Bearer eyJhbG...
+### Example: Add to Cart & Checkout
+
+```javascript
+// Add to cart
+await fetch('https://api.ishatreat.com/api/cart/items', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    productId: 'product_id_here',
+    quantity: 10  // Wholesale quantity
+  })
+});
+
+// Place order
+const order = await fetch('https://api.ishatreat.com/api/orders', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`
+  },
+  body: JSON.stringify({
+    addressId: 'address_id_here',
+    paymentMethod: 'CARD', // or BANK_TRANSFER, CASH_ON_DELIVERY
+    deliveryNotes: 'Call before delivery'
+  })
+});
+```
+
+### Example: Track Order
+
+```javascript
+// Get order tracking
+const tracking = await fetch(`https://api.ishatreat.com/api/orders/${orderId}/tracking`, {
+  headers: { 'Authorization': `Bearer ${accessToken}` }
+});
+
+// Response shows status history:
+// [
+//   { status: 'OUT_FOR_DELIVERY', description: 'Driver en route', location: 'Lagos' },
+//   { status: 'SHIPPED', description: 'Order dispatched', location: 'Warehouse' },
+//   { status: 'PROCESSING', description: 'Preparing order' },
+//   { status: 'CONFIRMED', description: 'Order confirmed' },
+//   { status: 'PENDING', description: 'Order placed' }
+// ]
 ```
 
 ---
 
-## Configuration
+## Payment Integration
 
-### Database Schema
+The API is ready for **Paystack** or **Flutterwave** integration.
 
-The database includes these security-focused tables:
+### Setup Paystack
 
-- **users** - User accounts with password hashing, lockout tracking
-- **refresh_tokens** - Secure token storage with revocation support
-- **api_keys** - For programmatic API access (hashed storage)
-- **audit_logs** - Security event logging
+1. Sign up at [paystack.com](https://paystack.com)
+2. Get your API keys from the dashboard
+3. Add to `.env`:
+   ```
+   PAYSTACK_SECRET_KEY=sk_live_xxxxx
+   PAYSTACK_PUBLIC_KEY=pk_live_xxxxx
+   ```
+4. Configure webhook URL in Paystack dashboard:
+   ```
+   https://api.ishatreat.com/api/payments/webhook
+   ```
 
-### Security Configuration
+### Payment Methods Supported
 
-All security settings can be adjusted in `src/config/index.ts` and via environment variables.
-
----
-
-## Development
-
-### Available Scripts
-
-| Script | Description |
+| Method | Description |
 |--------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Build for production |
-| `npm start` | Start production server |
-| `npm run prisma:generate` | Generate Prisma client |
-| `npm run prisma:migrate` | Run database migrations |
-| `npm run prisma:studio` | Open Prisma Studio (DB GUI) |
-| `npm run audit` | Run npm security audit |
-| `npm run lint` | Run ESLint |
+| `CARD` | Debit/Credit card |
+| `BANK_TRANSFER` | Direct bank transfer |
+| `USSD` | USSD payment |
+| `CASH_ON_DELIVERY` | Pay when delivered |
 
-### Adding New Routes
+### Delivery Fee Structure
 
-1. Create route file in `src/routes/`
-2. Import and use validation middleware
-3. Register in `src/routes/index.ts`
-
-### Security Best Practices for Development
-
-1. **Never commit `.env` files** - Use `.env.example` as template
-2. **Run `npm audit` regularly** - Check for vulnerable dependencies
-3. **Use TypeScript strict mode** - Catch type errors early
-4. **Validate all inputs** - Create Zod schemas for new endpoints
-5. **Use parameterized queries** - Never concatenate user input in SQL
+| Order Value | Delivery Fee |
+|-------------|--------------|
+| ≥ ₦100,000 | FREE |
+| Lagos | ₦2,000 |
+| Ogun | ₦3,000 |
+| Oyo | ₦3,500 |
+| Other states | ₦5,000 |
 
 ---
 
-## Security Checklist
+## Database Schema
 
-Before deploying to production, ensure:
+### Core Tables
 
-- [ ] `JWT_SECRET` is a strong, random 32+ character string
-- [ ] `NODE_ENV` is set to `production`
-- [ ] Database uses SSL connection
-- [ ] HTTPS is enforced (via reverse proxy)
-- [ ] `ALLOWED_ORIGINS` contains only your domains
-- [ ] Rate limits are appropriate for your use case
-- [ ] `npm audit` shows no high/critical vulnerabilities
-- [ ] Audit logging is configured and monitored
-- [ ] Database backups are configured
-- [ ] Error monitoring is set up (e.g., Sentry)
+| Table | Purpose |
+|-------|---------|
+| `users` | Customer accounts |
+| `categories` | Product categories (Rice, Beans, Oil, etc.) |
+| `products` | Grocery items with wholesale pricing |
+| `addresses` | Customer delivery addresses |
+| `carts` | Shopping carts |
+| `cart_items` | Items in cart |
+| `orders` | Customer orders |
+| `order_items` | Products in order |
+| `order_tracking` | Order status history |
+| `payments` | Payment records |
+
+---
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server |
+| `npm run build` | Build for production |
+| `npm start` | Production server |
+| `npm run prisma:generate` | Generate Prisma client |
+| `npm run prisma:migrate` | Run migrations |
+| `npm run prisma:studio` | Database GUI |
 
 ---
 
@@ -352,4 +386,4 @@ ISC
 
 ## Support
 
-For security issues, please report responsibly via private channels.
+**Isha Treat** - Your trusted wholesale grocery partner.
