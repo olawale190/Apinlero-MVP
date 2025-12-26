@@ -1,12 +1,12 @@
 // Prisma Schema for Apinlero MVP
-// Using SQLite for development, PostgreSQL for production
+// Using PostgreSQL for Railway deployment
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -77,7 +77,7 @@ model ApiKey {
   keyHash     String    @unique @map("key_hash") // Store hashed, not plain
   userId      String    @map("user_id")
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permissions String    // JSON string of permission array (SQLite doesn't support arrays)
+  permissions String    // JSON string of permission array
   expiresAt   DateTime? @map("expires_at")
   lastUsedAt  DateTime? @map("last_used_at")
   isActive    Boolean   @default(true) @map("is_active")
