@@ -276,13 +276,13 @@ npm run preview
 
 ### Current Setup (Twilio Sandbox)
 - **Sandbox Number**: +1 415 523 8886
-- **Join Code**: `join loss-yellow`
+- **Join Code**: `join material-during`
 - **Webhook URL**: `https://web-production-63e51.up.railway.app/webhook`
 - **Status**: Live and working
 
 ### How Customers Join WhatsApp Bot
-1. **Direct Link**: `https://wa.me/14155238886?text=join%20loss-yellow`
-2. **Manual**: Save +1 415 523 8886, send "join loss-yellow"
+1. **Direct Link**: `https://wa.me/14155238886?text=join%20material-during`
+2. **Manual**: Save +1 415 523 8886, send "join material-during"
 3. Sessions expire after 72 hours of inactivity
 
 ### Moving to Production WhatsApp
@@ -325,10 +325,10 @@ https://project-apinlero.vercel.app/store/ishas-treat
 
 ### Option 2: WhatsApp Bot
 ```
-https://wa.me/14155238886?text=join%20loss-yellow
+https://wa.me/14155238886?text=join%20material-during
 ```
 - Customer clicks link
-- Sends "join loss-yellow" to join sandbox
+- Sends "join material-during" to join sandbox
 - Then can order via chat (e.g., "2x palm oil to SE15 4AA")
 
 ---
@@ -349,8 +349,12 @@ Files updated:
 ## Pilot Customer: Isha's Treat & Groceries
 
 - **Location**: South London, UK
-- **Test Phone**: +44 7935 238972
-- **Dashboard Login**: Demo login available at `/app`
+- **Test Phones**: +44 7935 238972, +44 7733 743448
+- **Dashboard Login**:
+  - **URL**: `https://project-apinlero.vercel.app/app`
+  - **Email**: `isha@ishastreat.co.uk`
+  - **Password**: `IshaTest123`
+  - Or click "Demo Login (Pilot Testing)" button
 - **Store URL**: `/store/ishas-treat`
 
 ---
