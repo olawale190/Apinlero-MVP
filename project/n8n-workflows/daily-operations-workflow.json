@@ -1,0 +1,255 @@
+{
+  "name": "Apinlero - Daily Operations Automation",
+  "description": "Scheduled workflow for daily backups, reports, cleanup, and health checks",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-daily",
+      "name": "Daily 6 AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 22 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-nightly",
+      "name": "Nightly 10 PM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 500]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "orders",
+        "returnAll": false,
+        "limit": 100,
+        "filterByFormula": "created_at >= '{{ new Date(Date.now() - 24*60*60*1000).toISOString() }}'"
+      },
+      "id": "fetch-daily-orders",
+      "name": "Fetch Today's Orders",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "products",
+        "returnAll": true,
+        "filterByFormula": "stock_quantity <= low_stock_threshold"
+      },
+      "id": "check-low-stock",
+      "name": "Check Low Stock Products",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "products",
+        "returnAll": true,
+        "filterByFormula": "expiry_date <= '{{ new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0] }}'"
+      },
+      "id": "check-expiring",
+      "name": "Check Expiring Products",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const orders = $input.all();\nconst totalRevenue = orders.reduce((sum, o) => sum + (o.json.total || 0), 0);\nconst orderCount = orders.length;\nconst avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;\nconst channels = {};\norders.forEach(o => {\n  const ch = o.json.channel || 'Unknown';\n  channels[ch] = (channels[ch] || 0) + 1;\n});\n\nreturn [{\n  json: {\n    date: new Date().toISOString().split('T')[0],\n    totalOrders: orderCount,\n    totalRevenue: totalRevenue.toFixed(2),\n    averageOrderValue: avgOrder.toFixed(2),\n    channelBreakdown: channels,\n    generatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "calculate-stats",
+      "name": "Calculate Daily Stats",
+      "type": "n8n-nodes-base.code",
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-has-low-stock",
+      "name": "Has Low Stock?",
+      "type": "n8n-nodes-base.if",
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-has-expiring",
+      "name": "Has Expiring?",
+      "type": "n8n-nodes-base.if",
+      "position": [750, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-documents/reports/daily_report_{{ new Date().toISOString().split('T')[0] }}.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}"},
+            {"name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json) }}"
+      },
+      "id": "save-report",
+      "name": "Save Report to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "orders",
+        "returnAll": true
+      },
+      "id": "fetch-all-for-backup",
+      "name": "Fetch All Orders for Backup",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 700]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "products",
+        "returnAll": true
+      },
+      "id": "fetch-products-backup",
+      "name": "Fetch All Products for Backup",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 800]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "customers",
+        "returnAll": true
+      },
+      "id": "fetch-customers-backup",
+      "name": "Fetch All Customers for Backup",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allData = {\n  exportDate: new Date().toISOString(),\n  orders: $('Fetch All Orders for Backup').all().map(i => i.json),\n  products: $('Fetch All Products for Backup').all().map(i => i.json),\n  customers: $('Fetch All Customers for Backup').all().map(i => i.json)\n};\nreturn [{ json: allData }];"
+      },
+      "id": "merge-backup-data",
+      "name": "Merge Backup Data",
+      "type": "n8n-nodes-base.code",
+      "position": [750, 800]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-documents/backups/backup_{{ new Date().toISOString().split('T')[0] }}.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}"},
+            {"name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"},
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "x-upsert", "value": "true"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json) }}"
+      },
+      "id": "save-backup",
+      "name": "Save Backup to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1000, 800]
+    }
+  ],
+  "connections": {
+    "Daily 6 AM Trigger": {
+      "main": [[
+        {"node": "Fetch Today's Orders", "type": "main", "index": 0},
+        {"node": "Check Low Stock Products", "type": "main", "index": 0},
+        {"node": "Check Expiring Products", "type": "main", "index": 0}
+      ]]
+    },
+    "Nightly 10 PM Trigger": {
+      "main": [[
+        {"node": "Fetch All Orders for Backup", "type": "main", "index": 0},
+        {"node": "Fetch All Products for Backup", "type": "main", "index": 0},
+        {"node": "Fetch All Customers for Backup", "type": "main", "index": 0}
+      ]]
+    },
+    "Fetch Today's Orders": {
+      "main": [[{"node": "Calculate Daily Stats", "type": "main", "index": 0}]]
+    },
+    "Check Low Stock Products": {
+      "main": [[{"node": "Has Low Stock?", "type": "main", "index": 0}]]
+    },
+    "Check Expiring Products": {
+      "main": [[{"node": "Has Expiring?", "type": "main", "index": 0}]]
+    },
+    "Calculate Daily Stats": {
+      "main": [[{"node": "Save Report to Storage", "type": "main", "index": 0}]]
+    },
+    "Fetch All Orders for Backup": {
+      "main": [[{"node": "Merge Backup Data", "type": "main", "index": 0}]]
+    },
+    "Fetch All Products for Backup": {
+      "main": [[{"node": "Merge Backup Data", "type": "main", "index": 0}]]
+    },
+    "Fetch All Customers for Backup": {
+      "main": [[{"node": "Merge Backup Data", "type": "main", "index": 0}]]
+    },
+    "Merge Backup Data": {
+      "main": [[{"node": "Save Backup to Storage", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "Europe/London"
+  },
+  "tags": ["apinlero", "daily", "backup", "reports", "scheduled"]
+}

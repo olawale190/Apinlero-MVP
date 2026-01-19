@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(GIT_SSH_COMMAND=\"ssh -o StrictHostKeyChecking=no\" git push:*)"
+    ]
+  }
+}

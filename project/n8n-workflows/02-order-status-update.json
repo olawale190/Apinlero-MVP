@@ -1,0 +1,407 @@
+{
+  "name": "Order Status Update Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-updated",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Order Updated Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "status-changed",
+              "leftValue": "={{ $json.record.status }}",
+              "rightValue": "={{ $json.old_record.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status-changed",
+      "name": "Status Changed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "email-exists",
+              "leftValue": "={{ $json.record.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-email",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 280]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.record.status }}",
+                    "rightValue": "confirmed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "confirmed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.record.status }}",
+                    "rightValue": "preparing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "preparing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.record.status }}",
+                    "rightValue": "out_for_delivery",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "out_for_delivery"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.record.status }}",
+                    "rightValue": "delivered",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "delivered"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "switch-status",
+      "name": "Switch Status",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [910, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.record.email }}\"],\n  \"subject\": \"Order Confirmed! #{{ $json.record.id.substring(0, 8).toUpperCase() }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#0d9488,#14b8a6);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.status-icon{font-size:48px;margin-bottom:10px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.highlight-box{background:#ecfdf5;border:2px solid #0d9488;border-radius:8px;padding:20px;text-align:center;margin:20px 0}.highlight-box h2{color:#0d9488;margin:0 0 10px}.btn{display:inline-block;background:#0d9488;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><div class='status-icon'>✓</div><h1>Order Confirmed!</h1></div><div class='content'><p>Hi <strong>{{ $json.record.customer_name }}</strong>,</p><p>Great news! Your order has been confirmed and we're getting it ready.</p><div class='highlight-box'><h2>Order #{{ $json.record.id.substring(0, 8).toUpperCase() }}</h2><p>We'll notify you when it's being prepared.</p></div><a href='https://apinlero.vercel.app/track/{{ $json.record.id }}' class='btn'>Track Your Order</a></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>WhatsApp: 07448682282</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-confirmed",
+      "name": "Send Confirmed Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.record.email }}\"],\n  \"subject\": \"Your Order is Being Prepared! #{{ $json.record.id.substring(0, 8).toUpperCase() }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.status-icon{font-size:48px;margin-bottom:10px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.highlight-box{background:#fffbeb;border:2px solid #f59e0b;border-radius:8px;padding:20px;text-align:center;margin:20px 0}.highlight-box h2{color:#d97706;margin:0 0 10px}.btn{display:inline-block;background:#f59e0b;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><div class='status-icon'>👨‍🍳</div><h1>Preparing Your Order!</h1></div><div class='content'><p>Hi <strong>{{ $json.record.customer_name }}</strong>,</p><p>Your order is now being prepared with care. We'll have it ready for you soon!</p><div class='highlight-box'><h2>Order #{{ $json.record.id.substring(0, 8).toUpperCase() }}</h2><p>Our team is working on it right now.</p></div><a href='https://apinlero.vercel.app/track/{{ $json.record.id }}' class='btn'>Track Your Order</a></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>WhatsApp: 07448682282</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-preparing",
+      "name": "Send Preparing Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 220],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.record.email }}\"],\n  \"subject\": \"Your Order is On Its Way! #{{ $json.record.id.substring(0, 8).toUpperCase() }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#3b82f6,#60a5fa);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.status-icon{font-size:48px;margin-bottom:10px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.highlight-box{background:#eff6ff;border:2px solid #3b82f6;border-radius:8px;padding:20px;text-align:center;margin:20px 0}.highlight-box h2{color:#2563eb;margin:0 0 10px}.btn{display:inline-block;background:#3b82f6;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><div class='status-icon'>🚗</div><h1>Out for Delivery!</h1></div><div class='content'><p>Hi <strong>{{ $json.record.customer_name }}</strong>,</p><p>Exciting news! Your order is on its way to you right now.</p><div class='highlight-box'><h2>Order #{{ $json.record.id.substring(0, 8).toUpperCase() }}</h2><p>{{ $json.record.delivery_address || 'Ready for collection' }}</p></div><p>Please ensure someone is available to receive the delivery.</p><a href='https://apinlero.vercel.app/track/{{ $json.record.id }}' class='btn'>Track Your Order</a></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>WhatsApp: 07448682282</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-out-for-delivery",
+      "name": "Send Out for Delivery Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 340],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.record.email }}\"],\n  \"subject\": \"Order Delivered! #{{ $json.record.id.substring(0, 8).toUpperCase() }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#10b981,#34d399);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.status-icon{font-size:48px;margin-bottom:10px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.highlight-box{background:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:20px;text-align:center;margin:20px 0}.highlight-box h2{color:#059669;margin:0 0 10px}.btn{display:inline-block;background:#10b981;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><div class='status-icon'>✅</div><h1>Order Delivered!</h1></div><div class='content'><p>Hi <strong>{{ $json.record.customer_name }}</strong>,</p><p>Your order has been delivered successfully. We hope you enjoy it!</p><div class='highlight-box'><h2>Order #{{ $json.record.id.substring(0, 8).toUpperCase() }}</h2><p>Thank you for choosing Isha's Treat!</p></div><p>We'd love to hear your feedback. Have a wonderful day!</p></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>WhatsApp: 07448682282</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-delivered",
+      "name": "Send Delivered Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1150, 460],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-op-no-change",
+      "name": "No Status Change",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [690, 420]
+    },
+    {
+      "parameters": {},
+      "id": "no-op-no-email",
+      "name": "No Email - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [910, 420]
+    }
+  ],
+  "connections": {
+    "Order Updated Webhook": {
+      "main": [
+        [
+          {
+            "node": "Status Changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Changed?": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Status Change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Switch Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Email - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Status": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmed Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Preparing Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Out for Delivery Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Delivered Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "email", "orders", "status"]
+}

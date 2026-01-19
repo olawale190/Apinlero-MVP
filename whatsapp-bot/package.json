@@ -1,0 +1,18 @@
+{
+  "name": "apinlero-whatsapp-bot",
+  "version": "2.1.0",
+  "description": "WhatsApp bot for Àpínlẹ̀rọ via Twilio - African & Caribbean wholesale with Knowledge Graph",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "neo4j-driver": "^6.0.1",
+    "twilio": "^5.11.2"
+  }
+}

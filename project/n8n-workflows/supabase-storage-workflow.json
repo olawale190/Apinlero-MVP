@@ -1,0 +1,194 @@
+{
+  "name": "Apinlero - Supabase Storage Operations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage-upload",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-upload",
+      "name": "Webhook - Upload File",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "storage-upload"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage-signed-url",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-signed-url",
+      "name": "Webhook - Get Signed URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 500],
+      "webhookId": "storage-signed-url"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-media-store",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-whatsapp",
+      "name": "Webhook - WhatsApp Media",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 700],
+      "webhookId": "whatsapp-media-store"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-media/{{ $json.folder }}/{{ Date.now() }}_{{ $json.fileName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.fileType }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $json.fileData }}",
+        "options": {}
+      },
+      "id": "http-upload",
+      "name": "HTTP Request - Upload to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/sign/apinlero-media/{{ $json.filePath }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={ \"expiresIn\": {{ $json.expiresIn || 3600 }} }",
+        "options": {}
+      },
+      "id": "http-signed-url",
+      "name": "HTTP Request - Get Signed URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, path: $json.Key, url: $env.SUPABASE_URL + '/storage/v1/object/public/' + $json.Key }) }}",
+        "options": {}
+      },
+      "id": "respond-upload",
+      "name": "Respond - Upload Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, signedUrl: $json.signedUrl }) }}",
+        "options": {}
+      },
+      "id": "respond-signed-url",
+      "name": "Respond - Signed URL",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [750, 500]
+    }
+  ],
+  "connections": {
+    "Webhook - Upload File": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Upload to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Get Signed URL": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Get Signed URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Upload to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Respond - Upload Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Get Signed URL": {
+      "main": [
+        [
+          {
+            "node": "Respond - Signed URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "apinlero-storage"
+  },
+  "tags": ["apinlero", "storage", "supabase"]
+}

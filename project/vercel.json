@@ -1,0 +1,51 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/app/$1",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.apinlero.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/app/$1",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.apinlero.co.uk"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/store/ishas-treat/$1",
+      "has": [
+        {
+          "type": "host",
+          "value": "ishas-treat.apinlero.co.uk"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/store/ishas-treat/$1",
+      "has": [
+        {
+          "type": "host",
+          "value": "ishas-treat.apinlero.com"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
