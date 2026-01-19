@@ -1,7 +1,7 @@
 {
   "name": "apinlero-whatsapp-bot",
-  "version": "2.1.0",
-  "description": "WhatsApp bot for Àpínlẹ̀rọ via Twilio - African & Caribbean wholesale with Knowledge Graph",
+  "version": "3.0.0",
+  "description": "Multi-tenant WhatsApp bot for Àpínlẹ̀rọ SaaS - supports Meta Cloud API and Twilio",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
