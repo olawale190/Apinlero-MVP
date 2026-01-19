@@ -1,8 +1,9 @@
 /**
- * Àpínlẹ̀rọ Supabase Client
+ * Àpínlẹ̀rọ Supabase Client v2.0.0
  *
  * Database operations for the WhatsApp bot
  * Includes session persistence, customer tracking, and message logging
+ * Now supports multi-tenant operations with business context
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -19,8 +20,9 @@ if (!SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder');
 
-// Session timeout (30 minutes)
+// Session timeout (30 minutes for single-tenant, 24 hours for multi-tenant)
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const MULTI_TENANT_SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
 
 // ============================================
 // SESSION PERSISTENCE
@@ -28,9 +30,45 @@ const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 /**
  * Get conversation session from database
+ * @param {string} phone - Customer phone number
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-export async function getSession(phone) {
+export async function getSession(phone, businessId = null) {
   try {
+    // For multi-tenant, use the new whatsapp_sessions table with business_id
+    if (businessId) {
+      const { data, error } = await supabase
+        .from('whatsapp_sessions')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('customer_phone', phone)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      // Check if session expired (24h for multi-tenant)
+      const lastActivity = new Date(data.last_message_at).getTime();
+      if (Date.now() - lastActivity > MULTI_TENANT_SESSION_TIMEOUT) {
+        await deleteSession(phone, businessId);
+        return null;
+      }
+
+      return {
+        phone: data.customer_phone,
+        businessId: data.business_id,
+        state: data.current_state,
+        pendingOrder: data.context?.pendingOrder || null,
+        lastActivity: lastActivity,
+        context: data.context || {},
+        customerId: data.customer_id,
+        cart: data.cart || []
+      };
+    }
+
+    // Legacy single-tenant mode (uses old table structure)
     const { data, error } = await supabase
       .from('whatsapp_sessions')
       .select('*')
@@ -42,16 +80,16 @@ export async function getSession(phone) {
     }
 
     // Check if session expired
-    const lastActivity = new Date(data.last_activity).getTime();
+    const lastActivity = new Date(data.last_activity || data.last_message_at).getTime();
     if (Date.now() - lastActivity > SESSION_TIMEOUT) {
       await deleteSession(phone);
       return null;
     }
 
     return {
-      phone: data.phone,
-      state: data.state,
-      pendingOrder: data.pending_order,
+      phone: data.phone || data.customer_phone,
+      state: data.state || data.current_state,
+      pendingOrder: data.pending_order || data.context?.pendingOrder,
       lastActivity: lastActivity,
       context: data.context || {},
       customerId: data.customer_id
@@ -64,9 +102,40 @@ export async function getSession(phone) {
 
 /**
  * Save conversation session to database
+ * @param {string} phone - Customer phone number
+ * @param {Object} sessionData - Session data to save
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-export async function saveSession(phone, sessionData) {
+export async function saveSession(phone, sessionData, businessId = null) {
   try {
+    // For multi-tenant, use the new whatsapp_sessions table structure
+    if (businessId) {
+      const { error } = await supabase
+        .from('whatsapp_sessions')
+        .upsert({
+          business_id: businessId,
+          customer_phone: phone,
+          current_state: sessionData.state,
+          context: {
+            ...sessionData.context,
+            pendingOrder: sessionData.pendingOrder
+          },
+          cart: sessionData.cart || [],
+          customer_id: sessionData.customerId,
+          customer_name: sessionData.customerName,
+          is_active: true,
+          last_message_at: new Date().toISOString()
+        }, {
+          onConflict: 'business_id,customer_phone'
+        });
+
+      if (error) {
+        console.error('Failed to save multi-tenant session:', error);
+      }
+      return;
+    }
+
+    // Legacy single-tenant mode
     const { error } = await supabase
       .from('whatsapp_sessions')
       .upsert({
@@ -90,13 +159,30 @@ export async function saveSession(phone, sessionData) {
 
 /**
  * Delete conversation session
+ * @param {string} phone - Customer phone number
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-export async function deleteSession(phone) {
+export async function deleteSession(phone, businessId = null) {
   try {
-    await supabase
-      .from('whatsapp_sessions')
-      .delete()
-      .eq('phone', phone);
+    if (businessId) {
+      // Multi-tenant: mark as inactive rather than delete
+      await supabase
+        .from('whatsapp_sessions')
+        .update({
+          is_active: false,
+          current_state: 'idle',
+          context: {},
+          cart: []
+        })
+        .eq('business_id', businessId)
+        .eq('customer_phone', phone);
+    } else {
+      // Legacy: delete the session
+      await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('phone', phone);
+    }
   } catch (error) {
     console.error('Failed to delete session:', error);
   }
@@ -292,10 +378,17 @@ export async function updateOrderPayment(orderId, paymentMethod, paymentStatus =
 
 /**
  * Get or create customer by phone
+ * @param {string} phone - Customer phone number
+ * @param {string} name - Customer name
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-export async function getOrCreateCustomer(phone, name) {
+export async function getOrCreateCustomer(phone, name, businessId = null) {
   // Normalize phone number
   const normalizedPhone = phone.replace(/\D/g, '');
+
+  // For multi-tenant, scope customers to business
+  // Note: The existing customers table might need a business_id column
+  // For now, we'll use the existing structure for backward compatibility
 
   // Try to find existing customer
   const { data: existing } = await supabase
@@ -334,7 +427,7 @@ export async function getOrCreateCustomer(phone, name) {
     return null;
   }
 
-  console.log(`✅ New customer created: ${newCustomer.name} (${phone})`);
+  console.log(`✅ New customer created: ${newCustomer.name} (${phone})${businessId ? ` [Business: ${businessId.substring(0, 8)}]` : ''}`);
   return newCustomer;
 }
 
@@ -411,15 +504,43 @@ export async function getLastOrder(phone) {
 
 /**
  * Log WhatsApp message (inbound or outbound)
+ * @param {string} phone - Customer phone number
+ * @param {string} direction - 'inbound' or 'outbound'
+ * @param {string} text - Message text
+ * @param {string|null} intent - Detected intent
+ * @param {string|null} orderId - Related order ID
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-export async function logMessage(phone, direction, text, intent = null, orderId = null) {
+export async function logMessage(phone, direction, text, intent = null, orderId = null, businessId = null) {
   try {
+    // For multi-tenant, use the whatsapp_message_logs table
+    if (businessId) {
+      const { error } = await supabase
+        .from('whatsapp_message_logs')
+        .insert({
+          business_id: businessId,
+          direction,
+          customer_phone: phone,
+          message_type: 'text',
+          content: text?.substring(0, 5000),
+          intent_detected: intent,
+          provider: 'meta',
+          status: direction === 'outbound' ? 'sent' : 'received'
+        });
+
+      if (error) {
+        console.warn('Multi-tenant message logging failed:', error.message);
+      }
+      return;
+    }
+
+    // Legacy single-tenant mode
     const { error } = await supabase
       .from('whatsapp_messages')
       .insert({
         phone_number: phone,
         direction,
-        message_text: text.substring(0, 5000), // Limit text length
+        message_text: text?.substring(0, 5000), // Limit text length
         intent,
         order_id: orderId,
         created_at: new Date().toISOString()
