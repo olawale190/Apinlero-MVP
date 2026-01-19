@@ -342,12 +342,46 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
+  console.log('📨 Webhook received (legacy endpoint)');
+
+  // Check if this is a Twilio request (has From field with whatsapp: prefix)
+  if (req.body.From && req.body.From.startsWith('whatsapp:')) {
+    console.log('📱 Detected Twilio format - forwarding to Twilio handler');
+
+    try {
+      const incomingMessage = parseTwilioWebhook(req.body);
+      console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber}: ${incomingMessage.body}`);
+
+      // Process message through the full handler
+      const response = await handleIncomingMessage({
+        from: incomingMessage.phoneNumber,
+        customerName: incomingMessage.profileName || null,
+        text: incomingMessage.body,
+        messageId: incomingMessage.messageId,
+        provider: 'twilio',
+        businessId: null
+      });
+
+      // Send response via Twilio
+      if (response && response.text) {
+        await sendWhatsAppMessage(incomingMessage.from, response.text);
+        console.log(`✅ [Twilio] Response sent to ${incomingMessage.phoneNumber}`);
+      }
+
+      return res.status(200).send('OK');
+
+    } catch (error) {
+      console.error('❌ [Twilio] Webhook error:', error);
+      return res.status(200).send('OK'); // Always return 200 to Twilio
+    }
+  }
+
+  // Otherwise treat as Meta webhook
   console.log('⚠️ Received message on legacy Meta webhook');
-  // Try to parse and forward to new handler
   const parsed = parseWebhook(req.body);
   if (parsed && parsed.type === 'message') {
-    console.log(`📩 [Legacy] From: ${parsed.from} | Content: ${parsed.body}`);
+    console.log(`📩 [Legacy Meta] From: ${parsed.from} | Content: ${parsed.body}`);
   }
   res.sendStatus(200);
 });
