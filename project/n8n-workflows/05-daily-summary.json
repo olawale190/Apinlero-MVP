@@ -1,0 +1,163 @@
+{
+  "name": "Daily Sales Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily at 6 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manual-daily-summary",
+        "options": {}
+      },
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/get_daily_summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "fetch-summary",
+      "name": "Fetch Today's Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase Auth"
+        }
+      },
+      "notes": "Alternative: Query directly with Supabase node"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process the daily summary data\nconst orders = $input.all();\n\n// If using RPC function, data comes as single response\nconst data = orders[0]?.json || {};\n\n// Calculate summary stats (adjust based on your RPC response)\nconst summary = {\n  totalOrders: data.total_orders || 0,\n  totalRevenue: data.total_revenue || 0,\n  pendingOrders: data.pending_orders || 0,\n  completedOrders: data.completed_orders || 0,\n  averageOrderValue: data.total_orders > 0 \n    ? (data.total_revenue / data.total_orders).toFixed(2) \n    : 0,\n  topProducts: data.top_products || [],\n  date: new Date().toLocaleDateString('en-GB', {\n    weekday: 'long',\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric'\n  })\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "process-data",
+      "name": "Process Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Reports <reports@apinlero.co.uk>\",\n  \"to\": [\"owner@ishastreat.com\"],\n  \"subject\": \"📊 Daily Summary: £{{ Number($json.totalRevenue).toFixed(2) }} from {{ $json.totalOrders }} orders\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#1e3a5f,#2d5a87);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.header p{margin:10px 0 0;opacity:0.9}.content{padding:30px}.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:20px 0}.stat-card{background:#f3f4f6;border-radius:8px;padding:20px;text-align:center}.stat-value{font-size:28px;font-weight:bold;color:#0d9488}.stat-label{font-size:12px;color:#6b7280;text-transform:uppercase;margin-top:5px}.revenue-card{grid-column:span 2;background:linear-gradient(135deg,#0d9488,#14b8a6);color:white}.revenue-card .stat-value{color:white;font-size:36px}.revenue-card .stat-label{color:rgba(255,255,255,0.9)}.detail-section{background:#f9fafb;border-radius:8px;padding:20px;margin-top:20px}.detail-title{font-size:14px;font-weight:600;color:#374151;margin-bottom:15px}.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb}.detail-row:last-child{border-bottom:none}.btn{display:inline-block;background:#0d9488;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><h1>📊 Daily Summary</h1><p>{{ $json.date }}</p></div><div class='content'><div class='stats-grid'><div class='stat-card revenue-card'><div class='stat-value'>£{{ Number($json.totalRevenue).toFixed(2) }}</div><div class='stat-label'>Total Revenue</div></div><div class='stat-card'><div class='stat-value'>{{ $json.totalOrders }}</div><div class='stat-label'>Total Orders</div></div><div class='stat-card'><div class='stat-value'>£{{ $json.averageOrderValue }}</div><div class='stat-label'>Avg Order Value</div></div><div class='stat-card'><div class='stat-value'>{{ $json.completedOrders }}</div><div class='stat-label'>Completed</div></div><div class='stat-card'><div class='stat-value'>{{ $json.pendingOrders }}</div><div class='stat-label'>Pending</div></div></div><a href='https://apinlero.vercel.app/dashboard' class='btn'>View Full Dashboard</a></div><div class='footer'><p>Àpínlẹ̀rọ Daily Reports</p><p>Isha's Treat & Groceries</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-summary",
+      "name": "Send Daily Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily at 6 PM": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today's Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today's Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today's Orders": {
+      "main": [
+        [
+          {
+            "node": "Process Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "email", "reports", "scheduled"]
+}

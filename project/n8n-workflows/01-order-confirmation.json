@@ -1,0 +1,122 @@
+{
+  "name": "Order Confirmation Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-created",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Order Created Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "email-exists",
+              "leftValue": "={{ $json.record.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-email",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.record.email }}\"],\n  \"subject\": \"Order Confirmation #{{ $json.record.id.substring(0, 8).toUpperCase() }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#0d9488,#14b8a6);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.detail-box{background:#f3f4f6;border-radius:8px;padding:20px;margin:20px 0}.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb}.detail-row:last-child{border-bottom:none}.detail-label{color:#6b7280;font-size:14px}.detail-value{color:#111827;font-weight:600}.total-row{background:#0d9488;color:white;padding:15px;border-radius:8px;margin-top:15px;display:flex;justify-content:space-between;font-size:18px}.btn{display:inline-block;background:#0d9488;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;margin-top:20px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><h1>✓ Order Confirmed!</h1></div><div class='content'><p>Hi <strong>{{ $json.record.customer_name }}</strong>,</p><p>Thank you for your order! We've received it and will start preparing it shortly.</p><div class='detail-box'><div class='detail-row'><span class='detail-label'>Order ID</span><span class='detail-value'>#{{ $json.record.id.substring(0, 8).toUpperCase() }}</span></div><div class='detail-row'><span class='detail-label'>Date</span><span class='detail-value'>{{ new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric'}) }}</span></div><div class='detail-row'><span class='detail-label'>Delivery Address</span><span class='detail-value'>{{ $json.record.delivery_address || 'Collection' }}</span></div><div class='detail-row'><span class='detail-label'>Phone</span><span class='detail-value'>{{ $json.record.phone_number || 'N/A' }}</span></div><div class='total-row'><span>Total</span><span>£{{ Number($json.record.total).toFixed(2) }}</span></div></div><p>We'll notify you when your order is ready.</p><a href='https://apinlero.vercel.app/track/{{ $json.record.id }}' class='btn'>Track Your Order</a></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>WhatsApp: 07448682282</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 280],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-email",
+      "name": "No Email - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [700, 420]
+    }
+  ],
+  "connections": {
+    "Order Created Webhook": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Email - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "email", "orders"]
+}

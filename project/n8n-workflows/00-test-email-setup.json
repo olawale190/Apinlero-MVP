@@ -1,0 +1,166 @@
+{
+  "name": "Test Email Setup",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Test Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "test-email"
+    },
+    {
+      "parameters": {
+        "mode": "manual"
+      },
+      "id": "manual-trigger",
+      "name": "Manual Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 480]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "test-data-1",
+              "name": "customerName",
+              "value": "Test Customer",
+              "type": "string"
+            },
+            {
+              "id": "test-data-2",
+              "name": "customerEmail",
+              "value": "your-email@example.com",
+              "type": "string"
+            },
+            {
+              "id": "test-data-3",
+              "name": "orderId",
+              "value": "TEST1234",
+              "type": "string"
+            },
+            {
+              "id": "test-data-4",
+              "name": "orderTotal",
+              "value": "29.99",
+              "type": "string"
+            },
+            {
+              "id": "test-data-5",
+              "name": "deliveryAddress",
+              "value": "123 Test Street, London",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-test-data",
+      "name": "Set Test Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Test <onboarding@resend.dev>\",\n  \"to\": [\"{{ $json.customerEmail }}\"],\n  \"subject\": \"✅ Test Email from Apinlero - Order #{{ $json.orderId }}\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#0d9488,#14b8a6);color:white;padding:30px;text-align:center}.header h1{margin:0;font-size:24px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.success-box{background:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:20px;margin:20px 0;text-align:center}.success-box h2{color:#059669;margin:0 0 10px;font-size:20px}.detail-box{background:#f3f4f6;border-radius:8px;padding:20px;margin:20px 0}.detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb}.detail-row:last-child{border-bottom:none}.detail-label{color:#6b7280;font-size:14px}.detail-value{color:#111827;font-weight:600}.total-row{background:#0d9488;color:white;padding:15px;border-radius:8px;margin-top:15px;display:flex;justify-content:space-between;font-size:18px}.footer{background:#1e3a5f;color:white;padding:20px;text-align:center;font-size:12px}.footer p{margin:5px 0}</style></head><body><div class='container'><div class='header'><h1>🎉 Test Email Successful!</h1></div><div class='content'><div class='success-box'><h2>✅ Your n8n + Resend setup is working!</h2><p>This is a test email from your Apinlero automation.</p></div><p>Hi <strong>{{ $json.customerName }}</strong>,</p><p>If you're seeing this email, your n8n workflow is correctly configured to send emails via Resend.</p><div class='detail-box'><div class='detail-row'><span class='detail-label'>Test Order ID</span><span class='detail-value'>#{{ $json.orderId }}</span></div><div class='detail-row'><span class='detail-label'>Customer</span><span class='detail-value'>{{ $json.customerName }}</span></div><div class='detail-row'><span class='detail-label'>Delivery Address</span><span class='detail-value'>{{ $json.deliveryAddress }}</span></div><div class='total-row'><span>Test Total</span><span>£{{ $json.orderTotal }}</span></div></div><p><strong>Next steps:</strong></p><ul style='color:#374151;line-height:1.8'><li>Import the other workflow templates</li><li>Set up Supabase webhooks</li><li>Update the owner email address in alerts</li><li>Test with a real order</li></ul></div><div class='footer'><p><strong>Isha's Treat & Groceries</strong></p><p>Powered by Àpínlẹ̀rọ</p><p>n8n Email Automation Test</p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-test-email",
+      "name": "Send Test Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [980, 300]
+    }
+  ],
+  "connections": {
+    "Test Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test": {
+      "main": [
+        [
+          {
+            "node": "Set Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Data": {
+      "main": [
+        [
+          {
+            "node": "Send Test Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Test Email": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "test", "setup"]
+}

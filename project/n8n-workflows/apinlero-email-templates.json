@@ -1,0 +1,522 @@
+{
+  "name": "Apinlero Email Templates",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Email Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 400],
+      "webhookId": "send-email"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "order_confirmation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "order_confirmation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "order_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "order_status"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "new_order_alert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "new_order_alert"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "low_stock",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "low_stock"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "expiry_alert",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "expiry_alert"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.template }}",
+                    "rightValue": "daily_summary",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "daily_summary"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "switch-template",
+      "name": "Select Template",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"Order Confirmed! #{{ $json.body.data.orderId }}\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Order Confirmation</title></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#0d9488,#14b8a6);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>✓</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>Order Confirmed!</h1></td></tr><tr><td style='padding:40px 30px'><p style='margin:0 0 20px;color:#374151;font-size:16px;line-height:1.6'>Hi <strong>{{ $json.body.data.customerName }}</strong>,</p><p style='margin:0 0 25px;color:#374151;font-size:16px;line-height:1.6'>Thank you for your order! We've received it and will start preparing it shortly.</p><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f3f4f6;border-radius:8px;margin-bottom:25px'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Order ID</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>#{{ $json.body.data.orderId }}</span></td></tr><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Date</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.date || new Date().toLocaleDateString('en-GB') }}</span></td></tr><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Delivery</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.deliveryAddress || 'Collection' }}</span></td></tr><tr><td style='padding:12px 0'><span style='color:#6b7280;font-size:14px'>Phone</span></td><td style='padding:12px 0;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.phone || 'N/A' }}</span></td></tr></table></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#0d9488;border-radius:8px'><tr><td style='padding:18px 20px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='color:#ffffff;font-size:18px;font-weight:600'>Total</td><td style='color:#ffffff;font-size:18px;font-weight:700;text-align:right'>£{{ $json.body.data.total }}</td></tr></table></td></tr></table><p style='margin:25px 0;color:#374151;font-size:16px;line-height:1.6'>We'll notify you when your order is ready.</p><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#0d9488;border-radius:8px'><a href='https://apinlero.vercel.app/track/{{ $json.body.data.orderId }}' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>Track Your Order</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Isha's Treat & Groceries</p><p style='margin:0 0 5px;color:rgba(255,255,255,0.8);font-size:12px'>Powered by Àpínlẹ̀rọ</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>WhatsApp: 07448682282</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-order-confirmation",
+      "name": "Order Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Isha's Treat <orders@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"Order Update: {{ $json.body.data.status }} #{{ $json.body.data.orderId }}\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#3b82f6,#60a5fa);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>{{ $json.body.data.status === 'Preparing' ? '👨‍🍳' : $json.body.data.status === 'Out for Delivery' ? '🚗' : $json.body.data.status === 'Delivered' ? '✅' : '📦' }}</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>{{ $json.body.data.status }}</h1></td></tr><tr><td style='padding:40px 30px'><p style='margin:0 0 20px;color:#374151;font-size:16px;line-height:1.6'>Hi <strong>{{ $json.body.data.customerName }}</strong>,</p><p style='margin:0 0 25px;color:#374151;font-size:16px;line-height:1.6'>{{ $json.body.data.status === 'Preparing' ? 'Great news! Your order is now being prepared with care.' : $json.body.data.status === 'Out for Delivery' ? 'Exciting! Your order is on its way to you right now.' : $json.body.data.status === 'Delivered' ? 'Your order has been delivered. Enjoy!' : 'Your order status has been updated.' }}</p><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#eff6ff;border:2px solid #3b82f6;border-radius:8px;margin-bottom:25px'><tr><td style='padding:25px;text-align:center'><h2 style='margin:0 0 10px;color:#2563eb;font-size:20px'>Order #{{ $json.body.data.orderId }}</h2><p style='margin:0;color:#374151'>{{ $json.body.data.statusMessage || 'We will keep you updated.' }}</p></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#3b82f6;border-radius:8px'><a href='https://apinlero.vercel.app/track/{{ $json.body.data.orderId }}' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>Track Your Order</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Isha's Treat & Groceries</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>Powered by Àpínlẹ̀rọ</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-order-status",
+      "name": "Order Status Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 240],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Alerts <alerts@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"🆕 New Order! #{{ $json.body.data.orderId }} - £{{ $json.body.data.total }}\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#1e3a5f,#2d5a87);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>🆕</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>New Order Received!</h1></td></tr><tr><td style='padding:40px 30px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f3f4f6;border-radius:8px;margin-bottom:25px'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Order ID</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>#{{ $json.body.data.orderId }}</span></td></tr><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Customer</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.customerName }}</span></td></tr><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Phone</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.phone || 'Not provided' }}</span></td></tr><tr><td style='padding:12px 0;border-bottom:1px solid #e5e7eb'><span style='color:#6b7280;font-size:14px'>Email</span></td><td style='padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.email || 'Not provided' }}</span></td></tr><tr><td style='padding:12px 0'><span style='color:#6b7280;font-size:14px'>Delivery</span></td><td style='padding:12px 0;text-align:right'><span style='color:#111827;font-weight:600'>{{ $json.body.data.deliveryAddress || 'Collection' }}</span></td></tr></table></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#0d9488;border-radius:8px;margin-bottom:25px'><tr><td style='padding:18px 20px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='color:#ffffff;font-size:18px;font-weight:600'>Order Total</td><td style='color:#ffffff;font-size:20px;font-weight:700;text-align:right'>£{{ $json.body.data.total }}</td></tr></table></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#0d9488;border-radius:8px'><a href='https://apinlero.vercel.app/dashboard' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>View in Dashboard</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Àpínlẹ̀rọ Order Alerts</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>Automated notification</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-new-order-alert",
+      "name": "New Order Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Alerts <alerts@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"⚠️ Low Stock: {{ $json.body.data.productName }} ({{ $json.body.data.stockQuantity }} left)\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#f59e0b,#fbbf24);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>⚠️</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>Low Stock Alert!</h1></td></tr><tr><td style='padding:40px 30px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#fffbeb;border:2px solid #f59e0b;border-radius:8px;margin-bottom:25px'><tr><td style='padding:25px;text-align:center'><h2 style='margin:0 0 15px;color:#92400e;font-size:22px'>{{ $json.body.data.productName }}</h2><div style='background-color:#fef2f2;border-radius:8px;padding:25px;margin-bottom:15px'><span style='font-size:48px;font-weight:700;color:#dc2626'>{{ $json.body.data.stockQuantity }}</span><p style='margin:5px 0 0;color:#991b1b;font-size:14px'>units remaining</p></div><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='padding:8px 0;border-bottom:1px solid #fde68a'><span style='color:#92400e;font-size:14px'>Category</span></td><td style='padding:8px 0;border-bottom:1px solid #fde68a;text-align:right'><span style='color:#78350f;font-weight:600'>{{ $json.body.data.category || 'Uncategorized' }}</span></td></tr><tr><td style='padding:8px 0'><span style='color:#92400e;font-size:14px'>Price</span></td><td style='padding:8px 0;text-align:right'><span style='color:#78350f;font-weight:600'>£{{ $json.body.data.price || 'N/A' }}</span></td></tr></table></td></tr></table><p style='margin:0 0 25px;color:#374151;font-size:16px;line-height:1.6'>Please restock this item soon to avoid running out and losing sales.</p><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#f59e0b;border-radius:8px'><a href='https://apinlero.vercel.app/dashboard' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>Manage Inventory</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Àpínlẹ̀rọ Inventory Alerts</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>Automated notification</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-low-stock",
+      "name": "Low Stock Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 520],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Alerts <alerts@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"🗓️ Expiry Alert: {{ $json.body.data.productName }} expires in {{ $json.body.data.daysUntilExpiry }} days\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#ef4444,#f87171);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>🗓️</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>Expiry Alert!</h1></td></tr><tr><td style='padding:40px 30px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#fef2f2;border:2px solid #ef4444;border-radius:8px;margin-bottom:25px'><tr><td style='padding:25px;text-align:center'><h2 style='margin:0 0 15px;color:#991b1b;font-size:22px'>{{ $json.body.data.productName }}</h2><div style='background-color:#fee2e2;border-radius:8px;padding:25px;margin-bottom:15px'><p style='margin:0 0 5px;color:#991b1b;font-size:14px'>EXPIRES IN</p><span style='font-size:48px;font-weight:700;color:#dc2626'>{{ $json.body.data.daysUntilExpiry }}</span><p style='margin:5px 0 0;color:#991b1b;font-size:14px'>days</p></div><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'><tr><td style='padding:8px 0'><span style='color:#991b1b;font-size:14px'>Expiry Date</span></td><td style='padding:8px 0;text-align:right'><span style='color:#7f1d1d;font-weight:600'>{{ $json.body.data.expiryDate }}</span></td></tr></table></td></tr></table><p style='margin:0 0 25px;color:#374151;font-size:16px;line-height:1.6'>Consider discounting this product or removing it from sale before it expires.</p><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#ef4444;border-radius:8px'><a href='https://apinlero.vercel.app/dashboard' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>Manage Inventory</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Àpínlẹ̀rọ Expiry Alerts</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>Automated notification</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-expiry-alert",
+      "name": "Expiry Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 660],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero Reports <reports@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.body.to }}\"],\n  \"subject\": \"📊 Daily Summary: £{{ $json.body.data.totalRevenue }} from {{ $json.body.data.totalOrders }} orders\",\n  \"html\": \"<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head><body style='margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background-color:#f9fafb'><tr><td style='padding:20px'><table role='presentation' cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)'><tr><td style='background:linear-gradient(135deg,#1e3a5f,#2d5a87);padding:40px 30px;text-align:center'><div style='font-size:48px;margin-bottom:10px'>📊</div><h1 style='margin:0;color:#ffffff;font-size:28px;font-weight:700'>Daily Summary</h1><p style='margin:10px 0 0;color:rgba(255,255,255,0.9);font-size:14px'>{{ $json.body.data.date || new Date().toLocaleDateString('en-GB', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'}) }}</p></td></tr><tr><td style='padding:40px 30px'><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;background:linear-gradient(135deg,#0d9488,#14b8a6);border-radius:8px;margin-bottom:25px'><tr><td style='padding:30px;text-align:center'><span style='font-size:42px;font-weight:700;color:#ffffff'>£{{ $json.body.data.totalRevenue }}</span><p style='margin:5px 0 0;color:rgba(255,255,255,0.9);font-size:14px;text-transform:uppercase'>Total Revenue</p></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;margin-bottom:25px'><tr><td style='width:48%;background-color:#f3f4f6;border-radius:8px;padding:20px;text-align:center'><span style='font-size:28px;font-weight:700;color:#0d9488'>{{ $json.body.data.totalOrders }}</span><p style='margin:5px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase'>Total Orders</p></td><td style='width:4%'></td><td style='width:48%;background-color:#f3f4f6;border-radius:8px;padding:20px;text-align:center'><span style='font-size:28px;font-weight:700;color:#0d9488'>£{{ $json.body.data.averageOrderValue || '0.00' }}</span><p style='margin:5px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase'>Avg Order</p></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='width:100%;margin-bottom:25px'><tr><td style='width:48%;background-color:#ecfdf5;border-radius:8px;padding:20px;text-align:center'><span style='font-size:28px;font-weight:700;color:#059669'>{{ $json.body.data.completedOrders || 0 }}</span><p style='margin:5px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase'>Completed</p></td><td style='width:4%'></td><td style='width:48%;background-color:#fef3c7;border-radius:8px;padding:20px;text-align:center'><span style='font-size:28px;font-weight:700;color:#d97706'>{{ $json.body.data.pendingOrders || 0 }}</span><p style='margin:5px 0 0;color:#6b7280;font-size:12px;text-transform:uppercase'>Pending</p></td></tr></table><table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 auto'><tr><td style='background-color:#0d9488;border-radius:8px'><a href='https://apinlero.vercel.app/dashboard' style='display:inline-block;padding:16px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px'>View Full Dashboard</a></td></tr></table></td></tr><tr><td style='background-color:#1e3a5f;padding:30px;text-align:center'><p style='margin:0 0 5px;color:#ffffff;font-size:14px;font-weight:600'>Àpínlẹ̀rọ Daily Reports</p><p style='margin:0;color:rgba(255,255,255,0.8);font-size:12px'>Isha's Treat & Groceries</p></td></tr></table></td></tr></table></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-daily-summary",
+      "name": "Daily Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 800],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\"success\": true, \"message\": \"Email sent successfully\", \"template\": $('Email Webhook').item.json.body.template} }}",
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1020, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": false, \"error\": \"Unknown template. Use: order_confirmation, order_status, new_order_alert, low_stock, expiry_alert, daily_summary\"}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [760, 940]
+    }
+  ],
+  "connections": {
+    "Email Webhook": {
+      "main": [
+        [
+          {
+            "node": "Select Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Template": {
+      "main": [
+        [
+          {
+            "node": "Order Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Order Status Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "New Order Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Low Stock Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Expiry Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Status Update": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Order Alert": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low Stock Alert": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expiry Alert": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "email", "templates"]
+}

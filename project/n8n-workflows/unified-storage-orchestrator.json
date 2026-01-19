@@ -1,0 +1,238 @@
+{
+  "name": "Apinlero - Unified Storage Orchestrator",
+  "description": "Central workflow that manages all storage across Supabase, and coordinates with all Apinlero services",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage/upload",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-upload",
+      "name": "Webhook - Universal Upload",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage/whatsapp-media",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-whatsapp",
+      "name": "Webhook - WhatsApp Media",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage/generate-receipt",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-receipt",
+      "name": "Webhook - Generate Receipt",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 600]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "storage/backup",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-backup",
+      "name": "Webhook - Trigger Backup",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 800]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "storage/stats",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook-stats",
+      "name": "Webhook - Storage Stats",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 1000]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.bucket }}",
+              "operation": "equals",
+              "value2": "media"
+            }
+          ]
+        }
+      },
+      "id": "route-bucket",
+      "name": "Route by Bucket Type",
+      "type": "n8n-nodes-base.if",
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-media/{{ $json.folder || 'uploads' }}/{{ Date.now() }}_{{ $json.fileName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}"},
+            {"name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"},
+            {"name": "Content-Type", "value": "={{ $json.contentType || 'application/octet-stream' }}"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $json.fileData }}"
+      },
+      "id": "upload-media",
+      "name": "Upload to Media Bucket",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [750, 150]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-documents/{{ $json.folder || 'documents' }}/{{ Date.now() }}_{{ $json.fileName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}"},
+            {"name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"},
+            {"name": "Content-Type", "value": "={{ $json.contentType || 'application/octet-stream' }}"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $json.fileData }}"
+      },
+      "id": "upload-documents",
+      "name": "Upload to Documents Bucket",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.mediaUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Basic {{ Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}"}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-twilio-media",
+      "name": "Download from Twilio",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/apinlero-media/whatsapp/{{ $json.customerPhone }}/{{ Date.now() }}_{{ $json.mediaType }}.{{ $json.mediaType === 'image' ? 'jpg' : $json.mediaType === 'audio' ? 'ogg' : 'mp4' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}"},
+            {"name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}"},
+            {"name": "Content-Type", "value": "={{ $json.contentType }}"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $binary.data }}"
+      },
+      "id": "store-whatsapp-media",
+      "name": "Store WhatsApp Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "media_files",
+        "columns": "customer_phone,file_path,file_type,source,metadata",
+        "additionalFields": {}
+      },
+      "id": "log-to-database",
+      "name": "Log File to Database",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, path: $json.Key, url: $env.SUPABASE_URL + '/storage/v1/object/public/' + $json.Key, timestamp: new Date().toISOString() }) }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error || 'Upload failed' }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 100]
+    }
+  ],
+  "connections": {
+    "Webhook - Universal Upload": {
+      "main": [[{"node": "Route by Bucket Type", "type": "main", "index": 0}]]
+    },
+    "Route by Bucket Type": {
+      "main": [
+        [{"node": "Upload to Media Bucket", "type": "main", "index": 0}],
+        [{"node": "Upload to Documents Bucket", "type": "main", "index": 0}]
+      ]
+    },
+    "Webhook - WhatsApp Media": {
+      "main": [[{"node": "Download from Twilio", "type": "main", "index": 0}]]
+    },
+    "Download from Twilio": {
+      "main": [[{"node": "Store WhatsApp Media", "type": "main", "index": 0}]]
+    },
+    "Store WhatsApp Media": {
+      "main": [[{"node": "Log File to Database", "type": "main", "index": 0}]]
+    },
+    "Upload to Media Bucket": {
+      "main": [[{"node": "Respond Success", "type": "main", "index": 0}]]
+    },
+    "Upload to Documents Bucket": {
+      "main": [[{"node": "Respond Success", "type": "main", "index": 0}]]
+    },
+    "Log File to Database": {
+      "main": [[{"node": "Respond Success", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": ["apinlero", "storage", "orchestrator", "production"]
+}
