@@ -56,38 +56,11 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
     setIsLoading(false);
   };
 
-  // Demo login for pilot testing - uses real Isha's Treat credentials
-  const handleDemoLogin = async () => {
-    setError('');
-    setIsLoading(true);
-
-    // Real credentials for Isha's Treat pilot account
-    const demoEmail = 'Info@ishastreatandgroceriescom.uk';
-    const demoPassword = 'IshasTreat2026';
-
-    try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-
-      if (signInError) {
-        // Fallback to demo mode if Supabase login fails
-        console.warn('Supabase login failed, using demo mode:', signInError.message);
-        localStorage.setItem('apinlero_demo_mode', 'true');
-        onLoginSuccess();
-      } else {
-        // Clear demo mode if using real auth
-        localStorage.removeItem('apinlero_demo_mode');
-        onLoginSuccess();
-      }
-    } catch {
-      // Fallback to demo mode
-      localStorage.setItem('apinlero_demo_mode', 'true');
-      onLoginSuccess();
-    }
-
-    setIsLoading(false);
+  // Demo login for pilot testing - direct access, no auth required
+  const handleDemoLogin = () => {
+    // Set demo mode flag and go directly to dashboard
+    localStorage.setItem('apinlero_demo_mode', 'true');
+    onLoginSuccess();
   };
 
   return (
