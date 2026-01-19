@@ -16,14 +16,24 @@ type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | '
 
 // SaaS Dashboard App (for app.apinlero.com subdomain)
 function SaaSDashboard() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Check localStorage for demo mode (allows bypass without Supabase session)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('apinlero_demo_mode') === 'true';
+  });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing session
+    // Check for existing session or demo mode
     const checkSession = async () => {
+      // If demo mode is set, skip Supabase check
+      if (localStorage.getItem('apinlero_demo_mode') === 'true') {
+        setIsAuthenticated(true);
+        setIsCheckingAuth(false);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
       setIsCheckingAuth(false);
@@ -36,7 +46,10 @@ function SaaSDashboard() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+      // Don't override demo mode
+      if (localStorage.getItem('apinlero_demo_mode') !== 'true') {
+        setIsAuthenticated(!!session);
+      }
     });
 
     return () => {
@@ -49,6 +62,8 @@ function SaaSDashboard() {
   };
 
   const handleLogout = async () => {
+    // Clear demo mode
+    localStorage.removeItem('apinlero_demo_mode');
     await supabase.auth.signOut();
     setIsAuthenticated(false);
   };

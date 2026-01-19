@@ -63,6 +63,9 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
 
     // For testing purposes, bypass Supabase auth and go directly to dashboard
     // This allows Isha's Treat to test the dashboard without email verification
+    // Set demo mode in localStorage so App.tsx recognizes the session
+    localStorage.setItem('apinlero_demo_mode', 'true');
+
     setTimeout(() => {
       setIsLoading(false);
       onLoginSuccess();
