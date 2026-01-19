@@ -63,7 +63,7 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
 
     // Pre-fill demo credentials
     const demoEmail = 'isha@ishastreat.co.uk';
-    const demoPassword = 'IshaTest123!';
+    const demoPassword = 'IshaTest123';
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
