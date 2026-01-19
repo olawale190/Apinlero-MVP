@@ -56,36 +56,17 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
     setIsLoading(false);
   };
 
-  // Demo login for pilot testing - uses real credentials
-  const handleDemoLogin = async () => {
+  // Demo login for pilot testing - bypasses Supabase auth for testing
+  const handleDemoLogin = () => {
     setError('');
     setIsLoading(true);
 
-    // Pre-fill demo credentials
-    const demoEmail = 'isha@ishastreat.co.uk';
-    const demoPassword = 'IshaTest123';
-
-    try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-
-      if (signInError) {
-        // If demo user doesn't exist, create it
-        if (signInError.message.includes('Invalid login credentials')) {
-          setError('Demo account not set up. Please use Sign Up with email: isha@ishastreat.co.uk');
-        } else {
-          setError(signInError.message);
-        }
-      } else {
-        onLoginSuccess();
-      }
-    } catch {
-      setError('Demo login failed. Please sign up first.');
-    }
-
-    setIsLoading(false);
+    // For testing purposes, bypass Supabase auth and go directly to dashboard
+    // This allows Isha's Treat to test the dashboard without email verification
+    setTimeout(() => {
+      setIsLoading(false);
+      onLoginSuccess();
+    }, 500);
   };
 
   return (
