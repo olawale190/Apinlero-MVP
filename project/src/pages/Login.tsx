@@ -56,20 +56,38 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
     setIsLoading(false);
   };
 
-  // Demo login for pilot testing - bypasses Supabase auth for testing
-  const handleDemoLogin = () => {
+  // Demo login for pilot testing - uses real Isha's Treat credentials
+  const handleDemoLogin = async () => {
     setError('');
     setIsLoading(true);
 
-    // For testing purposes, bypass Supabase auth and go directly to dashboard
-    // This allows Isha's Treat to test the dashboard without email verification
-    // Set demo mode in localStorage so App.tsx recognizes the session
-    localStorage.setItem('apinlero_demo_mode', 'true');
+    // Real credentials for Isha's Treat pilot account
+    const demoEmail = 'Info@ishastreatandgroceriescom.uk';
+    const demoPassword = 'IshasTreat2026';
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: demoEmail,
+        password: demoPassword,
+      });
+
+      if (signInError) {
+        // Fallback to demo mode if Supabase login fails
+        console.warn('Supabase login failed, using demo mode:', signInError.message);
+        localStorage.setItem('apinlero_demo_mode', 'true');
+        onLoginSuccess();
+      } else {
+        // Clear demo mode if using real auth
+        localStorage.removeItem('apinlero_demo_mode');
+        onLoginSuccess();
+      }
+    } catch {
+      // Fallback to demo mode
+      localStorage.setItem('apinlero_demo_mode', 'true');
       onLoginSuccess();
-    }, 500);
+    }
+
+    setIsLoading(false);
   };
 
   return (

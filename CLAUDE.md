@@ -352,9 +352,9 @@ Files updated:
 - **Test Phones**: +44 7935 238972, +44 7733 743448
 - **Dashboard Login**:
   - **URL**: `https://project-apinlero.vercel.app/app`
-  - **Email**: `isha@ishastreat.co.uk`
-  - **Password**: `IshaTest123`
-  - Or click "Demo Login (Pilot Testing)" button
+  - **Email**: `Info@ishastreatandgroceriescom.uk`
+  - **Password**: `IshasTreat2026`
+  - Or click "Demo Login (Pilot Testing)" button (auto-logs in with above credentials)
 - **Store URL**: `/store/ishas-treat`
 
 ---
