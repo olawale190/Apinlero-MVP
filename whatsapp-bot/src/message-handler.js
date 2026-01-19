@@ -1,8 +1,9 @@
 /**
- * Àpínlẹ̀rọ Message Handler
+ * Àpínlẹ̀rọ Message Handler v2.0.0
  *
  * Processes incoming WhatsApp messages and generates responses
  * Manages conversation state and order flow with Supabase persistence
+ * Now supports multi-tenant operations with business context
  */
 
 import { parseMessage, matchProduct, getDeliveryZone, isCompleteOrder } from './message-parser.js';
@@ -27,33 +28,50 @@ const AUTO_CONFIRM_THRESHOLD = 30; // £30 for orders below this amount
 const MIN_ORDERS_FOR_AUTO_CONFIRM = 2; // Minimum past orders to enable auto-confirm
 
 // In-memory cache for sessions (backed by Supabase)
+// Key format: `${businessId || 'default'}:${phone}`
 const sessionCache = new Map();
+
+/**
+ * Generate session cache key for multi-tenant support
+ * @param {string} phone - Customer phone number
+ * @param {string|null} businessId - Business ID for multi-tenant mode
+ */
+function getSessionKey(phone, businessId = null) {
+  return businessId ? `${businessId}:${phone}` : `default:${phone}`;
+}
 
 /**
  * Get or create conversation state for a customer
  * Uses Supabase for persistence with in-memory cache
+ * @param {string} phone - Customer phone number
+ * @param {string|null} customerName - Customer name from WhatsApp profile
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-async function getConversation(phone, customerName = null) {
+async function getConversation(phone, customerName = null, businessId = null) {
+  const cacheKey = getSessionKey(phone, businessId);
+
   // Check cache first
-  let conversation = sessionCache.get(phone);
+  let conversation = sessionCache.get(cacheKey);
 
   if (!conversation) {
-    // Try to load from Supabase
-    conversation = await getSession(phone);
+    // Try to load from Supabase (pass businessId for tenant-scoped query)
+    conversation = await getSession(phone, businessId);
   }
 
   if (conversation) {
     conversation.lastActivity = Date.now();
-    sessionCache.set(phone, conversation);
+    conversation.businessId = businessId; // Ensure businessId is set
+    sessionCache.set(cacheKey, conversation);
     return conversation;
   }
 
-  // Get or create customer record
-  const customer = await getOrCreateCustomer(phone, customerName);
+  // Get or create customer record (scoped to business if multi-tenant)
+  const customer = await getOrCreateCustomer(phone, customerName, businessId);
 
   // Create new conversation
   conversation = {
     phone,
+    businessId,
     state: 'INITIAL',
     pendingOrder: null,
     lastActivity: Date.now(),
@@ -62,53 +80,89 @@ async function getConversation(phone, customerName = null) {
     customerName: customer?.name || customerName
   };
 
-  sessionCache.set(phone, conversation);
-  await saveSession(phone, conversation);
+  sessionCache.set(cacheKey, conversation);
+  await saveSession(phone, conversation, businessId);
 
   return conversation;
 }
 
 /**
  * Update conversation state
+ * @param {string} phone - Customer phone number
+ * @param {Object} updates - Fields to update
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-async function updateConversation(phone, updates) {
-  const conversation = sessionCache.get(phone) || { phone };
+async function updateConversation(phone, updates, businessId = null) {
+  const cacheKey = getSessionKey(phone, businessId);
+  const conversation = sessionCache.get(cacheKey) || { phone, businessId };
   Object.assign(conversation, updates, { lastActivity: Date.now() });
-  sessionCache.set(phone, conversation);
+  sessionCache.set(cacheKey, conversation);
 
   // Persist to Supabase
-  await saveSession(phone, conversation);
+  await saveSession(phone, conversation, businessId);
 
   return conversation;
 }
 
 /**
  * Clear conversation state
+ * @param {string} phone - Customer phone number
+ * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-async function clearConversation(phone) {
-  sessionCache.delete(phone);
-  await deleteSession(phone);
+async function clearConversation(phone, businessId = null) {
+  const cacheKey = getSessionKey(phone, businessId);
+  sessionCache.delete(cacheKey);
+  await deleteSession(phone, businessId);
 }
 
 /**
  * Main message handler
  * @param {Object} params - Message parameters
+ * @param {string} params.from - Customer phone number
+ * @param {string} params.customerName - Customer name from profile
+ * @param {string} params.text - Message text
+ * @param {string} params.messageId - Unique message ID
+ * @param {string} params.provider - 'twilio' or 'meta'
+ * @param {string|null} params.businessId - Business ID for multi-tenant mode
+ * @param {string} params.buttonId - Button ID if interactive reply
+ * @param {string} params.listId - List item ID if interactive reply
+ * @param {string} params.mediaId - Media ID if media message
+ * @param {string} params.messageType - Message type (text, image, etc.)
  * @returns {Object} - Response {text, buttons}
  */
-export async function handleIncomingMessage({ from, customerName, text, messageId }) {
-  const conversation = await getConversation(from, customerName);
-  const parsed = await parseMessage(text);
+export async function handleIncomingMessage({
+  from,
+  customerName,
+  text,
+  messageId,
+  provider = 'twilio',
+  businessId = null,
+  buttonId = null,
+  listId = null,
+  mediaId = null,
+  messageType = 'text'
+}) {
+  // Get conversation with business context
+  const conversation = await getConversation(from, customerName, businessId);
+
+  // If this is a button/list reply, use the ID as the text for intent parsing
+  const messageText = buttonId || listId || text || '';
+
+  const parsed = await parseMessage(messageText);
 
   console.log(`📝 Parsed message:`, {
     intent: parsed.intent,
     items: parsed.items.length,
     state: conversation.state,
     customer: conversation.customerName || customerName,
+    businessId: businessId || 'default',
+    provider,
+    messageType,
     neo4j: parsed.neo4jEnabled ? '🧠 Active' : '⚠️ Fallback'
   });
 
-  // Log inbound message
-  await logMessage(from, 'inbound', text, parsed.intent);
+  // Log inbound message (with business context)
+  await logMessage(from, 'inbound', messageText, parsed.intent, null, businessId);
 
   // Handle based on intent and conversation state
   try {
@@ -208,7 +262,7 @@ export async function handleIncomingMessage({ from, customerName, text, messageI
  * Handle greeting messages
  */
 function handleGreeting(customerName, conversation) {
-  updateConversation(conversation.phone, { state: 'GREETED' });
+  updateConversation(conversation.phone, { state: 'GREETED' }, conversation.businessId);
   return generateResponse('GREETING', { customerName });
 }
 
@@ -309,11 +363,11 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   await updateConversation(phone, {
     state: 'AWAITING_CONFIRMATION',
     pendingOrder
-  });
+  }, conversation.businessId);
 
   // Check if we need address
   if (!finalAddress && !finalPostcode) {
-    await updateConversation(phone, { state: 'AWAITING_ADDRESS' });
+    await updateConversation(phone, { state: 'AWAITING_ADDRESS' }, conversation.businessId);
     return generateResponse('NEED_ADDRESS', {
       items: orderItems,
       subtotal,
@@ -370,7 +424,7 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
       lastOrderId: createdOrder.id
-    });
+    }, conversation.businessId);
 
     return generateResponse('AUTO_CONFIRMED', {
       orderId: createdOrder.id,
@@ -386,7 +440,7 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
     await updateConversation(phone, {
       state: 'AWAITING_CONFIRMATION',
       pendingOrder
-    });
+    }, conversation.businessId);
     return generateResponse('ORDER_CONFIRMATION', {
       items: pendingOrder.items,
       subtotal: pendingOrder.subtotal,
@@ -426,7 +480,7 @@ async function handleReorder(phone, customerName, conversation) {
     await updateConversation(phone, {
       state: 'AWAITING_CONFIRMATION',
       pendingOrder
-    });
+    }, conversation.businessId);
 
     return generateResponse('REORDER_CONFIRM', {
       items: lastOrder.items,
@@ -509,7 +563,7 @@ async function handleConfirmation(phone, customerName, conversation) {
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
       lastOrderId: createdOrder.id
-    });
+    }, conversation.businessId);
 
     return generateResponse('ORDER_CONFIRMED', {
       orderId: createdOrder.id,
@@ -539,7 +593,7 @@ async function handlePaymentChoice(phone, conversation, method) {
 
     await updateConversation(phone, {
       state: 'ORDER_COMPLETED'
-    });
+    }, conversation.businessId);
 
     const methodLabels = {
       'cash': 'Cash on Delivery',
@@ -566,11 +620,11 @@ function handleDecline(conversation) {
     updateConversation(conversation.phone, {
       state: 'EDITING_ORDER',
       pendingOrder: conversation.pendingOrder
-    });
+    }, conversation.businessId);
     return generateResponse('ORDER_EDIT_PROMPT');
   }
 
-  updateConversation(conversation.phone, { state: 'INITIAL' });
+  updateConversation(conversation.phone, { state: 'INITIAL' }, conversation.businessId);
   return generateResponse('ORDER_CANCELLED');
 }
 
@@ -696,7 +750,7 @@ async function handleOrderStatus(phone) {
  * Handle cancellation request
  */
 async function handleCancel(conversation) {
-  await clearConversation(conversation.phone);
+  await clearConversation(conversation.phone, conversation.businessId);
   return generateResponse('CANCELLED');
 }
 
@@ -728,7 +782,7 @@ async function handleStartOrder(conversation) {
 
   text += `\n*To order:* Just type the number or name!\nExample: "1" or "Palm Oil" or "2x Egusi"\n\n💳 Pay online or Cash on Delivery`;
 
-  await updateConversation(conversation.phone, { state: 'AWAITING_ORDER' });
+  await updateConversation(conversation.phone, { state: 'AWAITING_ORDER' }, conversation.businessId);
 
   return { text, buttons: ['📋 Full Catalog', '❌ Cancel'] };
 }
@@ -785,7 +839,7 @@ async function handleGeneralInquiry(text, conversation) {
       await updateConversation(conversation.phone, {
         state: 'AWAITING_CONFIRMATION',
         pendingOrder: order
-      });
+      }, conversation.businessId);
 
       return generateResponse('ORDER_CONFIRMATION', {
         items: order.items,

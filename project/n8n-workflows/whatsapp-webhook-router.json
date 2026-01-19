@@ -1,0 +1,577 @@
+{
+  "name": "Apinlero - WhatsApp Webhook Router",
+  "description": "Routes incoming WhatsApp webhooks from Meta to the appropriate business bot instance",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp/webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-verify-get",
+      "name": "Webhook Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 200],
+      "webhookId": "whatsapp-verify"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp/webhook",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-messages-post",
+      "name": "Webhook Messages (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 400],
+      "webhookId": "whatsapp-messages"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle Meta webhook verification challenge\nconst query = $input.first().json.query || {};\nconst mode = query['hub.mode'];\nconst token = query['hub.verify_token'];\nconst challenge = query['hub.challenge'];\n\n// We need to verify against ALL businesses' verify tokens\n// For simplicity, we'll pass this to Supabase to check\nreturn [{\n  json: {\n    mode,\n    verify_token: token,\n    challenge,\n    is_verification: true\n  }\n}];"
+      },
+      "id": "parse-verify-request",
+      "name": "Parse Verify Request",
+      "type": "n8n-nodes-base.code",
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "whatsapp_configs",
+        "returnAll": false,
+        "limit": 1,
+        "filterByFormula": "webhook_verify_token = '{{ $json.verify_token }}' AND is_active = true"
+      },
+      "id": "verify-token-lookup",
+      "name": "Verify Token Lookup",
+      "type": "n8n-nodes-base.supabase",
+      "position": [750, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-verify-valid",
+      "name": "Token Valid?",
+      "type": "n8n-nodes-base.if",
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $('Parse Verify Request').item.json.challenge }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-challenge",
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1250, 150]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Forbidden",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "respond-forbidden",
+      "name": "Respond Forbidden",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse incoming WhatsApp webhook\nconst body = $input.first().json.body;\n\n// Validate it's a WhatsApp webhook\nif (body?.object !== 'whatsapp_business_account') {\n  return [{ json: { skip: true, reason: 'Not a WhatsApp webhook' } }];\n}\n\nconst entry = body.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\n\nif (!value) {\n  return [{ json: { skip: true, reason: 'No value in webhook' } }];\n}\n\n// Extract phone_number_id to identify the business\nconst phoneNumberId = value.metadata?.phone_number_id;\nconst displayPhoneNumber = value.metadata?.display_phone_number;\n\n// Check for status updates (delivery receipts)\nif (value.statuses?.length > 0) {\n  const status = value.statuses[0];\n  return [{\n    json: {\n      webhookType: 'status',\n      phoneNumberId,\n      displayPhoneNumber,\n      messageId: status.id,\n      recipientId: status.recipient_id,\n      status: status.status,\n      timestamp: new Date(parseInt(status.timestamp) * 1000).toISOString(),\n      errors: status.errors,\n      rawPayload: body\n    }\n  }];\n}\n\n// Check for messages\nif (value.messages?.length > 0) {\n  const message = value.messages[0];\n  const contact = value.contacts?.[0];\n\n  const parsed = {\n    webhookType: 'message',\n    phoneNumberId,\n    displayPhoneNumber,\n    messageId: message.id,\n    from: message.from,\n    timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),\n    profileName: contact?.profile?.name || null,\n    waId: contact?.wa_id,\n    messageType: message.type,\n    rawPayload: body\n  };\n\n  // Extract message content based on type\n  switch (message.type) {\n    case 'text':\n      parsed.content = message.text?.body;\n      break;\n    case 'image':\n      parsed.content = message.image?.caption || '[Image]';\n      parsed.mediaId = message.image?.id;\n      break;\n    case 'audio':\n      parsed.content = '[Voice Message]';\n      parsed.mediaId = message.audio?.id;\n      break;\n    case 'video':\n      parsed.content = message.video?.caption || '[Video]';\n      parsed.mediaId = message.video?.id;\n      break;\n    case 'document':\n      parsed.content = message.document?.caption || `[Document: ${message.document?.filename}]`;\n      parsed.mediaId = message.document?.id;\n      parsed.filename = message.document?.filename;\n      break;\n    case 'location':\n      parsed.content = `[Location: ${message.location?.name || 'Shared'}]`;\n      parsed.location = message.location;\n      break;\n    case 'interactive':\n      if (message.interactive?.type === 'button_reply') {\n        parsed.content = message.interactive.button_reply.title;\n        parsed.buttonId = message.interactive.button_reply.id;\n      } else if (message.interactive?.type === 'list_reply') {\n        parsed.content = message.interactive.list_reply.title;\n        parsed.listId = message.interactive.list_reply.id;\n      }\n      break;\n    default:\n      parsed.content = `[${message.type}]`;\n  }\n\n  return [{ json: parsed }];\n}\n\nreturn [{ json: { skip: true, reason: 'No messages or statuses' } }];"
+      },
+      "id": "parse-webhook-payload",
+      "name": "Parse Webhook Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.skip }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-skip",
+      "name": "Should Skip?",
+      "type": "n8n-nodes-base.if",
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-skip-ok",
+      "name": "Respond OK (Skip)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "whatsapp_configs",
+        "returnAll": false,
+        "limit": 1,
+        "filterByFormula": "phone_number_id = '{{ $json.phoneNumberId }}' AND is_active = true"
+      },
+      "id": "lookup-business-config",
+      "name": "Lookup Business Config",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1000, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-business-found",
+      "name": "Business Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge webhook data with business config\nconst webhookData = $('Parse Webhook Payload').first().json;\nconst config = $input.first().json;\n\nreturn [{\n  json: {\n    ...webhookData,\n    businessId: config.business_id,\n    businessName: config.business_name,\n    provider: config.provider,\n    accessToken: config.access_token,\n    // For Twilio fallback if needed\n    twilioAccountSid: config.twilio_account_sid,\n    twilioAuthToken: config.twilio_auth_token,\n    twilioPhoneNumber: config.twilio_phone_number\n  }\n}];"
+      },
+      "id": "merge-config-with-webhook",
+      "name": "Merge Config with Webhook",
+      "type": "n8n-nodes-base.code",
+      "position": [1500, 450]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.webhookType }}",
+              "operation": "equals",
+              "value2": "status"
+            }
+          ]
+        }
+      },
+      "id": "check-webhook-type",
+      "name": "Status or Message?",
+      "type": "n8n-nodes-base.if",
+      "position": [1750, 450]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "whatsapp_message_logs",
+        "filterByFormula": "message_id = '{{ $json.messageId }}'",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "delivered_at": "={{ $json.status === 'delivered' ? $json.timestamp : null }}",
+            "read_at": "={{ $json.status === 'read' ? $json.timestamp : null }}"
+          }
+        }
+      },
+      "id": "update-message-status",
+      "name": "Update Message Status",
+      "type": "n8n-nodes-base.supabase",
+      "position": [2000, 350],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_BOT_URL || 'https://web-production-63e51.up.railway.app' }}/webhook/meta",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Apinlero-Business-Id",
+              "value": "={{ $json.businessId }}"
+            },
+            {
+              "name": "X-Apinlero-Provider",
+              "value": "={{ $json.provider }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "businessId",
+              "value": "={{ $json.businessId }}"
+            },
+            {
+              "name": "businessName",
+              "value": "={{ $json.businessName }}"
+            },
+            {
+              "name": "phoneNumberId",
+              "value": "={{ $json.phoneNumberId }}"
+            },
+            {
+              "name": "accessToken",
+              "value": "={{ $json.accessToken }}"
+            },
+            {
+              "name": "provider",
+              "value": "={{ $json.provider }}"
+            },
+            {
+              "name": "messageId",
+              "value": "={{ $json.messageId }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $json.from }}"
+            },
+            {
+              "name": "profileName",
+              "value": "={{ $json.profileName }}"
+            },
+            {
+              "name": "messageType",
+              "value": "={{ $json.messageType }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}"
+            },
+            {
+              "name": "mediaId",
+              "value": "={{ $json.mediaId }}"
+            },
+            {
+              "name": "buttonId",
+              "value": "={{ $json.buttonId }}"
+            },
+            {
+              "name": "listId",
+              "value": "={{ $json.listId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "forward-to-bot",
+      "name": "Forward to WhatsApp Bot",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2000, 550]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "whatsapp_message_logs",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "business_id": "={{ $('Merge Config with Webhook').first().json.businessId }}",
+            "message_id": "={{ $('Merge Config with Webhook').first().json.messageId }}",
+            "direction": "inbound",
+            "customer_phone": "={{ $('Merge Config with Webhook').first().json.from }}",
+            "message_type": "={{ $('Merge Config with Webhook').first().json.messageType }}",
+            "content": "={{ $('Merge Config with Webhook').first().json.content }}",
+            "provider": "={{ $('Merge Config with Webhook').first().json.provider }}",
+            "raw_payload": "={{ JSON.stringify($('Merge Config with Webhook').first().json.rawPayload) }}"
+          }
+        }
+      },
+      "id": "log-inbound-message",
+      "name": "Log Inbound Message",
+      "type": "n8n-nodes-base.supabase",
+      "position": [2250, 550],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok-final",
+      "name": "Respond OK (Final)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [2500, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Business not found",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "respond-not-found",
+      "name": "Respond Not Found",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1500, 650]
+    }
+  ],
+  "connections": {
+    "Webhook Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Parse Verify Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Verify Request": {
+      "main": [
+        [
+          {
+            "node": "Verify Token Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Token Lookup": {
+      "main": [
+        [
+          {
+            "node": "Token Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Valid?": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Forbidden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Messages (POST)": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Payload": {
+      "main": [
+        [
+          {
+            "node": "Should Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Skip?": {
+      "main": [
+        [
+          {
+            "node": "Respond OK (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup Business Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Business Config": {
+      "main": [
+        [
+          {
+            "node": "Business Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business Found?": {
+      "main": [
+        [
+          {
+            "node": "Merge Config with Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Config with Webhook": {
+      "main": [
+        [
+          {
+            "node": "Status or Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status or Message?": {
+      "main": [
+        [
+          {
+            "node": "Update Message Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Forward to WhatsApp Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Message Status": {
+      "main": [
+        [
+          {
+            "node": "Respond OK (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forward to WhatsApp Bot": {
+      "main": [
+        [
+          {
+            "node": "Log Inbound Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Inbound Message": {
+      "main": [
+        [
+          {
+            "node": "Respond OK (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "Europe/London"
+  },
+  "tags": [
+    "apinlero",
+    "whatsapp",
+    "webhook",
+    "router",
+    "multi-tenant"
+  ]
+}

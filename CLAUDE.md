@@ -355,4 +355,25 @@ Files updated:
 
 ---
 
+## GitHub Repository
+
+- **Repo**: https://github.com/olawale190/Apinlero-MVP
+- **Auto-Deploy**: Connected to Vercel (pushes trigger deployments)
+
+### Deploy Workflow
+```bash
+git add -A
+git commit -m "Your message"
+git push
+```
+Vercel auto-deploys within ~30 seconds.
+
+### Manual Deploy (Backup)
+```bash
+cd project
+npx vercel --prod --yes
+```
+
+---
+
 *Last Updated: January 19, 2026*
