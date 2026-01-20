@@ -265,10 +265,17 @@ npm run preview
 
 | Service | URL | Platform |
 |---------|-----|----------|
-| **Web App / Dashboard** | `https://project-apinlero.vercel.app` | Vercel |
+| **Landing Page** | `https://apinlero.com` | Vercel |
+| **Dashboard** | `https://app.apinlero.com` | Vercel |
+| **Isha's Store** | `https://ishas-treat.apinlero.com` | Vercel |
 | **WhatsApp Bot** | `https://web-production-63e51.up.railway.app` | Railway |
-| **Landing Page** | `https://project-apinlero.vercel.app` | Vercel |
-| **Isha's Store** | `https://project-apinlero.vercel.app/store/ishas-treat` | Vercel |
+
+### Fallback URLs (Vercel subdomain)
+| Service | URL |
+|---------|-----|
+| Landing Page | `https://project-apinlero.vercel.app` |
+| Dashboard | `https://project-apinlero.vercel.app/app` |
+| Isha's Store | `https://project-apinlero.vercel.app/store/ishas-treat` |
 
 ---
 

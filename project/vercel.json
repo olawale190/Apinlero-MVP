@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/app/$1",
+      "destination": "/index.html",
       "has": [
         {
           "type": "host",
@@ -15,27 +15,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/app/$1",
-      "has": [
-        {
-          "type": "host",
-          "value": "app.apinlero.co.uk"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/store/ishas-treat/$1",
-      "has": [
-        {
-          "type": "host",
-          "value": "ishas-treat.apinlero.co.uk"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/store/ishas-treat/$1",
+      "destination": "/index.html",
       "has": [
         {
           "type": "host",
@@ -45,7 +25,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/index.html"
     }
   ]
 }
