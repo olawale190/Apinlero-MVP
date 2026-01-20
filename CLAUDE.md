@@ -1,4 +1,4 @@
-# Apinlero MVP - Development Notes
+<!--# Apinlero MVP - Development Notes-->
 
 This document tracks the development progress and architecture decisions for the Apinlero MVP project.
 
