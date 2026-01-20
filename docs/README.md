@@ -42,7 +42,7 @@ This directory contains comprehensive documentation for the Àpínlẹ̀rọ MVP
   - Voice AI (Vapi) planned for Year 2
 
 - ✅ **05_PRODUCT_ROADMAP.md** - 18-month product evolution plan (v2.0)
-  - Year 1: 45 customers, Neo4j Knowledge Graph, WhatsApp API
+  - Year 1: 50 customers, Neo4j Knowledge Graph, WhatsApp API
   - Year 2: 150 customers, Voice AI (Vapi), Custom ML Models
   - Year 3: 400 customers, Enterprise features, API Platform
 
@@ -166,7 +166,7 @@ This directory contains comprehensive documentation for the Àpínlẹ̀rọ MVP
 - Exceptional unit economics (LTV:CAC 23:1)
 - Defensible competitive moats (Neo4j Knowledge Graph, Voice AI, community distribution)
 - Realistic financial projections:
-  - Year 1: 45 customers, £84,400 ARR, 62% net margin
+  - Year 1: 50 customers, £84,400 ARR, 62% net margin
   - Year 2: 150 customers, £300,000 ARR, 50% net margin
   - Year 3: 400 customers, £780,000 ARR, 37% net margin
 
@@ -198,7 +198,7 @@ This directory contains comprehensive documentation for the Àpínlẹ̀rọ MVP
 **Pages:** 35+
 **Key Sections:**
 - 18-month strategic roadmap (Phases 1-4)
-- **Year 1 (2025):** 45 customers, Neo4j Knowledge Graph, WhatsApp API, n8n automation
+- **Year 1 (2025):** 50 customers, Neo4j Knowledge Graph, WhatsApp API, n8n automation
 - **Year 2 (2026):** 150 customers, Voice AI (Vapi), Custom ML Models, Mobile Apps
 - **Year 3 (2027):** 400 customers, Enterprise features, API Platform
 - Quarterly feature planning with priorities
@@ -209,7 +209,7 @@ This directory contains comprehensive documentation for the Àpínlẹ̀rọ MVP
 - Competitive advantages (Neo4j Knowledge Graph, Voice AI, Data Flywheel)
 
 **Highlights for UKES:**
-- Clear growth trajectory (1 → 45 → 150 → 400 customers)
+- Clear growth trajectory (1 → 50 → 150 → 400 customers)
 - Revenue scaling (£0 → £84K → £300K → £780K ARR)
 - Proprietary technology innovation pipeline (Neo4j, Vapi, Custom ML)
 - Demonstrates scalability vision across 10 sectors
@@ -303,7 +303,7 @@ Supporting Documentation:
 
 ### For Investors:
 1. Business Model Canvas - Revenue model (£780K ARR Year 3)
-2. Product Roadmap - Growth trajectory (45 → 150 → 400 customers)
+2. Product Roadmap - Growth trajectory (50 → 150 → 400 customers)
 3. Technical Architecture - Competitive moats (Neo4j, Voice AI, Custom ML)
 4. PRD - Market opportunity (10 high-value sectors, 500K SAM)
 
