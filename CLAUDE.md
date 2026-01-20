@@ -244,6 +244,57 @@ npm run preview
 
 ---
 
+## Claude Code Skills
+
+The project includes custom skills to automate common development tasks. Skills are located in `project/.claude/skills/`.
+
+### Available Skills
+
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Skill Creator** | `/create-skill` | Master skill for creating new skills |
+| **Test Webhook** | `/test-webhook` | Test WhatsApp/n8n webhooks |
+| **Test Bot** | `/test-bot` | Test WhatsApp bot responses |
+| **Test Payment** | `/test-payment` | Test Stripe payment flows |
+| **Deploy Vercel** | `/deploy-vercel` | Deploy frontend to Vercel |
+| **Deploy Railway** | `/deploy-railway` | Deploy bot/backend to Railway |
+| **Env Sync** | `/env-sync` | Sync environment variables across services |
+| **DB Migrate** | `/db-migrate` | Run Supabase migrations |
+| **DB Seed** | `/db-seed` | Seed test data |
+
+### n8n Workflow Skills
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| **Daily Report** | 6 PM daily | Generate business summary report |
+| **Inventory Alert** | Every 4 hours | Low stock notifications |
+| **WhatsApp Router** | Webhook | Route WhatsApp messages |
+
+### Skill Files Location
+```
+project/.claude/
+├── skills/                    # Claude Code skills
+│   ├── skill-creator.md       # Master skill creator
+│   ├── test-webhook.md        # Webhook testing
+│   ├── test-bot.md            # Bot testing
+│   ├── test-payment.md        # Payment testing
+│   ├── deploy-vercel.md       # Vercel deployment
+│   ├── deploy-railway.md      # Railway deployment
+│   ├── env-sync.md            # Environment sync
+│   ├── db-migrate.md          # Database migrations
+│   └── db-seed.md             # Data seeding
+└── skill-templates/           # Templates for creating new skills
+    ├── claude-code-template.md
+    └── n8n-workflow-template.json
+
+project/n8n-workflows/
+├── daily-report-workflow.json
+├── inventory-alert-workflow.json
+└── whatsapp-webhook-router-simple.json
+```
+
+---
+
 ## Recent Changes Log
 
 ### January 19, 2026 - Production Deployment Session

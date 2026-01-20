@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "templateVersion": "1.0.0",
+    "description": "Template for Apinlero n8n workflows",
+    "placeholders": {
+      "WORKFLOW_NAME": "Name of the workflow",
+      "WORKFLOW_DESCRIPTION": "Description of what the workflow does",
+      "TRIGGER_TYPE": "webhook|schedule|manual",
+      "SUPABASE_TABLE": "Table to interact with",
+      "WEBHOOK_PATH": "Webhook endpoint path"
+    }
+  },
+  "name": "Apinlero - {WORKFLOW_NAME}",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "{SUPABASE_TABLE}",
+        "returnAll": true
+      },
+      "id": "supabase-query",
+      "name": "Query Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process data from Supabase\nconst items = $input.all();\n\n// Add your processing logic here\nconst processed = items.map(item => ({\n  json: {\n    ...item.json,\n    processed_at: new Date().toISOString()\n  }\n}));\n\nreturn processed;"
+      },
+      "id": "process-data",
+      "name": "Process Data",
+      "type": "n8n-nodes-base.code",
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase": {
+      "main": [
+        [
+          {
+            "node": "Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Data": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "Europe/London"
+  },
+  "tags": [
+    "apinlero",
+    "{TAG_1}",
+    "{TAG_2}"
+  ]
+}

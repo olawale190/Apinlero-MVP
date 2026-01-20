@@ -1,0 +1,242 @@
+{
+  "name": "Apinlero - Inventory Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "products",
+        "returnAll": true,
+        "filterByFormula": "stock_quantity <= min_stock_level AND is_active = true"
+      },
+      "id": "get-low-stock",
+      "name": "Get Low Stock Products",
+      "type": "n8n-nodes-base.supabase",
+      "position": [500, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-items",
+      "name": "Has Low Stock?",
+      "type": "n8n-nodes-base.if",
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format low stock alert\nconst items = $input.all();\n\nconst criticalItems = items.filter(i => i.json.stock_quantity === 0);\nconst lowItems = items.filter(i => i.json.stock_quantity > 0);\n\nconst alertLevel = criticalItems.length > 0 ? 'CRITICAL' : 'WARNING';\nconst emoji = criticalItems.length > 0 ? '🚨' : '⚠️';\n\nconst formatItem = (item) => {\n  const j = item.json;\n  const status = j.stock_quantity === 0 ? '❌ OUT OF STOCK' : `📉 Low (${j.stock_quantity}/${j.min_stock_level})`;\n  return `• ${j.name} - ${status}`;\n};\n\nconst message = `\n${emoji} INVENTORY ALERT - ${alertLevel}\n\n${criticalItems.length > 0 ? `❌ OUT OF STOCK (${criticalItems.length} items):\\n${criticalItems.map(formatItem).join('\\n')}\\n\\n` : ''}\n${lowItems.length > 0 ? `📉 LOW STOCK (${lowItems.length} items):\\n${lowItems.map(formatItem).join('\\n')}` : ''}\n\n---\nCheck inventory: https://apinlero.vercel.app/inventory\nTime: ${new Date().toLocaleString('en-GB')}\n`;\n\nreturn [{\n  json: {\n    alertLevel,\n    criticalCount: criticalItems.length,\n    lowCount: lowItems.length,\n    totalAlerts: items.length,\n    message,\n    items: items.map(i => i.json)\n  }\n}];"
+      },
+      "id": "format-alert",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, 250]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.criticalCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-critical",
+      "name": "Is Critical?",
+      "type": "n8n-nodes-base.if",
+      "position": [1250, 250]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_BOT_URL || 'https://web-production-63e51.up.railway.app' }}/api/send-alert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $env.OWNER_PHONE || '+447448682282' }}\",\n  \"message\": {{ JSON.stringify($json.message) }},\n  \"type\": \"inventory_alert\"\n}"
+      },
+      "id": "send-whatsapp-critical",
+      "name": "Send WhatsApp (Critical)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1500, 150]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@apinlero.com",
+        "toEmail": "={{ $env.OWNER_EMAIL || 'owner@example.com' }}",
+        "subject": "={{ $json.alertLevel === 'CRITICAL' ? '🚨' : '⚠️' }} Inventory Alert - {{ $json.totalAlerts }} items need attention",
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-email",
+      "name": "Send Email Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [1500, 350],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "no-op",
+      "name": "No Alerts",
+      "type": "n8n-nodes-base.noOp",
+      "position": [1000, 450]
+    }
+  ],
+  "connections": {
+    "Every 4 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Low Stock Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Low Stock Products": {
+      "main": [
+        [
+          {
+            "node": "Has Low Stock?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Low Stock?": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert": {
+      "main": [
+        [
+          {
+            "node": "Is Critical?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Critical?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (Critical)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "timezone": "Europe/London"
+  },
+  "tags": [
+    "apinlero",
+    "inventory",
+    "alerts",
+    "scheduled"
+  ]
+}
