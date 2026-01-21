@@ -297,6 +297,13 @@ project/n8n-workflows/
 
 ## Recent Changes Log
 
+### January 20, 2026 - WhatsApp Multi-Tenant & Skill System
+- **n8n WhatsApp Router**: Workflow active at `https://main-production-668a.up.railway.app`
+- **Webhook URL**: `https://main-production-668a.up.railway.app/webhook/whatsapp/webhook`
+- **Skill Creator System**: Added 9 Claude Code skills + 2 n8n workflows
+- **Supabase Migration**: Created 6 multi-tenant tables (businesses, whatsapp_configs, etc.)
+- **WhatsApp Bot v3.0.0**: Multi-tenant support (pending Railway deployment fix)
+
 ### January 19, 2026 - Production Deployment Session
 - **WhatsApp Bot Deployed to Railway**: `https://web-production-63e51.up.railway.app`
 - **Twilio Webhook Updated**: Points to Railway deployment
@@ -320,6 +327,12 @@ project/n8n-workflows/
 | **Dashboard** | `https://app.apinlero.com` | Vercel |
 | **Isha's Store** | `https://ishas-treat.apinlero.com` | Vercel |
 | **WhatsApp Bot** | `https://web-production-63e51.up.railway.app` | Railway |
+| **n8n Workflows** | `https://main-production-668a.up.railway.app` | Railway |
+
+### n8n Webhook URLs
+| Webhook | URL |
+|---------|-----|
+| WhatsApp Router | `https://main-production-668a.up.railway.app/webhook/whatsapp/webhook` |
 
 ### Fallback URLs (Vercel subdomain)
 | Service | URL |
