@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2 } from 'lucide-react';
+import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database } from 'lucide-react';
 import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
 import CategoryManager from './CategoryManager';
 import { triggerLowStockAlert, triggerExpiryAlert, isN8nConfigured } from '../lib/n8n';
 import { uploadAndTrack, BUCKETS, getPublicUrl } from '../lib/storage';
+import StorageDiagnosticsPanel from './StorageDiagnostics';
 
 interface BulkPriceTier {
   minQty: number;
@@ -148,6 +149,9 @@ export default function InventoryManager({ products: initialProducts, onProductU
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Storage diagnostics state
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Handle sending low stock alert
   const handleSendLowStockAlert = async (product: Product) => {
@@ -764,6 +768,13 @@ export default function InventoryManager({ products: initialProducts, onProductU
             >
               <Barcode size={18} />
               <span className="hidden sm:inline">Scan</span>
+            </button>
+            <button
+              onClick={() => setShowDiagnostics(true)}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              title="Storage Diagnostics - Check if image uploads are configured"
+            >
+              <Database size={18} className="text-gray-600" />
             </button>
           </div>
         </div>
@@ -1687,6 +1698,11 @@ export default function InventoryManager({ products: initialProducts, onProductU
           onClose={handleCategoryManagerClose}
           onCategoriesChange={handleCategoriesChange}
         />
+      )}
+
+      {/* Storage Diagnostics Modal */}
+      {showDiagnostics && (
+        <StorageDiagnosticsPanel onClose={() => setShowDiagnostics(false)} />
       )}
     </div>
   );
