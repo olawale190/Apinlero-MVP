@@ -19,6 +19,15 @@ export interface StorageResponse {
   error?: string;
 }
 
+export interface StorageDiagnosticsResult {
+  success: boolean;
+  bucketsExist: { [key: string]: boolean };
+  bucketsPublic: { [key: string]: boolean };
+  uploadTestPassed: boolean;
+  error?: string;
+  recommendations: string[];
+}
+
 export interface FileMetadata {
   name: string;
   size: number;
@@ -39,6 +48,25 @@ export async function uploadFile(
   folder?: string
 ): Promise<StorageResponse> {
   try {
+    // Check if bucket exists first
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+    if (listError) {
+      console.error('Cannot access storage:', listError);
+      return {
+        success: false,
+        error: `Cannot access storage: ${listError.message}. Check your Supabase configuration.`
+      };
+    }
+
+    const bucketExists = buckets?.some(b => b.name === bucket);
+    if (!bucketExists) {
+      return {
+        success: false,
+        error: `Storage bucket "${bucket}" not found. Please create it in Supabase Dashboard > Storage.`
+      };
+    }
+
     // Generate unique filename with timestamp
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -55,7 +83,18 @@ export async function uploadFile(
 
     if (error) {
       console.error('Storage upload error:', error);
-      return { success: false, error: error.message };
+      // Provide user-friendly error messages based on error type
+      let userMessage = error.message;
+      if (error.message.toLowerCase().includes('policy') || error.message.toLowerCase().includes('permission') || error.message.toLowerCase().includes('not authorized')) {
+        userMessage = 'Permission denied. Storage RLS policies may not be configured. Run the storage SQL in Supabase Dashboard.';
+      } else if (error.message.toLowerCase().includes('not found')) {
+        userMessage = `Storage bucket "${bucket}" not found. Please check Supabase configuration.`;
+      } else if (error.message.toLowerCase().includes('size') || error.message.toLowerCase().includes('too large')) {
+        userMessage = 'File is too large. Maximum size is 5MB.';
+      } else if (error.message.toLowerCase().includes('type') || error.message.toLowerCase().includes('mime')) {
+        userMessage = 'File type not allowed. Please upload an image (JPEG, PNG, GIF, or WebP).';
+      }
+      return { success: false, error: userMessage };
     }
 
     // Get the public URL for public buckets, signed URL for private
@@ -70,7 +109,8 @@ export async function uploadFile(
     };
   } catch (error) {
     console.error('Storage upload exception:', error);
-    return { success: false, error: 'Failed to upload file' };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: `Upload failed: ${errorMessage}` };
   }
 }
 
@@ -482,4 +522,99 @@ export async function checkStorageLimits(): Promise<{
     isNearLimit: percentUsed >= WARNING_THRESHOLD,
     recommendation
   };
+}
+
+// ============================================================================
+// STORAGE DIAGNOSTICS
+// ============================================================================
+
+/**
+ * Run comprehensive storage diagnostics to identify configuration issues
+ */
+export async function runStorageDiagnostics(): Promise<StorageDiagnosticsResult> {
+  const result: StorageDiagnosticsResult = {
+    success: false,
+    bucketsExist: {},
+    bucketsPublic: {},
+    uploadTestPassed: false,
+    recommendations: []
+  };
+
+  try {
+    // 1. Check if we can access storage at all
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+    if (listError) {
+      result.error = `Cannot access storage: ${listError.message}`;
+      result.recommendations.push('Check your Supabase URL and API key in .env file');
+      result.recommendations.push('Ensure the Supabase project is active');
+      return result;
+    }
+
+    // 2. Check which required buckets exist and their public status
+    const requiredBuckets = Object.values(BUCKETS);
+    for (const bucket of requiredBuckets) {
+      const found = buckets?.find(b => b.name === bucket);
+      result.bucketsExist[bucket] = !!found;
+      result.bucketsPublic[bucket] = found?.public || false;
+
+      if (!found) {
+        result.recommendations.push(`Create bucket "${bucket}" in Supabase Dashboard > Storage`);
+      }
+    }
+
+    // 3. Check if apinlero-products is public (required for product images)
+    if (result.bucketsExist[BUCKETS.PRODUCTS] && !result.bucketsPublic[BUCKETS.PRODUCTS]) {
+      result.recommendations.push(`Set "${BUCKETS.PRODUCTS}" bucket to PUBLIC in Supabase Dashboard > Storage > bucket settings`);
+    }
+
+    // 4. Test upload permission if bucket exists
+    if (result.bucketsExist[BUCKETS.PRODUCTS]) {
+      try {
+        const testContent = 'diagnostic-test-' + Date.now();
+        const testBlob = new Blob([testContent], { type: 'text/plain' });
+        const testFile = new File([testBlob], 'diagnostic-test.txt', { type: 'text/plain' });
+        const testPath = `_diagnostics/${Date.now()}_test.txt`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKETS.PRODUCTS)
+          .upload(testPath, testFile);
+
+        if (uploadError) {
+          console.error('Diagnostic upload test failed:', uploadError);
+          if (uploadError.message.toLowerCase().includes('policy') ||
+              uploadError.message.toLowerCase().includes('permission') ||
+              uploadError.message.toLowerCase().includes('not authorized')) {
+            result.recommendations.push('Run the storage RLS policies SQL in Supabase SQL Editor');
+            result.recommendations.push('Policy needed: "Authenticated users can upload product images"');
+          } else {
+            result.recommendations.push(`Upload test failed: ${uploadError.message}`);
+          }
+        } else {
+          result.uploadTestPassed = true;
+          // Clean up test file
+          await supabase.storage.from(BUCKETS.PRODUCTS).remove([testPath]);
+        }
+      } catch (testError) {
+        console.error('Upload test exception:', testError);
+        result.recommendations.push('Upload test threw an exception. Check browser console for details.');
+      }
+    }
+
+    // 5. Determine overall success
+    result.success =
+      result.bucketsExist[BUCKETS.PRODUCTS] &&
+      result.bucketsPublic[BUCKETS.PRODUCTS] &&
+      result.uploadTestPassed;
+
+    if (result.success) {
+      result.recommendations = ['Storage is properly configured. Image uploads should work.'];
+    }
+
+    return result;
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : 'Unknown error during diagnostics';
+    result.recommendations.push('Unexpected error occurred. Check browser console for details.');
+    return result;
+  }
 }
