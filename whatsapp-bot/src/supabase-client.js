@@ -575,3 +575,123 @@ export async function getMessageHistory(phone, limit = 20) {
 
   return data || [];
 }
+
+// ============================================
+// MEDIA STORAGE
+// ============================================
+
+/**
+ * Upload media file to Supabase Storage
+ * @param {Buffer} fileBuffer - The file binary data
+ * @param {string} fileName - The file name
+ * @param {string} mimeType - The MIME type (e.g., 'image/jpeg')
+ * @param {string} customerPhone - Customer phone number for folder organization
+ * @returns {Promise<{success: boolean, url?: string, path?: string, error?: string}>}
+ */
+export async function uploadMedia(fileBuffer, fileName, mimeType, customerPhone) {
+  try {
+    const bucket = 'apinlero-media';
+    const timestamp = Date.now();
+    const sanitizedPhone = customerPhone.replace(/\D/g, '');
+    const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `whatsapp/${sanitizedPhone}/${timestamp}_${sanitizedName}`;
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, fileBuffer, {
+        contentType: mimeType,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('❌ Media upload error:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Get signed URL (private bucket)
+    const { data: signedData } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(data.path, 7 * 24 * 60 * 60); // 7 days
+
+    console.log(`✅ Media uploaded: ${filePath}`);
+    return {
+      success: true,
+      path: data.path,
+      url: signedData?.signedUrl || null
+    };
+  } catch (error) {
+    console.error('❌ Media upload exception:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Log media file to database for tracking
+ * @param {Object} mediaInfo - Media information
+ * @param {string} mediaInfo.filePath - Storage path
+ * @param {string} mediaInfo.fileName - Original file name
+ * @param {string} mediaInfo.mimeType - MIME type
+ * @param {number} mediaInfo.fileSize - File size in bytes
+ * @param {string} mediaInfo.customerPhone - Customer phone number
+ * @param {string|null} mediaInfo.orderId - Related order ID
+ * @param {string|null} mediaInfo.businessId - Business ID for multi-tenant
+ * @returns {Promise<{success: boolean, id?: string, error?: string}>}
+ */
+export async function logMediaFile(mediaInfo) {
+  try {
+    const { data, error } = await supabase
+      .from('media_files')
+      .insert({
+        file_path: mediaInfo.filePath,
+        file_name: mediaInfo.fileName,
+        bucket_name: 'apinlero-media',
+        file_type: mediaInfo.mimeType?.split('/')[0] || 'unknown',
+        mime_type: mediaInfo.mimeType,
+        file_size_bytes: mediaInfo.fileSize || 0,
+        source: 'whatsapp',
+        customer_phone: mediaInfo.customerPhone,
+        order_id: mediaInfo.orderId || null,
+        is_public: false,
+        metadata: {
+          businessId: mediaInfo.businessId || null,
+          uploadedAt: new Date().toISOString()
+        }
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('❌ Media log error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(`✅ Media logged to database: ${data.id}`);
+    return { success: true, id: data.id };
+  } catch (error) {
+    console.error('❌ Media log exception:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get media files for a customer
+ * @param {string} customerPhone - Customer phone number
+ * @returns {Promise<Array>}
+ */
+export async function getCustomerMedia(customerPhone) {
+  const normalizedPhone = customerPhone.replace(/\D/g, '');
+
+  const { data, error } = await supabase
+    .from('media_files')
+    .select('*')
+    .eq('customer_phone', normalizedPhone)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to get customer media:', error);
+    return [];
+  }
+
+  return data || [];
+}
