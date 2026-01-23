@@ -19,8 +19,11 @@ import {
   logMessage,
   getCustomerByPhone,
   updateCustomerAddress,
-  getLastOrder
+  getLastOrder,
+  uploadMedia,
+  logMediaFile
 } from './supabase-client.js';
+import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 
 // Auto-confirm threshold for returning customers
@@ -116,6 +119,77 @@ async function clearConversation(phone, businessId = null) {
 }
 
 /**
+ * Handle media messages (images, audio, documents)
+ * Downloads media from WhatsApp and stores in Supabase
+ * @param {Object} params - Media parameters
+ * @param {string} params.mediaId - WhatsApp media ID
+ * @param {string} params.messageType - Type: 'image', 'audio', 'video', 'document'
+ * @param {string} params.from - Customer phone number
+ * @param {string} params.accessToken - Meta API access token
+ * @param {string|null} params.businessId - Business ID for multi-tenant
+ * @returns {Promise<{success: boolean, url?: string, error?: string}>}
+ */
+async function handleMediaMessage({ mediaId, messageType, from, accessToken, businessId }) {
+  if (!mediaId || !accessToken) {
+    console.log('⚠️ Missing mediaId or accessToken for media handling');
+    return { success: false, error: 'Missing media ID or access token' };
+  }
+
+  try {
+    console.log(`📸 Processing ${messageType} from ${from}...`);
+
+    // 1. Get media URL from Meta API
+    const mediaInfo = await getMediaUrl(mediaId, accessToken);
+    if (!mediaInfo) {
+      console.error('❌ Failed to get media URL');
+      return { success: false, error: 'Could not retrieve media URL' };
+    }
+
+    console.log(`📥 Downloading media: ${mediaInfo.mimeType} (${mediaInfo.fileSize || 'unknown'} bytes)`);
+
+    // 2. Download the media binary
+    const mediaBuffer = await downloadMedia(mediaInfo.url, accessToken);
+    if (!mediaBuffer) {
+      console.error('❌ Failed to download media');
+      return { success: false, error: 'Could not download media' };
+    }
+
+    // 3. Generate filename
+    const extension = mediaInfo.mimeType?.split('/')[1] || 'bin';
+    const fileName = `${messageType}_${Date.now()}.${extension}`;
+
+    // 4. Upload to Supabase Storage
+    const uploadResult = await uploadMedia(mediaBuffer, fileName, mediaInfo.mimeType, from);
+    if (!uploadResult.success) {
+      console.error('❌ Failed to upload media:', uploadResult.error);
+      return { success: false, error: uploadResult.error };
+    }
+
+    // 5. Log to database
+    await logMediaFile({
+      filePath: uploadResult.path,
+      fileName: fileName,
+      mimeType: mediaInfo.mimeType,
+      fileSize: mediaInfo.fileSize || mediaBuffer.length,
+      customerPhone: from,
+      businessId: businessId
+    });
+
+    console.log(`✅ Media stored: ${uploadResult.path}`);
+    return {
+      success: true,
+      url: uploadResult.url,
+      path: uploadResult.path,
+      mimeType: mediaInfo.mimeType
+    };
+
+  } catch (error) {
+    console.error('❌ Media handling error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Main message handler
  * @param {Object} params - Message parameters
  * @param {string} params.from - Customer phone number
@@ -128,6 +202,7 @@ async function clearConversation(phone, businessId = null) {
  * @param {string} params.listId - List item ID if interactive reply
  * @param {string} params.mediaId - Media ID if media message
  * @param {string} params.messageType - Message type (text, image, etc.)
+ * @param {string} params.accessToken - Meta API access token (for media)
  * @returns {Object} - Response {text, buttons}
  */
 export async function handleIncomingMessage({
@@ -140,10 +215,32 @@ export async function handleIncomingMessage({
   buttonId = null,
   listId = null,
   mediaId = null,
-  messageType = 'text'
+  messageType = 'text',
+  accessToken = null
 }) {
   // Get conversation with business context
   const conversation = await getConversation(from, customerName, businessId);
+
+  // Handle media messages (images, audio, video, documents)
+  let mediaResult = null;
+  if (mediaId && messageType !== 'text' && accessToken) {
+    mediaResult = await handleMediaMessage({
+      mediaId,
+      messageType,
+      from,
+      accessToken,
+      businessId
+    });
+
+    // Store media URL in conversation context for order attachments
+    if (mediaResult.success) {
+      const context = conversation.context || {};
+      context.lastMediaUrl = mediaResult.url;
+      context.lastMediaPath = mediaResult.path;
+      context.lastMediaType = messageType;
+      await updateConversation(from, { context }, businessId);
+    }
+  }
 
   // If this is a button/list reply, use the ID as the text for intent parsing
   const messageText = buttonId || listId || text || '';
@@ -158,11 +255,25 @@ export async function handleIncomingMessage({
     businessId: businessId || 'default',
     provider,
     messageType,
+    mediaReceived: mediaResult?.success ? '📸 Stored' : (mediaId ? '❌ Failed' : 'None'),
     neo4j: parsed.neo4jEnabled ? '🧠 Active' : '⚠️ Fallback'
   });
 
   // Log inbound message (with business context)
-  await logMessage(from, 'inbound', messageText, parsed.intent, null, businessId);
+  await logMessage(from, 'inbound', messageText || `[${messageType}]`, parsed.intent, null, businessId);
+
+  // If only media was sent (no text), acknowledge it
+  if (mediaResult?.success && !messageText.trim()) {
+    const mediaAck = messageType === 'image'
+      ? `📸 Got your image! Is this for your order? Let me know what you'd like to do with it.`
+      : messageType === 'audio' || messageType === 'voice'
+      ? `🎤 Voice note received! For orders, please type your request or send a message.`
+      : messageType === 'document'
+      ? `📄 Document received and saved. How can I help you?`
+      : `📎 File received! How can I help you?`;
+
+    return { text: mediaAck };
+  }
 
   // Handle based on intent and conversation state
   try {

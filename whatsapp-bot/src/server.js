@@ -156,7 +156,9 @@ app.post('/webhook/meta', async (req, res) => {
       buttonId,
       listId,
       mediaId,
-      messageType
+      messageType,
+      // Pass accessToken for media downloads
+      accessToken
     });
 
     // Send response via Meta Cloud API
@@ -281,7 +283,9 @@ app.post('/webhook/n8n', async (req, res) => {
       buttonId,
       listId,
       mediaId,
-      messageType
+      messageType,
+      // Pass accessToken for media downloads
+      accessToken
     });
 
     // Send response based on provider
