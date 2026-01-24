@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle, ArrowRight, Building2, Mail, Phone, User, PartyPopper } from 'lucide-react';
 import { colors } from '../config/colors';
+import { triggerWelcomeEmail, isN8nConfigured } from '../lib/n8n';
 
 interface SignupFormProps {
   onSuccess: () => void;
@@ -34,6 +35,16 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
     // Simulate API call to save signup
     // In production, this would save to Supabase
     setTimeout(() => {
+      // Send welcome email via n8n
+      if (isN8nConfigured()) {
+        triggerWelcomeEmail(
+          formData.email,
+          formData.businessName,
+          formData.ownerName,
+          formData.plan
+        ).catch(console.error);
+      }
+
       setIsSubmitting(false);
       setStep(3); // Success step
     }, 1500);

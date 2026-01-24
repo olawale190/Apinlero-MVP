@@ -1,0 +1,181 @@
+{
+  "name": "Welcome Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "welcome-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Welcome Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "welcome-email"
+    },
+    {
+      "parameters": {
+        "mode": "manual"
+      },
+      "id": "manual-trigger",
+      "name": "Manual Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 480]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "test-data-1",
+              "name": "email",
+              "value": "test@example.com",
+              "type": "string"
+            },
+            {
+              "id": "test-data-2",
+              "name": "businessName",
+              "value": "Test Business",
+              "type": "string"
+            },
+            {
+              "id": "test-data-3",
+              "name": "ownerName",
+              "value": "Test Owner",
+              "type": "string"
+            },
+            {
+              "id": "test-data-4",
+              "name": "plan",
+              "value": "starter",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-test-data",
+      "name": "Set Test Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process the welcome email data\nconst data = $input.first().json;\n\n// Map plan codes to names and prices\nconst planDetails = {\n  'solo': { name: 'Solo', price: '150' },\n  'starter': { name: 'Starter', price: '250' },\n  'growth': { name: 'Growth', price: '350' }\n};\n\nconst plan = planDetails[data.plan] || planDetails.solo;\n\nreturn [{\n  json: {\n    email: data.email,\n    businessName: data.businessName,\n    ownerName: data.ownerName,\n    planName: plan.name,\n    planPrice: plan.price\n  }\n}];"
+      },
+      "id": "process-data",
+      "name": "Process Welcome Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Apinlero <welcome@apinlero.co.uk>\",\n  \"to\": [\"{{ $json.email }}\"],\n  \"subject\": \"Welcome to Apinlero, {{ $json.ownerName }}! Your 30-Day Free Trial Starts Now\",\n  \"html\": \"<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px}.container{max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)}.header{background:linear-gradient(135deg,#0d9488,#14b8a6);color:white;padding:40px 30px;text-align:center}.header h1{margin:0;font-size:28px}.header p{margin:10px 0 0;opacity:0.9;font-size:16px}.content{padding:30px}.content p{color:#374151;line-height:1.6;margin:0 0 15px}.welcome-box{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:2px solid #10b981;border-radius:12px;padding:25px;margin:20px 0;text-align:center}.welcome-box h2{color:#059669;margin:0 0 10px;font-size:22px}.welcome-box p{color:#047857;margin:0}.plan-badge{display:inline-block;background:#0d9488;color:white;padding:8px 20px;border-radius:20px;font-weight:600;margin:10px 0}.step-list{background:#f9fafb;border-radius:12px;padding:25px;margin:20px 0}.step-list h3{color:#1e3a5f;margin:0 0 20px;font-size:18px}.step-item{display:flex;align-items:flex-start;margin-bottom:15px}.step-number{width:32px;height:32px;background:#0d9488;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;flex-shrink:0;margin-right:15px}.step-text{color:#374151;padding-top:5px}.btn{display:inline-block;background:#0d9488;color:white;padding:16px 32px;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;margin-top:20px}.btn:hover{background:#0f766e}.support-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:20px;margin-top:25px;text-align:center}.support-box p{color:#1e40af;margin:0;font-size:14px}.support-box a{color:#0d9488;font-weight:600}.footer{background:#1e3a5f;color:white;padding:25px;text-align:center}.footer p{margin:5px 0;font-size:12px;opacity:0.9}.footer a{color:#14b8a6}</style></head><body><div class='container'><div class='header'><h1>Welcome to Apinlero!</h1><p>Your business automation journey starts now</p></div><div class='content'><div class='welcome-box'><h2>Hi {{ $json.ownerName }}!</h2><p>Thank you for signing up <strong>{{ $json.businessName }}</strong></p><div class='plan-badge'>{{ $json.planName }} Plan - 30 Day Free Trial</div></div><p>We're thrilled to have you on board! Apinlero is designed to help small businesses like yours streamline operations with WhatsApp ordering, inventory management, and automated notifications.</p><div class='step-list'><h3>Here's what happens next:</h3><div class='step-item'><div class='step-number'>1</div><div class='step-text'><strong>Check your inbox</strong> - You'll receive a setup guide shortly</div></div><div class='step-item'><div class='step-number'>2</div><div class='step-text'><strong>Our team will reach out</strong> within 24 hours to help you get started</div></div><div class='step-item'><div class='step-number'>3</div><div class='step-text'><strong>Add your products</strong> and customize your storefront</div></div><div class='step-item'><div class='step-number'>4</div><div class='step-text'><strong>Start accepting orders</strong> via WhatsApp and web!</div></div></div><p style='text-align:center'><a href='https://apinlero.vercel.app/app' class='btn'>Go to Dashboard</a></p><div class='support-box'><p><strong>Need help?</strong> Reply to this email or contact us at <a href='mailto:hello@apinlero.co.uk'>hello@apinlero.co.uk</a></p></div></div><div class='footer'><p><strong>Apinlero</strong></p><p>Empowering small businesses across the UK</p><p><a href='https://apinlero.com'>apinlero.com</a></p></div></div></body></html>\"\n}",
+        "options": {}
+      },
+      "id": "send-welcome-email",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_RESEND_CREDENTIAL_ID",
+          "name": "Resend API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [980, 300]
+    }
+  ],
+  "connections": {
+    "Welcome Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Welcome Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test": {
+      "main": [
+        [
+          {
+            "node": "Set Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Data": {
+      "main": [
+        [
+          {
+            "node": "Process Welcome Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Welcome Data": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["apinlero", "email", "welcome", "signup"]
+}

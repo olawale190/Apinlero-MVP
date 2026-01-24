@@ -67,6 +67,10 @@ export default function OrdersTable({ orders, onOrderUpdate }: OrdersTableProps)
 
     if (!error) {
       onOrderUpdate();
+      // Auto-send status update email to customer
+      if (isN8nConfigured()) {
+        triggerOrderEmail(orderId, 'status').catch(console.error);
+      }
     }
   };
 
