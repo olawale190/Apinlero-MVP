@@ -172,6 +172,45 @@ export async function testN8nConnection(): Promise<N8nResponse> {
 }
 
 /**
+ * Trigger welcome email for new business signups
+ */
+export async function triggerWelcomeEmail(
+  email: string,
+  businessName: string,
+  ownerName: string,
+  plan: string
+): Promise<N8nResponse> {
+  if (!N8N_BASE_URL) {
+    console.warn('N8N_WEBHOOK_URL not configured');
+    return { success: false, error: 'Email service not configured' };
+  }
+
+  try {
+    const response = await fetch(`${N8N_BASE_URL}/welcome-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        businessName,
+        ownerName,
+        plan,
+        timestamp: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      return { success: true, message: 'Welcome email sent successfully' };
+    } else {
+      const data = await response.json().catch(() => ({}));
+      return { success: false, error: data.message || 'Failed to send welcome email' };
+    }
+  } catch (error) {
+    console.error('n8n webhook error:', error);
+    return { success: false, error: 'Network error - please try again' };
+  }
+}
+
+/**
  * Check if n8n is configured
  */
 export function isN8nConfigured(): boolean {

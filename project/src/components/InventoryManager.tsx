@@ -370,6 +370,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
     if (!product) return;
 
     const newQuantity = Math.max(0, product.stock_quantity + change);
+    const previousQuantity = product.stock_quantity;
 
     const { error } = await supabase
       .from('products')
@@ -381,6 +382,12 @@ export default function InventoryManager({ products: initialProducts, onProductU
         p.id === productId ? { ...p, stock_quantity: newQuantity } : p
       ));
       onProductUpdate();
+
+      // Auto-send low stock alert when crossing threshold (5)
+      // Only trigger when going FROM above 5 TO at-or-below 5
+      if (isN8nConfigured() && newQuantity <= 5 && previousQuantity > 5) {
+        triggerLowStockAlert(productId, product.name, newQuantity).catch(console.error);
+      }
     }
     setUpdatingStock(null);
   };
