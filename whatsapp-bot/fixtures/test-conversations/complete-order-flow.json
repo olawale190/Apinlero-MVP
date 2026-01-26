@@ -1,0 +1,34 @@
+{
+  "name": "Complete Order Flow",
+  "description": "Customer places an order from greeting to payment confirmation",
+  "phone": "447448682282",
+  "customerName": "Test Customer",
+  "businessId": "test-business-001",
+  "provider": "twilio",
+  "messages": [
+    {
+      "label": "Greeting",
+      "message": "Hi",
+      "expectedIntent": "GREETING",
+      "expectedKeywords": ["ready", "order"]
+    },
+    {
+      "label": "Place Order",
+      "message": "2x palm oil to SE15 4AA",
+      "expectedIntent": "NEW_ORDER",
+      "expectedKeywords": ["order summary", "palm oil", "confirm", "yes"]
+    },
+    {
+      "label": "Confirm Order",
+      "message": "yes",
+      "expectedIntent": "CONFIRM",
+      "expectedKeywords": ["confirmed", "payment"]
+    },
+    {
+      "label": "Select Payment Method",
+      "message": "cash",
+      "expectedIntent": "PAYMENT_CASH",
+      "expectedKeywords": ["cash on delivery", "thank"]
+    }
+  ]
+}

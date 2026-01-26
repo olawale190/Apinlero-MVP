@@ -148,12 +148,18 @@ BUCKETS = {
 |------|---------|
 | `project/src/components/InventoryManager.tsx` | Main inventory UI component |
 | `project/src/lib/storage.ts` | Supabase storage utilities |
+| `project/src/lib/imageCompression.ts` | Image compression before upload |
 | `project/src/lib/n8n-storage.ts` | n8n webhook triggers |
 | `project/src/lib/n8n.ts` | n8n alert functions |
 | `project/src/lib/supabase.ts` | Supabase client setup |
+| `project/src/pages/PrivacyPolicy.tsx` | UK GDPR privacy policy page |
+| `project/src/components/ConsentBanner.tsx` | Cookie consent mechanism |
 | `project/supabase_storage_migration.sql` | Database migration for storage tracking |
 | `project/n8n-workflows/*.json` | n8n workflow definitions |
 | `INFRASTRUCTURE_GUIDE.md` | Complete infrastructure documentation |
+| `SECURITY_GUIDE.md` | RLS policies, environment setup, security best practices |
+| `TROUBLESHOOTING.md` | Common issues, error solutions, debugging checklist |
+| `docs/DATA_DELETION_PROCESS.md` | GDPR data deletion procedures |
 
 ---
 
@@ -200,27 +206,39 @@ See `INFRASTRUCTURE_GUIDE.md` for detailed breakdown.
 - [x] Private buckets for customer data
 - [x] Signed URLs with expiry for private files
 - [x] Service keys kept server-side only
-- [ ] Privacy Policy (to be created)
-- [ ] Customer consent mechanism (to be implemented)
-- [ ] Data deletion process (to be documented)
+- [x] Privacy Policy (`/privacy` route, `src/pages/PrivacyPolicy.tsx`)
+- [x] Customer consent mechanism (`src/components/ConsentBanner.tsx`)
+- [x] Data deletion process (`docs/DATA_DELETION_PROCESS.md`)
 
 ---
 
-## Next Steps / TODO
+## Next Steps
 
-### Immediate
-- [ ] Set up n8n cloud instance and import workflows
+### Critical - Before Production
+- [ ] **Enable RLS security** - Execute `supabase_production_rls.sql` in Supabase SQL Editor
+- [ ] **Seed demo data** - Execute `scripts/seed-demo-data.sql` for demo/visa presentation
+- [ ] Set up n8n cloud instance and import workflows from `n8n-workflows/`
+- [ ] Deploy Stripe Edge Functions: `supabase functions deploy create-payment-intent stripe-webhook`
+- [ ] Configure Stripe secrets: `supabase secrets set STRIPE_SECRET_KEY=sk_... STRIPE_WEBHOOK_SECRET=whsec_...`
+
+### Immediate (This Week)
+- [x] **Environment validation** - Added `validateEnv.ts` (frontend) and `validateEnv.js` (backend)
+- [x] **Stripe Edge Functions** - Created `create-payment-intent` and `stripe-webhook` functions
+- [x] **Enhanced StatsCards** - Added trend indicators and channel distribution chart
+- [x] **Improved AI Insights** - Added cultural events calendar, churn warnings, stock predictions
+- [x] Add image compression before upload (`src/lib/imageCompression.ts`)
+- [x] Add product image display in customer-facing store
 - [ ] Test WhatsApp media storage flow end-to-end
-- [ ] Configure daily backup workflow schedule
-- [ ] Create privacy policy document
+- [ ] Verify image upload with Storage Diagnostics
 
-### Short Term
-- [ ] Add product image display in customer-facing store
-- [ ] Implement image compression before upload
-- [ ] Add image gallery for products (multiple images)
+### Short Term (Next 2 Weeks)
+- [ ] Configure daily backup workflow schedule in n8n
 - [ ] Set up uptime monitoring
+- [ ] Complete Meta WhatsApp Cloud API setup (business verification)
+- [ ] Test Stripe payment flow end-to-end
 
-### Medium Term
+### Medium Term (Next Month)
+- [ ] Add image gallery for products (multiple images)
 - [ ] WhatsApp bot integration with product images
 - [ ] Customer order history with receipts
 - [ ] Advanced reporting dashboard
@@ -295,7 +313,135 @@ project/n8n-workflows/
 
 ---
 
+## Current Sprint
+
+**Focus**: WhatsApp Media Storage & Product Images
+
+### Completed
+- [x] Storage Diagnostics panel added to Inventory Manager
+- [x] Fixed Supabase project mismatch (was pointing to wrong project)
+- [x] Updated Vercel environment variables
+- [x] Redeployed to production
+- [x] Product image upload working (RLS disabled for testing)
+- [x] WhatsApp media storage integration implemented
+
+### In Progress
+- [ ] Deploy WhatsApp media changes to Railway (push completed, awaiting deployment)
+
+### Up Next
+- [ ] Test WhatsApp media storage end-to-end (send image to bot)
+- [ ] Re-enable RLS with proper policies
+- [ ] Add image compression before upload
+- [ ] Multiple images per product (gallery)
+
+---
+
+## Architecture Decisions
+
+### Storage Architecture
+- **Supabase Storage** chosen over S3 for simplicity and Supabase integration
+- **Three buckets**: `apinlero-products` (public), `apinlero-media` (private), `apinlero-documents` (private)
+- **RLS Policies**: Public read for products, authenticated write for all buckets
+- **File tracking**: All uploads logged to `media_files` table for analytics
+
+### Environment Strategy
+- **Local dev**: Uses `.env` and `.env.local` (local overrides)
+- **Production**: Vercel environment variables (must be updated separately)
+- **Gotcha**: Local env changes don't affect production - always update Vercel env vars
+
+### Supabase Projects
+- **Production**: `***REMOVED***.supabase.co` (ApinleroMVP)
+- **Note**: A second project `***REMOVED***.supabase.co` exists but is NOT used
+
+---
+
+## Known Issues
+
+### Active Issues
+1. **RLS Disabled for Testing**: All Row Level Security disabled on tables/storage - need to re-enable with proper policies before production
+
+### Resolved Issues
+1. ~~Product images not uploading~~ - Fixed Jan 22 (wrong Supabase project)
+2. ~~Storage Diagnostics button missing~~ - Fixed Jan 22 (deployed to Vercel)
+
+### Potential Issues to Watch
+- Orphan files in storage (uploaded but form abandoned) - no cleanup yet
+- No image compression - large files could slow down pages
+- Single image per product only - no gallery support yet
+
+---
+
 ## Recent Changes Log
+
+### January 24, 2026 - Image Compression & GDPR Compliance
+
+**Image Compression Feature**:
+- **New File**: `project/src/lib/imageCompression.ts`
+  - `compressImage()` - Compresses images using Canvas API
+  - Resizes to max 1200x1200 while maintaining aspect ratio
+  - Compresses to 80% JPEG quality
+  - Skips files already under 500KB
+  - Includes `formatBytes()` and `getCompressionSummary()` helpers
+- **Modified**: `project/src/components/InventoryManager.tsx`
+  - Added import for compression utilities
+  - Updated `handleImageSelect()` to compress before upload
+  - Logs compression stats to metadata
+
+**GDPR Compliance - Privacy Policy**:
+- **New File**: `project/src/pages/PrivacyPolicy.tsx`
+  - UK GDPR compliant privacy policy
+  - Covers data collection, usage, sharing, retention
+  - Documents user rights (access, erasure, portability)
+  - Links to ICO for complaints
+- **Modified**: `project/src/App.tsx`
+  - Added `/privacy` route to all subdomain configs
+- **Modified**: `project/src/components/platform/PlatformFooter.tsx`
+  - Updated Privacy Policy link to `/privacy`
+- **Modified**: `project/src/components/StorefrontFooter.tsx`
+  - Added Privacy Policy link
+
+**GDPR Compliance - Consent Mechanism**:
+- **New File**: `project/src/components/ConsentBanner.tsx`
+  - Cookie consent banner with Essential/Analytics/Marketing options
+  - Persists preferences to localStorage
+  - Helper functions: `getConsentPreferences()`, `isAnalyticsAllowed()`, `isMarketingAllowed()`
+- **Modified**: `project/src/App.tsx`
+  - Added `<ConsentBanner />` to all router configurations
+
+**GDPR Compliance - Data Deletion Documentation**:
+- **New File**: `docs/DATA_DELETION_PROCESS.md`
+  - SQL scripts for customer data deletion
+  - Data retention exceptions (7 years for tax)
+  - Anonymization procedures for orders
+  - Audit logging schema
+  - Verification queries
+
+**CLAUDE.md Updates**:
+- Marked GDPR compliance items as complete
+- Marked image compression as complete
+- Updated Short Term tasks
+
+### January 23, 2026 - WhatsApp Media Storage Integration
+- **Feature**: WhatsApp media (images, audio, documents) now stored in Supabase
+- **Files Modified**:
+  - `whatsapp-bot/src/supabase-client.js` - Added `uploadMedia()`, `logMediaFile()`, `getCustomerMedia()`
+  - `whatsapp-bot/src/message-handler.js` - Added `handleMediaMessage()`, updated `handleIncomingMessage()`
+  - `whatsapp-bot/src/server.js` - Pass `accessToken` to message handler
+- **Storage Path**: `apinlero-media/whatsapp/{phone}/{timestamp}_{filename}`
+- **Database**: Media logged to `media_files` table
+- **Security**: RLS disabled for testing - needs re-enabling
+
+### January 22, 2026 - Product Image Upload Fix
+- **Issue**: Product images not uploading - "Storage issues detected" error
+- **Root Cause**: App was connected to wrong Supabase project
+  - Vercel env vars pointed to `***REMOVED***.supabase.co`
+  - Storage buckets were in `***REMOVED***.supabase.co`
+- **Fix Applied**:
+  - Updated `.env.local` to use correct Supabase URL
+  - Updated Vercel environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+  - Redeployed to Vercel
+- **Storage Diagnostics**: Added diagnostics panel (Database icon in Inventory Manager toolbar)
+- **Correct Supabase Project**: `***REMOVED***.supabase.co` (ApinleroMVP)
 
 ### January 20, 2026 - WhatsApp Multi-Tenant & Skill System
 - **n8n WhatsApp Router**: Workflow active at `https://main-production-668a.up.railway.app`
@@ -451,4 +597,28 @@ npx vercel --prod --yes
 
 ---
 
-*Last Updated: January 19, 2026*
+## Known Gotchas / Troubleshooting
+
+### Product Image Upload Not Working
+1. **Run Storage Diagnostics**: Click Database icon (🗄️) in Inventory Manager toolbar
+2. **Check buckets exist**: Should show `apinlero-products` as PUBLIC with 4 policies
+3. **If buckets missing**: Run `project/supabase_storage_policies.sql` in Supabase SQL Editor
+4. **If buckets exist but upload fails**: Check Vercel env vars match correct Supabase project
+
+### Multiple Supabase Projects
+- **Correct Project**: `***REMOVED***.supabase.co` (ApinleroMVP on Lazrap org)
+- **Wrong Project**: `***REMOVED***.supabase.co` (do not use)
+- Always verify Vercel env vars point to correct project after any environment changes
+
+### Vercel Deployment
+- Local `.env.local` does NOT affect production
+- Must update Vercel env vars via CLI or dashboard:
+  ```bash
+  npx vercel env rm VITE_SUPABASE_URL production --yes
+  npx vercel env add VITE_SUPABASE_URL production
+  npx vercel --prod --yes
+  ```
+
+---
+
+*Last Updated: January 25, 2026*

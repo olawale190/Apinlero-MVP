@@ -37,11 +37,31 @@ interface Insight {
   priority: number;
 }
 
-// Mock cultural events for ethnic grocery
+// Cultural events calendar for ethnic grocery (Nigerian, Caribbean, religious)
 const culturalEvents = [
-  { name: 'Eid al-Fitr', date: new Date('2025-03-30'), daysAway: 0, products: ['Rice', 'Meat', 'Palm Oil', 'Spices'] },
-  { name: 'Easter', date: new Date('2025-04-20'), daysAway: 0, products: ['Rice', 'Chicken', 'Vegetables'] },
-  { name: 'Diwali', date: new Date('2025-10-20'), daysAway: 0, products: ['Rice', 'Spices', 'Lentils', 'Ghee'] },
+  // Islamic
+  { name: 'Eid al-Fitr', date: new Date('2026-03-20'), daysAway: 0, products: ['Rice', 'Meat', 'Palm Oil', 'Spices', 'Tomato Paste'] },
+  { name: 'Eid al-Adha', date: new Date('2026-05-27'), daysAway: 0, products: ['Rice', 'Lamb', 'Goat', 'Spices', 'Palm Oil'] },
+
+  // Christian
+  { name: 'Easter', date: new Date('2026-04-05'), daysAway: 0, products: ['Rice', 'Chicken', 'Stockfish', 'Vegetables'] },
+  { name: 'Christmas', date: new Date('2026-12-25'), daysAway: 0, products: ['Rice', 'Chicken', 'Beef', 'Jollof Spices', 'Drinks'] },
+
+  // Nigerian
+  { name: 'Nigerian Independence Day', date: new Date('2026-10-01'), daysAway: 0, products: ['Palm Oil', 'Rice', 'Garri', 'Egusi', 'Suya Spice'] },
+  { name: 'New Yam Festival (Iri Ji)', date: new Date('2026-08-15'), daysAway: 0, products: ['Yam', 'Palm Oil', 'Stockfish', 'Crayfish'] },
+
+  // Caribbean
+  { name: 'Notting Hill Carnival', date: new Date('2026-08-30'), daysAway: 0, products: ['Rice', 'Chicken', 'Scotch Bonnet', 'Plantain', 'Jerk Spices'] },
+  { name: 'Jamaican Independence Day', date: new Date('2026-08-06'), daysAway: 0, products: ['Rice & Peas', 'Ackee', 'Saltfish', 'Plantain'] },
+
+  // Hindu
+  { name: 'Diwali', date: new Date('2026-11-01'), daysAway: 0, products: ['Rice', 'Spices', 'Lentils', 'Ghee', 'Sweets'] },
+  { name: 'Holi', date: new Date('2026-03-10'), daysAway: 0, products: ['Rice', 'Spices', 'Sweets', 'Drinks'] },
+
+  // General UK
+  { name: 'Mother\'s Day (UK)', date: new Date('2026-03-22'), daysAway: 0, products: ['Rice', 'Chicken', 'Drinks', 'Sweets'] },
+  { name: 'Boxing Day', date: new Date('2026-12-26'), daysAway: 0, products: ['Leftovers Ingredients', 'Rice', 'Snacks'] },
 ];
 
 // Calculate days away for each event
@@ -180,7 +200,81 @@ export default function AIInsightsPanel({ orders, products }: AIInsightsPanelPro
       });
     }
 
-    // 6. Order prediction for the day
+    // 6. Customer Churn Warning
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Find customers who ordered before but haven't ordered in last 30 days
+    const customerLastOrder = orders.reduce((acc, order) => {
+      const orderDate = new Date(order.created_at);
+      if (!acc[order.phone_number] || orderDate > acc[order.phone_number]) {
+        acc[order.phone_number] = orderDate;
+      }
+      return acc;
+    }, {} as Record<string, Date>);
+
+    const inactiveCustomers = Object.entries(customerLastOrder)
+      .filter(([_, lastOrder]) => lastOrder < thirtyDaysAgo)
+      .length;
+
+    if (inactiveCustomers > 0) {
+      insights.push({
+        id: 'churn-warning',
+        type: 'urgent',
+        icon: AlertTriangle,
+        title: `${inactiveCustomers} customers haven't ordered in 30+ days`,
+        description: `Send them a reminder or special offer to win them back. Retention is cheaper than acquisition!`,
+        action: 'send-reminder',
+        actionLabel: 'Send Reminder',
+        priority: 2
+      });
+    }
+
+    // 7. Stock Expiry Prediction (for products with expiry dates)
+    const lowStockHighDemand = products.filter(p => {
+      const soldToday = productSales[p.name] || 0;
+      const stock = p.stock_quantity || 0;
+      // If current stock would run out in less than 5 days at today's rate
+      return soldToday > 0 && stock > 0 && (stock / soldToday) < 5;
+    });
+
+    if (lowStockHighDemand.length > 0) {
+      insights.push({
+        id: 'stock-forecast',
+        type: 'prediction',
+        icon: Package,
+        title: `${lowStockHighDemand[0]?.name || 'Products'} may run out in ~${Math.ceil((lowStockHighDemand[0]?.stock_quantity || 1) / (productSales[lowStockHighDemand[0]?.name] || 1))} days`,
+        description: `Based on today's sales velocity. ${lowStockHighDemand.length > 1 ? `${lowStockHighDemand.length - 1} other products also at risk.` : 'Consider restocking soon.'}`,
+        action: 'reorder',
+        actionLabel: 'Reorder Now',
+        priority: 2
+      });
+    }
+
+    // 8. Peak Hours Insight
+    const hourlyOrders = todayOrders.reduce((acc, order) => {
+      const hour = new Date(order.created_at).getHours();
+      acc[hour] = (acc[hour] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    const peakHour = Object.entries(hourlyOrders)
+      .sort(([, a], [, b]) => b - a)[0];
+
+    if (peakHour && Number(peakHour[1]) > 2) {
+      const hourNum = Number(peakHour[0]);
+      const hourStr = hourNum > 12 ? `${hourNum - 12}pm` : `${hourNum}am`;
+      insights.push({
+        id: 'peak-hours',
+        type: 'trend',
+        icon: TrendingUp,
+        title: `Peak ordering time: around ${hourStr}`,
+        description: `${peakHour[1]} orders received at this hour. Consider extra staff during peak times.`,
+        priority: 5
+      });
+    }
+
+    // 9. Order prediction for the day
     const weekday = new Date().getDay();
     const historicalOrders = orders.filter(o => new Date(o.created_at).getDay() === weekday);
     const avgOrdersForDay = Math.round(historicalOrders.length / Math.max(1, Math.ceil(orders.length / 7)));
@@ -189,10 +283,25 @@ export default function AIInsightsPanel({ orders, products }: AIInsightsPanelPro
       id: 'prediction',
       type: 'prediction',
       icon: Brain,
-      title: `Expecting ${avgOrdersForDay + 3}-${avgOrdersForDay + 8} orders today`,
+      title: `Expecting ${Math.max(avgOrdersForDay, todayOrders.length)}-${avgOrdersForDay + 8} orders today`,
       description: `Based on your ${new Date().toLocaleDateString('en-GB', { weekday: 'long' })} patterns. You've received ${todayOrders.length} so far.`,
       priority: 6
     });
+
+    // 10. WhatsApp Channel Performance
+    const whatsappOrders = orders.filter(o => o.channel === 'WhatsApp').length;
+    const whatsappPercentage = orders.length > 0 ? ((whatsappOrders / orders.length) * 100).toFixed(0) : 0;
+
+    if (Number(whatsappPercentage) > 50) {
+      insights.push({
+        id: 'whatsapp-success',
+        type: 'opportunity',
+        icon: Lightbulb,
+        title: `${whatsappPercentage}% of orders via WhatsApp`,
+        description: `Your WhatsApp channel is performing well! Consider adding more product images to catalogs.`,
+        priority: 7
+      });
+    }
 
     return insights.sort((a, b) => a.priority - b.priority);
   };

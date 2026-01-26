@@ -1,0 +1,31 @@
+# Environment files with credentials
+.env
+.env.local
+.env.*.local
+.env.vercel-check
+*.env
+
+# Session summaries may contain sensitive data
+SESSION_SUMMARY_*.md
+
+# Node modules
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.temp/

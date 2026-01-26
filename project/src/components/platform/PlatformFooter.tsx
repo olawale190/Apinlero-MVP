@@ -92,7 +92,7 @@ export function PlatformFooter() {
             © 2026 Lazrap Ltd. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
-            <a href="#" className="hover:text-blue-400 transition-colors">
+            <a href="/privacy" className="hover:text-blue-400 transition-colors">
               Privacy Policy
             </a>
             <a href="#" className="hover:text-blue-400 transition-colors">
