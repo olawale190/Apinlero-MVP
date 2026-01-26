@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database } from 'lucide-react';
+import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw } from 'lucide-react';
 import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
 import CategoryManager from './CategoryManager';
 import { triggerLowStockAlert, triggerExpiryAlert, isN8nConfigured } from '../lib/n8n';
 import { uploadAndTrack, BUCKETS, getPublicUrl } from '../lib/storage';
+import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
 
 interface BulkPriceTier {
@@ -153,6 +154,9 @@ export default function InventoryManager({ products: initialProducts, onProductU
   // Storage diagnostics state
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
+  // Refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
   // Handle sending low stock alert
   const handleSendLowStockAlert = async (product: Product) => {
     setSendingAlert(product.id);
@@ -214,10 +218,25 @@ export default function InventoryManager({ products: initialProducts, onProductU
     // Upload to Supabase Storage
     setUploadingImage(true);
     try {
-      const result = await uploadAndTrack(BUCKETS.PRODUCTS, file, {
+      // Compress image before upload
+      const compression = await compressImage(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.8,
+        maxSizeKB: 500
+      });
+
+      console.log(getCompressionSummary(compression));
+
+      const result = await uploadAndTrack(BUCKETS.PRODUCTS, compression.file, {
         folder: 'catalog',
         source: 'web',
-        metadata: { uploadedFrom: 'inventory-manager' }
+        metadata: {
+          uploadedFrom: 'inventory-manager',
+          originalSize: compression.originalSize,
+          compressedSize: compression.compressedSize,
+          wasCompressed: compression.wasCompressed
+        }
       });
 
       if (result.success && result.url) {
@@ -475,13 +494,20 @@ export default function InventoryManager({ products: initialProducts, onProductU
       .single();
 
     if (!error && data) {
-      setProducts([...products, data]);
+      console.log('✅ Product saved successfully:', data.name);
+
+      // Don't update local state to avoid race condition with database reload
+      // The parent component will reload all products from the database
+
       if (!isManualAdd) {
         setScanResult(data);
       }
+
+      // Clear form and UI state
       setShowNewProductForm(false);
       setIsManualAdd(false);
       setImagePreview(null);
+      setSearchTerm(''); // Clear search filter to ensure new product is visible
       setNewProductForm({
         name: '',
         price: '',
@@ -493,8 +519,17 @@ export default function InventoryManager({ products: initialProducts, onProductU
         batch_number: '',
         image_url: ''
       });
-      onProductUpdate();
+
+      // Show success feedback
+      alert('Product added successfully! Refreshing inventory...');
+
+      // Reload from database after a brief delay to ensure commit completes
+      setTimeout(() => {
+        console.log('🔄 Reloading products from database...');
+        onProductUpdate();
+      }, 200);
     } else {
+      console.error('❌ Error saving product:', error);
       alert('Error saving product: ' + (error?.message || 'Unknown error'));
     }
 
@@ -783,7 +818,28 @@ export default function InventoryManager({ products: initialProducts, onProductU
             >
               <Database size={18} className="text-gray-600" />
             </button>
+            <button
+              onClick={() => {
+                setRefreshing(true);
+                onProductUpdate();
+                setTimeout(() => setRefreshing(false), 1000);
+              }}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              title="Refresh products from database"
+              disabled={refreshing}
+            >
+              <RefreshCw
+                size={18}
+                className={`text-gray-600 ${refreshing ? 'animate-spin' : ''}`}
+              />
+            </button>
           </div>
+        </div>
+
+        {/* Products Count Display */}
+        <div className="text-sm text-gray-600 mb-4">
+          Showing {filteredProducts.length} product(s)
+          {searchTerm && ` (filtered from ${products.length} total)`}
         </div>
 
         {/* Products Grid */}
