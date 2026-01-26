@@ -124,13 +124,17 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
   };
 
   const loadProducts = async () => {
+    console.log('📦 Loading products from database...');
     const { data, error } = await supabase
       .from('products')
       .select('*')
       .order('name', { ascending: true });
 
     if (!error && data) {
+      console.log(`✅ Loaded ${data.length} products from database`);
       setProducts(data);
+    } else if (error) {
+      console.error('❌ Error loading products:', error);
     }
   };
 
