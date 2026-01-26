@@ -16,8 +16,15 @@ import {
   cleanPhoneNumber
 } from './whatsapp-cloud-service.js';
 import { handleIncomingMessage } from './message-handler.js';
+import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
 
 dotenv.config();
+
+// Validate environment on startup
+validateEnvironment();
+const whatsappProvider = getWhatsAppProvider();
+console.log(`📱 WhatsApp Provider: ${whatsappProvider || 'None configured'}`);
+
 
 const app = express();
 

@@ -1,11 +1,11 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { supabase } from './supabase';
 
 // ==============================================================================
 // STRIPE PAYMENT INTEGRATION
 // ==============================================================================
 
-// Initialize Stripe (replace with your actual publishable key in production)
-// For now, this is a test key placeholder
+// Initialize Stripe with publishable key
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 
 let stripePromise: Promise<Stripe | null> | null = null;
@@ -22,30 +22,57 @@ export const getStripe = (): Promise<Stripe | null> => {
 
 /**
  * Create a payment intent for an order
- * Note: In production, this should be done server-side via Supabase Edge Functions
+ * Calls Supabase Edge Function to create payment intent server-side
  */
 export async function createPaymentIntent(
   amount: number,
   currency: string = 'gbp',
-  orderId: string
-): Promise<{ clientSecret: string; paymentIntentId: string } | null> {
+  orderId: string,
+  customerEmail?: string,
+  customerName?: string
+): Promise<{
+  clientSecret: string;
+  paymentIntentId: string;
+  amount: number;
+  currency: string;
+} | null> {
   try {
-    // For MVP demo purposes only - In production, this MUST be server-side
-    // You would call a Supabase Edge Function here that creates the payment intent
-    // using your Stripe secret key (server-side only)
+    // Validate amount before calling edge function
+    const validation = validatePaymentAmount(amount);
+    if (!validation.valid) {
+      console.error('Payment validation failed:', validation.error);
+      return null;
+    }
 
-    console.warn('⚠️ Payment intent creation should be server-side in production');
+    // Call Supabase Edge Function to create payment intent
+    const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+      body: {
+        amount,
+        currency,
+        orderId,
+        customerEmail,
+        customerName,
+        description: `Apinlero Order ${orderId}`,
+      },
+    });
 
-    // Placeholder return for demo
-    // In production, replace with:
-    // const response = await supabase.functions.invoke('create-payment-intent', {
-    //   body: { amount, currency, orderId }
-    // });
-    // return response.data;
+    if (error) {
+      console.error('Edge function error:', error);
+      return null;
+    }
+
+    if (!data?.clientSecret) {
+      console.error('No client secret returned from payment intent');
+      return null;
+    }
+
+    console.log(`Payment intent created: ${data.paymentIntentId}`);
 
     return {
-      clientSecret: 'demo_client_secret',
-      paymentIntentId: 'demo_payment_intent_' + orderId,
+      clientSecret: data.clientSecret,
+      paymentIntentId: data.paymentIntentId,
+      amount: data.amount,
+      currency: data.currency,
     };
   } catch (error) {
     console.error('Error creating payment intent:', error);

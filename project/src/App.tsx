@@ -11,6 +11,8 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import DeliveryConfirm from './pages/DeliveryConfirm';
 import OrderTracking from './pages/OrderTracking';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import ConsentBanner from './components/ConsentBanner';
 
 type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | 'dashboard' | 'delivery';
 
@@ -189,10 +191,12 @@ export default function App() {
           <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
           <Route path="/checkout" element={<IshasTreatStore />} />
           <Route path="/track" element={<OrderTracking />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
           {/* Catch all for store subdomain */}
           <Route path="*" element={<IshasTreatStore />} />
         </Routes>
+        <ConsentBanner />
       </BrowserRouter>
     );
   }
@@ -204,8 +208,10 @@ export default function App() {
         <Routes>
           <Route path="/" element={<SaaSDashboard />} />
           <Route path="/app/*" element={<SaaSDashboard />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="*" element={<SaaSDashboard />} />
         </Routes>
+        <ConsentBanner />
       </BrowserRouter>
     );
   }
@@ -252,9 +258,13 @@ export default function App() {
         {/* Order tracking page (customer view) */}
         <Route path="/track" element={<OrderTracking />} />
 
+        {/* Legal pages */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ConsentBanner />
     </BrowserRouter>
   );
 }

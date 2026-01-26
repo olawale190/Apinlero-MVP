@@ -48,25 +48,6 @@ export async function uploadFile(
   folder?: string
 ): Promise<StorageResponse> {
   try {
-    // Check if bucket exists first
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-
-    if (listError) {
-      console.error('Cannot access storage:', listError);
-      return {
-        success: false,
-        error: `Cannot access storage: ${listError.message}. Check your Supabase configuration.`
-      };
-    }
-
-    const bucketExists = buckets?.some(b => b.name === bucket);
-    if (!bucketExists) {
-      return {
-        success: false,
-        error: `Storage bucket "${bucket}" not found. Please create it in Supabase Dashboard > Storage.`
-      };
-    }
-
     // Generate unique filename with timestamp
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
