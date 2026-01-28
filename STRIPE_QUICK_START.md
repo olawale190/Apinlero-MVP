@@ -1,4 +1,4 @@
-# Stripe Quick Start - TL;DR
+h# Stripe Quick Start - TL;DR
 
 ## Who Does What?
 
