@@ -16,7 +16,8 @@ import {
   Building2,
   ChevronDown,
   Mail,
-  Check
+  Check,
+  Settings
 } from 'lucide-react';
 import { supabase, type Order, type Product } from '../lib/supabase';
 import { triggerDailySummary, isN8nConfigured } from '../lib/n8n';
@@ -34,6 +35,7 @@ import ExpiryWastePredictor from '../components/ExpiryWastePredictor';
 import ChannelVisualization from '../components/ChannelVisualization';
 import DeliveryOptimizer from '../components/DeliveryOptimizer';
 import InventoryManager from '../components/InventoryManager';
+import StripeSettings from './StripeSettings';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -41,7 +43,7 @@ interface DashboardProps {
   businessName?: string;
 }
 
-type TabType = 'overview' | 'insights' | 'promotions' | 'customers' | 'calendar' | 'bundles' | 'expiry' | 'channels' | 'delivery' | 'inventory';
+type TabType = 'overview' | 'insights' | 'promotions' | 'customers' | 'calendar' | 'bundles' | 'expiry' | 'channels' | 'delivery' | 'inventory' | 'settings';
 
 const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: string }[] = [
   { id: 'overview', label: 'Overview', mobileLabel: 'Home', icon: <LayoutDashboard size={16} /> },
@@ -54,6 +56,7 @@ const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: st
   { id: 'channels', label: 'Channels', mobileLabel: 'Stats', icon: <BarChart3 size={16} /> },
   { id: 'delivery', label: 'Delivery', mobileLabel: 'Delivery', icon: <Truck size={16} /> },
   { id: 'inventory', label: 'Inventory', mobileLabel: 'Stock', icon: <Package size={16} /> },
+  { id: 'settings', label: 'Settings', mobileLabel: 'Settings', icon: <Settings size={16} /> },
 ];
 
 export default function Dashboard({ onLogout, onViewStorefront, businessName = "Isha's Treat & Groceries" }: DashboardProps) {
@@ -369,6 +372,13 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         {activeTab === 'inventory' && (
           <div className="space-y-6">
             <InventoryManager products={products} onProductUpdate={loadProducts} />
+          </div>
+        )}
+
+        {/* Settings Tab - Stripe Integration */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <StripeSettings />
           </div>
         )}
       </main>

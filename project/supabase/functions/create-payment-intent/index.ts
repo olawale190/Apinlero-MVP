@@ -1,11 +1,13 @@
 /**
- * Supabase Edge Function: Create Payment Intent
+ * Supabase Edge Function: Create Payment Intent (Per-Business Accounts)
  *
- * Creates a Stripe Payment Intent for order processing.
- * This runs server-side to keep the Stripe secret key secure.
+ * Creates a Stripe Payment Intent using the business's own Stripe account.
+ * Supports Option A: Per-Business Stripe Accounts architecture.
+ *
+ * This runs server-side to keep Stripe secret keys secure.
  *
  * Deploy: supabase functions deploy create-payment-intent
- * Set secret: supabase secrets set STRIPE_SECRET_KEY=sk_...
+ * Note: No STRIPE_SECRET_KEY env var needed - uses per-business keys from database
  */
 
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
@@ -19,6 +21,7 @@ const corsHeaders = {
 };
 
 interface PaymentIntentRequest {
+  businessId: string;  // NEW: Which business's Stripe account to use
   amount: number;
   currency?: string;
   orderId: string;
@@ -34,20 +37,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Get Stripe secret key from environment
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
-    if (!stripeSecretKey) {
-      throw new Error('STRIPE_SECRET_KEY not configured');
-    }
-
-    // Initialize Stripe
-    const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    });
-
     // Parse request body
     const {
+      businessId,
       amount,
       currency = 'gbp',
       orderId,
@@ -55,6 +47,71 @@ Deno.serve(async (req: Request) => {
       customerName,
       description,
     }: PaymentIntentRequest = await req.json();
+
+    // Validate businessId
+    if (!businessId) {
+      return new Response(
+        JSON.stringify({ error: 'businessId is required' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch business's Stripe secret key from database
+    const { data: business, error: dbError } = await supabase
+      .from('businesses')
+      .select('stripe_secret_key_encrypted')
+      .eq('id', businessId)
+      .single();
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      return new Response(
+        JSON.stringify({ error: 'Business not found' }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!business?.stripe_secret_key_encrypted) {
+      return new Response(
+        JSON.stringify({ error: 'Stripe not configured for this business' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // TODO: Decrypt the secret key if you implement encryption
+    // For now, we're storing it directly (INSECURE - implement encryption!)
+    const stripeSecretKey = business.stripe_secret_key_encrypted;
+
+    // Validate Stripe key format
+    if (!stripeSecretKey.startsWith('sk_')) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid Stripe key configuration' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Initialize Stripe with business's secret key
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2023-10-16',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
 
     // Validate amount
     if (!amount || amount <= 0) {
@@ -81,11 +138,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create payment intent
+    // Create payment intent using business's Stripe account
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInPence,
       currency: currency.toLowerCase(),
       metadata: {
+        businessId,     // Track which business this payment is for
         orderId,
         customerName: customerName || '',
         source: 'apinlero',
@@ -97,7 +155,7 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    console.log(`Payment intent created: ${paymentIntent.id} for order ${orderId}`);
+    console.log(`Payment intent created: ${paymentIntent.id} for business ${businessId}, order ${orderId}`);
 
     // Return client secret
     return new Response(

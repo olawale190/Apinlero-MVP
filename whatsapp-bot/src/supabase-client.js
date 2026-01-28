@@ -193,12 +193,19 @@ export async function deleteSession(phone, businessId = null) {
 // ============================================
 
 /**
- * Get all active products
+ * Get all active products for a specific business
+ * @param {string} businessId - UUID of the business
+ * @returns {Promise<Array>} Array of product objects
  */
-export async function getProducts() {
-  const { data, error } = await supabase
+export async function getProducts(businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getProducts');
+  }
+
+  const { data, error} = await supabase
     .from('products')
     .select('*')
+    .eq('business_id', businessId)
     .eq('is_active', true)
     .order('name');
 
@@ -211,13 +218,21 @@ export async function getProducts() {
 }
 
 /**
- * Get a single product by ID
+ * Get a single product by ID for a specific business
+ * @param {string} id - Product ID
+ * @param {string} businessId - UUID of the business
+ * @returns {Promise<Object|null>} Product object or null
  */
-export async function getProductById(id) {
+export async function getProductById(id, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getProductById');
+  }
+
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('id', id)
+    .eq('business_id', businessId)
     .single();
 
   if (error) {
@@ -229,12 +244,20 @@ export async function getProductById(id) {
 }
 
 /**
- * Get product by name (fuzzy match)
+ * Get product by name (fuzzy match) for a specific business
+ * @param {string} name - Product name to search for
+ * @param {string} businessId - UUID of the business
+ * @returns {Promise<Object|null>} Product object or null
  */
-export async function getProductByName(name) {
+export async function getProductByName(name, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getProductByName');
+  }
+
   const { data, error } = await supabase
     .from('products')
     .select('*')
+    .eq('business_id', businessId)
     .ilike('name', `%${name}%`)
     .limit(1)
     .single();
@@ -251,12 +274,20 @@ export async function getProductByName(name) {
 // ============================================
 
 /**
- * Create a new order
+ * Create a new order for a specific business
+ * @param {Object} orderData - Order data
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Object>} Created order object
  */
-export async function createOrder(orderData) {
+export async function createOrder(orderData, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for createOrder');
+  }
+
   const { data, error } = await supabase
     .from('orders')
     .insert({
+      business_id: businessId,
       customer_name: orderData.customer_name,
       phone_number: orderData.phone_number,
       email: orderData.email || null,
@@ -309,17 +340,25 @@ export async function createOrder(orderData) {
 }
 
 /**
- * Get orders by phone number
+ * Get orders by phone number for a specific business
+ * @param {string} phone - Phone number
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Array>} Array of orders
  */
-export async function getOrderByPhone(phone) {
+export async function getOrderByPhone(phone, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getOrderByPhone');
+  }
+
   // Normalize phone number
   const normalizedPhone = phone.replace(/\D/g, '');
 
   const { data, error } = await supabase
     .from('orders')
     .select('*')
+    .eq('business_id', businessId)
     .or(`phone_number.eq.${phone},phone_number.eq.${normalizedPhone},phone_number.eq.+${normalizedPhone}`)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false})
     .limit(5);
 
   if (error) {
@@ -377,25 +416,27 @@ export async function updateOrderPayment(orderId, paymentMethod, paymentStatus =
 // ============================================
 
 /**
- * Get or create customer by phone
+ * Get or create customer by phone for a specific business
  * @param {string} phone - Customer phone number
  * @param {string} name - Customer name
- * @param {string|null} businessId - Business ID for multi-tenant mode
+ * @param {string} businessId - Business ID (required for multi-tenant)
+ * @returns {Promise<Object|null>} Customer object or null
  */
-export async function getOrCreateCustomer(phone, name, businessId = null) {
+export async function getOrCreateCustomer(phone, name, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getOrCreateCustomer');
+  }
+
   // Normalize phone number
   const normalizedPhone = phone.replace(/\D/g, '');
 
-  // For multi-tenant, scope customers to business
-  // Note: The existing customers table might need a business_id column
-  // For now, we'll use the existing structure for backward compatibility
-
-  // Try to find existing customer
+  // Try to find existing customer in THIS business only
   const { data: existing } = await supabase
     .from('customers')
     .select('*')
+    .eq('business_id', businessId)
     .or(`phone.eq.${phone},phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     // Update name if provided and different
@@ -403,16 +444,18 @@ export async function getOrCreateCustomer(phone, name, businessId = null) {
       await supabase
         .from('customers')
         .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
+        .eq('id', existing.id)
+        .eq('business_id', businessId);
       existing.name = name;
     }
     return existing;
   }
 
-  // Create new customer
+  // Create new customer in THIS business
   const { data: newCustomer, error } = await supabase
     .from('customers')
     .insert({
+      business_id: businessId,
       phone: normalizedPhone,
       name: name || 'WhatsApp Customer',
       channel: 'WhatsApp',
@@ -427,21 +470,29 @@ export async function getOrCreateCustomer(phone, name, businessId = null) {
     return null;
   }
 
-  console.log(`✅ New customer created: ${newCustomer.name} (${phone})${businessId ? ` [Business: ${businessId.substring(0, 8)}]` : ''}`);
+  console.log(`✅ New customer created: ${newCustomer.name} (${phone}) [Business: ${businessId.substring(0, 8)}]`);
   return newCustomer;
 }
 
 /**
- * Get customer by phone
+ * Get customer by phone for a specific business
+ * @param {string} phone - Phone number
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Object|null>} Customer object or null
  */
-export async function getCustomerByPhone(phone) {
+export async function getCustomerByPhone(phone, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getCustomerByPhone');
+  }
+
   const normalizedPhone = phone.replace(/\D/g, '');
 
   const { data, error } = await supabase
     .from('customers')
     .select('*')
+    .eq('business_id', businessId)
     .or(`phone.eq.${phone},phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
-    .single();
+    .maybeSingle();
 
   if (error) {
     return null;
@@ -451,9 +502,18 @@ export async function getCustomerByPhone(phone) {
 }
 
 /**
- * Update customer's default address
+ * Update customer's default address for a specific business
+ * @param {string} phone - Phone number
+ * @param {string} address - Delivery address
+ * @param {string} postcode - Postcode
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Object|null>} Updated customer or null
  */
-export async function updateCustomerAddress(phone, address, postcode) {
+export async function updateCustomerAddress(phone, address, postcode, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for updateCustomerAddress');
+  }
+
   const normalizedPhone = phone.replace(/\D/g, '');
 
   const { data, error } = await supabase
@@ -463,32 +523,41 @@ export async function updateCustomerAddress(phone, address, postcode) {
       default_postcode: postcode,
       updated_at: new Date().toISOString()
     })
+    .eq('business_id', businessId)
     .or(`phone.eq.${phone},phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Failed to update customer address:', error);
     return null;
   }
 
-  console.log(`📍 Saved address for ${phone}: ${address}`);
+  console.log(`📍 Saved address for ${phone}: ${address} [Business: ${businessId.substring(0, 8)}]`);
   return data;
 }
 
 /**
- * Get customer's last order
+ * Get customer's last order for a specific business
+ * @param {string} phone - Phone number
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Object|null>} Last order or null
  */
-export async function getLastOrder(phone) {
+export async function getLastOrder(phone, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getLastOrder');
+  }
+
   const normalizedPhone = phone.replace(/\D/g, '');
 
   const { data, error } = await supabase
     .from('orders')
     .select('*')
+    .eq('business_id', businessId)
     .or(`phone_number.eq.${phone},phone_number.eq.${normalizedPhone},phone_number.eq.+${normalizedPhone}`)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Failed to get last order:', error);

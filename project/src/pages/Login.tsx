@@ -5,9 +5,10 @@ import { supabase } from '../lib/supabase';
 interface LoginProps {
   onLoginSuccess: () => void;
   onViewStorefront: () => void;
+  onForgotPassword?: () => void;
 }
 
-export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) {
+export default function Login({ onLoginSuccess, onViewStorefront, onForgotPassword }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -141,13 +142,21 @@ export default function Login({ onLoginSuccess, onViewStorefront }: LoginProps) 
           </form>
 
           {/* Toggle Sign Up / Sign In */}
-          <div className="mt-4 text-center">
+          <div className="mt-4 text-center space-y-2">
             <button
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-teal-600 hover:text-teal-700"
+              className="text-sm text-teal-600 hover:text-teal-700 block w-full"
             >
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </button>
+            {!isSignUp && onForgotPassword && (
+              <button
+                onClick={onForgotPassword}
+                className="text-sm text-gray-600 hover:text-teal-600 block w-full"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
 
           {/* Divider */}

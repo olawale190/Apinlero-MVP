@@ -6,13 +6,26 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=e2e",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=unit",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --testPathPattern=integration"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "neo4j-driver": "^6.0.1",
     "twilio": "^5.11.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
+    "supertest": "^6.3.3"
   }
 }

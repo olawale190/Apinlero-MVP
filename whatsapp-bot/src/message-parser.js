@@ -16,6 +16,7 @@ import { matchProductFromGraph, isNeo4jAvailable } from './neo4j-matcher.js';
 const PRODUCT_ALIASES = {
   'Palm Oil 5L': ['palm oil', 'red oil', 'zomi', 'epo pupa', 'adin'],
   'Jollof Rice Mix': ['jollof', 'jollof rice', 'jollof mix', 'party jollof'],
+  'Rice': ['rice', 'long grain rice', 'iresi'],
   'Plantain (Green)': ['plantain', 'green plantain', 'unripe plantain', 'ogede'],
   'Egusi Seeds': ['egusi', 'melon seeds', 'agusi', 'egwusi'],
   'Stockfish': ['stockfish', 'stock fish', 'okporoko', 'panla'],
@@ -377,9 +378,17 @@ export function parseAddress(message) {
     }
   }
 
+  // Format postcode with proper spacing (e.g., "SE154AA" -> "SE15 4AA")
+  let formattedPostcode = null;
+  if (postcodeMatch) {
+    const pc = postcodeMatch[0].toUpperCase().replace(/\s+/g, '');
+    // Insert space before the last 3 characters (inward code)
+    formattedPostcode = pc.slice(0, -3) + ' ' + pc.slice(-3);
+  }
+
   return {
     address: address || null,
-    postcode: postcodeMatch ? postcodeMatch[0].toUpperCase().replace(/\s+/, ' ') : null
+    postcode: formattedPostcode
   };
 }
 

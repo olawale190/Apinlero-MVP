@@ -9,12 +9,14 @@ import Checkout from './pages/Checkout';
 import Confirmation from './pages/Confirmation';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import PasswordReset from './pages/PasswordReset';
+import UpdatePassword from './pages/UpdatePassword';
 import DeliveryConfirm from './pages/DeliveryConfirm';
 import OrderTracking from './pages/OrderTracking';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ConsentBanner from './components/ConsentBanner';
 
-type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | 'dashboard' | 'delivery';
+type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | 'dashboard' | 'delivery' | 'password-reset';
 
 // SaaS Dashboard App (for app.apinlero.com subdomain)
 function SaaSDashboard() {
@@ -23,6 +25,7 @@ function SaaSDashboard() {
     return localStorage.getItem('apinlero_demo_mode') === 'true';
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
   const navigate = useNavigate();
 
@@ -87,12 +90,22 @@ function SaaSDashboard() {
     );
   }
 
+  // Render Password Reset page if requested
+  if (showPasswordReset) {
+    return (
+      <PasswordReset
+        onBack={() => setShowPasswordReset(false)}
+      />
+    );
+  }
+
   // Render Login page if not authenticated
   if (!isAuthenticated) {
     return (
       <Login
         onLoginSuccess={handleLoginSuccess}
         onViewStorefront={handleViewStorefront}
+        onForgotPassword={() => setShowPasswordReset(true)}
       />
     );
   }
@@ -208,6 +221,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<SaaSDashboard />} />
           <Route path="/app/*" element={<SaaSDashboard />} />
+          <Route path="/reset-password" element={<UpdatePassword />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="*" element={<SaaSDashboard />} />
         </Routes>
@@ -223,6 +237,7 @@ export default function App() {
         {/* SaaS Dashboard (app.apinlero.com) */}
         <Route path="/app" element={<SaaSDashboard />} />
         <Route path="/app/*" element={<SaaSDashboard />} />
+        <Route path="/reset-password" element={<UpdatePassword />} />
 
         {/* Original Isha's Treat landing page at root */}
         <Route

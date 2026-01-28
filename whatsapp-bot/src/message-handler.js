@@ -285,7 +285,7 @@ export async function handleIncomingMessage({
         break;
 
       case 'PRODUCTS_LIST':
-        response = await handleProductsList();
+        response = await handleProductsList(conversation.businessId);
         break;
 
       case 'START_ORDER':
@@ -313,11 +313,11 @@ export async function handleIncomingMessage({
         break;
 
       case 'PRICE_CHECK':
-        response = await handlePriceCheck(text);
+        response = await handlePriceCheck(text, conversation.businessId);
         break;
 
       case 'AVAILABILITY':
-        response = await handleAvailability(text);
+        response = await handleAvailability(text, conversation.businessId);
         break;
 
       case 'DELIVERY_INQUIRY':
@@ -329,7 +329,7 @@ export async function handleIncomingMessage({
         break;
 
       case 'ORDER_STATUS':
-        response = await handleOrderStatus(from);
+        response = await handleOrderStatus(from, conversation.businessId);
         break;
 
       case 'CANCEL':
@@ -358,7 +358,7 @@ export async function handleIncomingMessage({
 
     // Log outbound message
     if (response) {
-      await logMessage(from, 'outbound', response.text, parsed.intent, conversation.lastOrderId);
+      await logMessage(from, 'outbound', response.text, parsed.intent, conversation.lastOrderId, businessId);
     }
 
     return response;
@@ -390,7 +390,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   }
 
   // Get product prices from database
-  const products = await getProducts();
+  const products = await getProducts(conversation.businessId);
   const productMap = new Map(products.map(p => [p.name.toLowerCase(), p]));
 
   // Build order with prices
@@ -430,7 +430,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
 
   if (!address && !postcode) {
     // Try to get saved address from customer profile
-    const customer = await getCustomerByPhone(phone);
+    const customer = await getCustomerByPhone(phone, conversation.businessId);
     if (customer?.default_address) {
       finalAddress = customer.default_address;
       finalPostcode = customer.default_postcode;
@@ -461,7 +461,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
 
   // Check for one-message complete order with auto-confirm
   const isComplete = isCompleteOrder(items, finalPostcode);
-  const customer = await getCustomerByPhone(phone);
+  const customer = await getCustomerByPhone(phone, conversation.businessId);
   const isReturningCustomer = customer && customer.total_orders >= MIN_ORDERS_FOR_AUTO_CONFIRM;
   const canAutoConfirm = isReturningCustomer && pendingOrder.total < AUTO_CONFIRM_THRESHOLD;
 
@@ -529,7 +529,7 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
       payment_method: 'pending',
       notes: `Auto-confirmed | Postcode: ${pendingOrder.postcode || 'Saved'}`,
       customer_id: conversation.customerId
-    });
+    }, conversation.businessId);
 
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
@@ -568,7 +568,7 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
  */
 async function handleReorder(phone, customerName, conversation) {
   try {
-    const lastOrder = await getLastOrder(phone);
+    const lastOrder = await getLastOrder(phone, conversation.businessId);
 
     if (!lastOrder) {
       return generateResponse('NO_PREVIOUS_ORDER');
@@ -621,7 +621,7 @@ async function handleQuickOrder(phone, customerName, text, conversation) {
   }
 
   // Get customer's saved address
-  const customer = await getCustomerByPhone(phone);
+  const customer = await getCustomerByPhone(phone, conversation.businessId);
   if (!customer?.default_address) {
     // No saved address, fall back to regular order flow
     return handleNewOrder(phone, customerName, parsed, conversation);
@@ -667,7 +667,7 @@ async function handleConfirmation(phone, customerName, conversation) {
       payment_method: 'pending',
       notes: `Postcode: ${order.postcode || 'Not provided'}`,
       customer_id: conversation.customerId
-    });
+    }, conversation.businessId);
 
     // Update conversation state
     await updateConversation(phone, {
@@ -742,8 +742,8 @@ function handleDecline(conversation) {
 /**
  * Handle price check requests
  */
-async function handlePriceCheck(text) {
-  const products = await getProducts();
+async function handlePriceCheck(text, businessId) {
+  const products = await getProducts(businessId);
 
   // Try Neo4j matching first
   const matched = await matchProduct(text);
@@ -778,8 +778,8 @@ async function handlePriceCheck(text) {
 /**
  * Handle availability check
  */
-async function handleAvailability(text) {
-  const products = await getProducts();
+async function handleAvailability(text, businessId) {
+  const products = await getProducts(businessId);
 
   // Try Neo4j matching first
   const matched = await matchProduct(text);
@@ -836,9 +836,9 @@ function handleBusinessHours(isOpen) {
 /**
  * Handle order status check
  */
-async function handleOrderStatus(phone) {
+async function handleOrderStatus(phone, businessId) {
   try {
-    const orders = await getOrderByPhone(phone);
+    const orders = await getOrderByPhone(phone, businessId);
 
     if (!orders || orders.length === 0) {
       return generateResponse('NO_ORDERS_FOUND');
@@ -877,7 +877,7 @@ function handleThanks(customerName) {
  */
 async function handleStartOrder(conversation) {
   // Show products with quick order option
-  const products = await getProducts();
+  const products = await getProducts(conversation.businessId);
 
   if (!products || products.length === 0) {
     return generateResponse('NO_PRODUCTS');
@@ -901,8 +901,8 @@ async function handleStartOrder(conversation) {
 /**
  * Handle products list request
  */
-async function handleProductsList() {
-  const products = await getProducts();
+async function handleProductsList(businessId) {
+  const products = await getProducts(businessId);
 
   if (!products || products.length === 0) {
     return generateResponse('NO_PRODUCTS');

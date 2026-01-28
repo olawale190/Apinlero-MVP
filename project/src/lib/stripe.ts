@@ -290,3 +290,170 @@ export function handleStripeError(error: any): StripeError {
     message: 'An unexpected error occurred. Please try again.',
   };
 }
+
+// ==============================================================================
+// PER-BUSINESS STRIPE ACCOUNTS (Option A)
+// ==============================================================================
+
+/**
+ * Get Stripe instance for a specific business
+ * Each business has their own Stripe account and API keys
+ *
+ * @param businessId - The business ID to get Stripe keys for
+ * @returns Stripe instance or null if not configured
+ */
+export async function getBusinessStripe(businessId: string): Promise<Stripe | null> {
+  try {
+    // Fetch business Stripe keys from database
+    const { data: business, error } = await supabase
+      .from('businesses')
+      .select('stripe_publishable_key')
+      .eq('id', businessId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching business Stripe keys:', error);
+      return null;
+    }
+
+    if (!business?.stripe_publishable_key) {
+      console.warn('No Stripe keys found for business:', businessId);
+      return null;
+    }
+
+    // Validate key format
+    if (!business.stripe_publishable_key.startsWith('pk_')) {
+      console.error('Invalid Stripe publishable key format');
+      return null;
+    }
+
+    // Load Stripe with business's publishable key
+    return await loadStripe(business.stripe_publishable_key);
+  } catch (error) {
+    console.error('Error loading business Stripe:', error);
+    return null;
+  }
+}
+
+/**
+ * Create payment intent using business's Stripe account
+ *
+ * @param businessId - The business ID
+ * @param amount - Amount in currency units (e.g., £25.50)
+ * @param orderId - The order ID
+ * @param customerEmail - Optional customer email
+ * @param customerName - Optional customer name
+ * @returns Payment intent details or null
+ */
+export async function createBusinessPaymentIntent(
+  businessId: string,
+  amount: number,
+  orderId: string,
+  customerEmail?: string,
+  customerName?: string
+): Promise<{
+  clientSecret: string;
+  paymentIntentId: string;
+  amount: number;
+  currency: string;
+} | null> {
+  try {
+    // Validate amount
+    const validation = validatePaymentAmount(amount);
+    if (!validation.valid) {
+      console.error('Payment validation failed:', validation.error);
+      return null;
+    }
+
+    // Call Supabase Edge Function with business ID
+    // The Edge Function will fetch the business's secret key server-side
+    const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+      body: {
+        businessId,  // NEW: specify which business
+        amount,
+        currency: 'gbp',
+        orderId,
+        customerEmail,
+        customerName,
+        description: `Order ${orderId}`,
+      },
+    });
+
+    if (error) {
+      console.error('Edge function error:', error);
+      return null;
+    }
+
+    if (!data?.clientSecret) {
+      console.error('No client secret returned from payment intent');
+      return null;
+    }
+
+    console.log(`Payment intent created for business ${businessId}: ${data.paymentIntentId}`);
+
+    return {
+      clientSecret: data.clientSecret,
+      paymentIntentId: data.paymentIntentId,
+      amount: data.amount,
+      currency: data.currency,
+    };
+  } catch (error) {
+    console.error('Error creating business payment intent:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if a business has Stripe connected
+ *
+ * @param businessId - The business ID
+ * @returns boolean indicating if Stripe is configured
+ */
+export async function isStripeConnected(businessId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('stripe_publishable_key')
+      .eq('id', businessId)
+      .single();
+
+    if (error) return false;
+
+    return !!data?.stripe_publishable_key;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Get business Stripe connection status
+ *
+ * @param businessId - The business ID
+ * @returns Connection status details
+ */
+export async function getStripeStatus(businessId: string): Promise<{
+  connected: boolean;
+  testMode: boolean;
+  connectedAt: string | null;
+} | null> {
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('stripe_publishable_key, stripe_connected_at')
+      .eq('id', businessId)
+      .single();
+
+    if (error) return null;
+
+    const connected = !!data?.stripe_publishable_key;
+    const testMode = data?.stripe_publishable_key?.includes('_test_') ?? false;
+
+    return {
+      connected,
+      testMode,
+      connectedAt: data?.stripe_connected_at || null,
+    };
+  } catch (error) {
+    return null;
+  }
+}

@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { validateEnvironment } from './lib/validateEnv';
+import { initSentry } from './lib/sentry';
+
+// Initialize Sentry error tracking
+initSentry();
 
 // Validate environment on startup
 validateEnvironment();
