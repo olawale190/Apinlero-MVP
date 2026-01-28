@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { FolderOpen, Plus, Edit3, Trash2, X, Check, GripVertical, AlertTriangle } from 'lucide-react';
+import { FolderOpen, Plus, Edit3, Trash2, X, Check, GripVertical, AlertTriangle, FolderTree } from 'lucide-react';
+import SubCategoryManager from './SubCategoryManager';
 
 interface Category {
   id: string;
@@ -33,6 +34,9 @@ export default function CategoryManager({ storeId = 'ishas-treat', onClose, onCa
 
   // Delete confirmation
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+
+  // Sub-category management
+  const [managingSubCategories, setManagingSubCategories] = useState<Category | null>(null);
 
   // Fetch categories with product counts
   const fetchCategories = async () => {
@@ -283,6 +287,13 @@ export default function CategoryManager({ storeId = 'ishas-treat', onClose, onCa
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
+                          onClick={() => setManagingSubCategories(category)}
+                          className="p-1.5 bg-purple-50 hover:bg-purple-100 rounded transition"
+                          title="Manage Sub-Categories"
+                        >
+                          <FolderTree size={14} className="text-purple-600" />
+                        </button>
+                        <button
                           onClick={() => startEditing(category)}
                           className="p-1.5 bg-blue-50 hover:bg-blue-100 rounded transition"
                           title="Rename"
@@ -409,6 +420,19 @@ export default function CategoryManager({ storeId = 'ishas-treat', onClose, onCa
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sub-Category Manager Modal */}
+      {managingSubCategories && (
+        <SubCategoryManager
+          category={managingSubCategories}
+          storeId={storeId}
+          onClose={() => setManagingSubCategories(null)}
+          onSubCategoriesChange={() => {
+            fetchCategories();
+            onCategoriesChange();
+          }}
+        />
       )}
     </div>
   );

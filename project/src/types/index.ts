@@ -3,11 +3,33 @@ export interface Product {
   name: string;
   price: number;
   category: string;
+  sub_category?: string;
   unit: string;
   image_url?: string;
   is_active: boolean;
   stock_quantity?: number;
   created_at: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  store_id: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  product_count?: number;
+}
+
+export interface SubCategory {
+  id: string;
+  name: string;
+  category_id: string;
+  store_id: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  product_count?: number;
 }
 
 export interface CartItem {

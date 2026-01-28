@@ -56,15 +56,57 @@ CREATE INDEX IF NOT EXISTS idx_categories_store_id ON categories(store_id);
 CREATE INDEX IF NOT EXISTS idx_categories_display_order ON categories(display_order);
 
 -- Insert default categories for Isha's Treat
+-- Comprehensive category structure for African & Caribbean wholesale grocery
 INSERT INTO categories (name, store_id, display_order) VALUES
-  ('Grains', 'ishas-treat', 1),
-  ('Oils', 'ishas-treat', 2),
-  ('Produce', 'ishas-treat', 3),
-  ('Fish', 'ishas-treat', 4),
-  ('Meat', 'ishas-treat', 5),
-  ('Spices', 'ishas-treat', 6),
-  ('Canned', 'ishas-treat', 7),
-  ('Drinks', 'ishas-treat', 8),
-  ('Flour', 'ishas-treat', 9),
+  -- Fresh Products
+  ('Fresh Meat & Poultry', 'ishas-treat', 1),
+  ('Fresh & Frozen Seafood', 'ishas-treat', 2),
+  ('Fresh Fruits & Vegetables', 'ishas-treat', 3),
+  ('Dairy & Eggs', 'ishas-treat', 4),
+
+  -- Grains & Staples
+  ('Grains, Rice & Pasta', 'ishas-treat', 10),
+  ('African & World Foods', 'ishas-treat', 11),
+  ('Flours', 'ishas-treat', 12),
+  ('Beans & Legumes', 'ishas-treat', 13),
+
+  -- Dried & Preserved
+  ('Dried Fish', 'ishas-treat', 20),
+  ('Dried Vegetables', 'ishas-treat', 21),
+
+  -- Cooking Essentials
+  ('Spices, Seasonings & Oils', 'ishas-treat', 30),
+  ('Canned, Packaged & Dry Foods', 'ishas-treat', 31),
+
+  -- Bakery & Snacks
+  ('Bakery & Breakfast Items', 'ishas-treat', 40),
+  ('Snacks & Treats', 'ishas-treat', 41),
+  ('Snacks & Confectionery', 'ishas-treat', 42),
+
+  -- Beverages
+  ('Drinks & Beverages', 'ishas-treat', 50),
+
+  -- Household
+  ('Household & Personal Care', 'ishas-treat', 60),
+  ('Household & Essentials', 'ishas-treat', 61),
+
+  -- Family & Specialty
+  ('Baby & Family Essentials', 'ishas-treat', 70),
+  ('Halal & Specialty Products', 'ishas-treat', 71),
+
+  -- Legacy categories (for backward compatibility with existing products)
+  ('Oils & Fats', 'ishas-treat', 80),
+  ('Grains & Rice', 'ishas-treat', 81),
+  ('Meats', 'ishas-treat', 82),
+  ('Seeds & Nuts', 'ishas-treat', 83),
+  ('Seasonings', 'ishas-treat', 84),
+  ('Spices', 'ishas-treat', 85),
+  ('Beverages', 'ishas-treat', 86),
+  ('Canned Goods', 'ishas-treat', 87),
+  ('Fresh Produce', 'ishas-treat', 88),
+  ('Snacks', 'ishas-treat', 89),
+  ('Household', 'ishas-treat', 90),
+
+  -- Default
   ('General', 'ishas-treat', 100)
 ON CONFLICT DO NOTHING;
