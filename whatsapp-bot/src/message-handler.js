@@ -25,6 +25,7 @@ import {
 } from './supabase-client.js';
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
+import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';
 
 // Auto-confirm threshold for returning customers
 const AUTO_CONFIRM_THRESHOLD = 30; // £30 for orders below this amount
@@ -245,7 +246,7 @@ export async function handleIncomingMessage({
   // If this is a button/list reply, use the ID as the text for intent parsing
   const messageText = buttonId || listId || text || '';
 
-  const parsed = await parseMessage(messageText);
+  const parsed = await parseMessage(messageText, conversation.state);
 
   console.log(`📝 Parsed message:`, {
     intent: parsed.intent,
@@ -370,11 +371,32 @@ export async function handleIncomingMessage({
 }
 
 /**
- * Handle greeting messages
+ * Handle greeting messages with contextual, time-based variations
  */
 function handleGreeting(customerName, conversation) {
   updateConversation(conversation.phone, { state: 'GREETED' }, conversation.businessId);
-  return generateResponse('GREETING', { customerName });
+
+  // Get time of day for contextual greeting
+  const now = new Date();
+  const londonTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/London' }));
+  const hour = londonTime.getHours();
+  const timeGreeting = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+
+  // Multiple greeting variations for natural variety
+  const greetings = [
+    `Good ${timeGreeting}${customerName ? `, ${customerName}` : ''}! 😊 How can I help you today?`,
+    `Hey${customerName ? ` ${customerName}` : ''}! Hope you're having a good ${timeGreeting}! What can I get for you?`,
+    `Hi${customerName ? ` ${customerName}` : ''}! 👋 What are you looking for today?`,
+    `${timeGreeting === 'morning' ? 'Morning' : timeGreeting === 'afternoon' ? 'Afternoon' : 'Evening'}${customerName ? ` ${customerName}` : ''}! 😊 How can I help?`
+  ];
+
+  // Randomly select a greeting for variety
+  const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+  return {
+    text: randomGreeting + "\n\nJust tell me what you need - I'm here to help! 💚",
+    buttons: ['📦 Order', '📋 See Products', '🔄 Reorder']
+  };
 }
 
 /**
@@ -423,6 +445,40 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
   const deliveryFee = deliveryZone.fee;
   const total = subtotal + deliveryFee;
+
+  // Check if any items were typo-corrected
+  const typoItems = orderItems.filter(item => item.typoDetected);
+  if (typoItems.length > 0 && orderItems.length > 0) {
+    // Ask for confirmation before proceeding
+    const typoItem = typoItems[0]; // Focus on first typo
+
+    await updateConversation(phone, {
+      state: 'AWAITING_TYPO_CONFIRMATION',
+      pendingOrder: {
+        items: orderItems,
+        subtotal,
+        deliveryFee,
+        total,
+        address: address || null,
+        postcode: postcode || null,
+        deliveryZone,
+        customerName,
+        customerId: conversation.customerId,
+        notFoundProducts: notFound,
+        typoItem: typoItem
+      }
+    }, conversation.businessId);
+
+    return generateResponse('TYPO_CONFIRMATION', {
+      items: orderItems,
+      originalText: typoItem.originalText,
+      correctedText: typoItem.matchedText,
+      subtotal,
+      deliveryFee,
+      total,
+      address: address || null
+    });
+  }
 
   // Check if customer has saved address (for returning customers)
   let finalAddress = address;
@@ -486,6 +542,10 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
     });
   }
 
+  // Get smart product suggestions for upselling
+  const suggestions = getSuggestedProducts(orderItems);
+  const suggestionText = generateSuggestionMessage(suggestions);
+
   // For complete orders, show quick confirmation
   if (isComplete) {
     return generateResponse('QUICK_CONFIRM', {
@@ -494,11 +554,12 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
       deliveryFee: pendingOrder.deliveryFee,
       total: pendingOrder.total,
       address: finalAddress,
-      deliveryZone: pendingOrder.deliveryZone
+      deliveryZone: pendingOrder.deliveryZone,
+      suggestions: suggestionText
     });
   }
 
-  // Send confirmation request
+  // Send confirmation request with suggestions
   return generateResponse('ORDER_CONFIRMATION', {
     items: orderItems,
     subtotal,
@@ -506,7 +567,8 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
     total: pendingOrder.total,
     address: finalAddress,
     deliveryZone: pendingOrder.deliveryZone,
-    notFound: notFound.length > 0 ? notFound : null
+    notFound: notFound.length > 0 ? notFound : null,
+    suggestions: suggestionText
   });
 }
 
@@ -640,6 +702,43 @@ async function handleQuickOrder(phone, customerName, text, conversation) {
  * Handle order confirmation
  */
 async function handleConfirmation(phone, customerName, conversation) {
+  // Handle typo confirmation
+  if (conversation.state === 'AWAITING_TYPO_CONFIRMATION' && conversation.pendingOrder) {
+    // Customer confirmed the typo correction, proceed with order
+    const order = conversation.pendingOrder;
+
+    // Update state to normal confirmation flow
+    await updateConversation(phone, {
+      state: order.address || order.postcode ? 'AWAITING_CONFIRMATION' : 'AWAITING_ADDRESS',
+      pendingOrder: order
+    }, conversation.businessId);
+
+    // Check if we need address
+    if (!order.address && !order.postcode) {
+      return generateResponse('NEED_ADDRESS', {
+        items: order.items,
+        subtotal: order.subtotal,
+        notFound: order.notFoundProducts
+      });
+    }
+
+    // Get smart suggestions
+    const suggestions = getSuggestedProducts(order.items);
+    const suggestionText = generateSuggestionMessage(suggestions);
+
+    // Send confirmation with suggestions
+    return generateResponse('ORDER_CONFIRMATION', {
+      items: order.items,
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      total: order.total,
+      address: order.address,
+      deliveryZone: order.deliveryZone,
+      notFound: order.notFoundProducts && order.notFoundProducts.length > 0 ? order.notFoundProducts : null,
+      suggestions: suggestionText
+    });
+  }
+
   if (conversation.state === 'AWAITING_ADDRESS') {
     // They confirmed but we still need address
     return generateResponse('STILL_NEED_ADDRESS');

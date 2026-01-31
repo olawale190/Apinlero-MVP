@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
+import { BusinessProvider, useBusinessContext } from './contexts/BusinessContext';
+import { getCurrentSubdomain } from './lib/business-resolver';
 import { supabase } from './lib/supabase';
 import { Landing } from './pages/Landing';
 import { SignupForm } from './pages/SignupForm';
+import EmailSettings from './pages/EmailSettings';
 import Shop from './pages/Shop';
 import Checkout from './pages/Checkout';
 import Confirmation from './pages/Confirmation';
@@ -20,25 +23,15 @@ type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | '
 
 // SaaS Dashboard App (for app.apinlero.com subdomain)
 function SaaSDashboard() {
-  // Check localStorage for demo mode (allows bypass without Supabase session)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('apinlero_demo_mode') === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing session or demo mode
+    // Check for existing Supabase session
     const checkSession = async () => {
-      // If demo mode is set, skip Supabase check
-      if (localStorage.getItem('apinlero_demo_mode') === 'true') {
-        setIsAuthenticated(true);
-        setIsCheckingAuth(false);
-        return;
-      }
-
       const { data: { session } } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
       setIsCheckingAuth(false);
@@ -51,10 +44,7 @@ function SaaSDashboard() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Don't override demo mode
-      if (localStorage.getItem('apinlero_demo_mode') !== 'true') {
-        setIsAuthenticated(!!session);
-      }
+      setIsAuthenticated(!!session);
     });
 
     return () => {
@@ -67,8 +57,6 @@ function SaaSDashboard() {
   };
 
   const handleLogout = async () => {
-    // Clear demo mode
-    localStorage.removeItem('apinlero_demo_mode');
     await supabase.auth.signOut();
     setIsAuthenticated(false);
   };
@@ -168,34 +156,48 @@ function IshasTreatStore() {
   );
 }
 
-// Helper to detect which subdomain we're on
-function getSubdomain(): string | null {
-  const hostname = window.location.hostname;
-
-  // Check for store subdomains
-  if (hostname.startsWith('ishas-treat.')) {
-    return 'ishas-treat';
-  }
-
-  // Check for app subdomain (dashboard)
-  if (hostname.startsWith('app.')) {
-    return 'app';
-  }
-
-  // Check for localhost with port (development)
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return null; // Use path-based routing for local dev
-  }
-
-  return null;
+// Main App with Router - Wrapped with BusinessProvider
+export default function App() {
+  return (
+    <BusinessProvider>
+      <AppRoutes />
+    </BusinessProvider>
+  );
 }
 
-// Main App with Router
-export default function App() {
-  const subdomain = getSubdomain();
+// App Routes Component - Uses BusinessContext for dynamic routing
+function AppRoutes() {
+  const { subdomain, business, isLoading, isAppDashboard, isBusinessStore, error } = useBusinessContext();
 
-  // If on ishas-treat subdomain, render store directly
-  if (subdomain === 'ishas-treat') {
+  // Show loading state while resolving business
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400 mx-auto mb-4"></div>
+          <p className="text-slate-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // BUSINESS SUBDOMAIN ROUTING (e.g., ishas-treat.apinlero.com)
+  // Dynamic: handles ANY business subdomain by looking up from database
+  if (isBusinessStore) {
+    // Subdomain doesn't match any active business → 404
+    if (!business) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 flex flex-col items-center justify-center">
+          <h1 className="text-3xl font-bold text-white mb-4">Store Not Found</h1>
+          <p className="text-slate-300 mb-8">The store "{subdomain}" does not exist or is no longer active.</p>
+          <a href="https://apinlero.com" className="px-6 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600">
+            Go to Apinlero Home
+          </a>
+        </div>
+      );
+    }
+
+    // Valid business subdomain → show their store
     return (
       <BrowserRouter>
         <Routes>
@@ -206,6 +208,7 @@ export default function App() {
           <Route path="/track" element={<OrderTracking />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
+          <Route path="/reset-password" element={<UpdatePassword />} />
           {/* Catch all for store subdomain */}
           <Route path="*" element={<IshasTreatStore />} />
         </Routes>
@@ -214,8 +217,8 @@ export default function App() {
     );
   }
 
-  // If on app subdomain, render dashboard directly
-  if (subdomain === 'app') {
+  // APP SUBDOMAIN ROUTING (app.apinlero.com) - Dashboard
+  if (subdomain === 'app' || isAppDashboard) {
     return (
       <BrowserRouter>
         <Routes>
@@ -230,16 +233,16 @@ export default function App() {
     );
   }
 
-  // Default: path-based routing (for main domain and local dev)
+  // ROOT DOMAIN (apinlero.com) or LOCALHOST - Path-based routing
   return (
     <BrowserRouter>
       <Routes>
-        {/* SaaS Dashboard (app.apinlero.com) */}
+        {/* SaaS Dashboard (path-based for localhost) */}
         <Route path="/app" element={<SaaSDashboard />} />
         <Route path="/app/*" element={<SaaSDashboard />} />
         <Route path="/reset-password" element={<UpdatePassword />} />
 
-        {/* Original Isha's Treat landing page at root */}
+        {/* Landing page */}
         <Route
           path="/"
           element={
@@ -249,18 +252,32 @@ export default function App() {
           }
         />
 
-        {/* Signup/trial form */}
+        {/* Signup form with DYNAMIC redirect */}
         <Route
           path="/signup"
           element={
             <SignupForm
-              onSuccess={() => window.location.href = '/store/ishas-treat'}
+              onSuccess={(businessSubdomain?: string) => {
+                // Redirect to the business store subdomain
+                if (businessSubdomain) {
+                  // In production: redirect to subdomain
+                  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    window.location.href = `https://${businessSubdomain}.apinlero.com`;
+                  } else {
+                    // In development: use path-based routing
+                    window.location.href = `/store/${businessSubdomain}`;
+                  }
+                } else {
+                  // Fallback: default to Isha's Treat store
+                  window.location.href = '/store/ishas-treat';
+                }
+              }}
               onCancel={() => window.location.href = '/'}
             />
           }
         />
 
-        {/* Isha's Treat store */}
+        {/* Legacy path-based store route (for localhost development) */}
         <Route path="/store/ishas-treat" element={<IshasTreatStore />} />
         <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
 
@@ -272,6 +289,9 @@ export default function App() {
 
         {/* Order tracking page (customer view) */}
         <Route path="/track" element={<OrderTracking />} />
+
+        {/* Email testing page */}
+        <Route path="/email-settings" element={<EmailSettings />} />
 
         {/* Legal pages */}
         <Route path="/privacy" element={<PrivacyPolicy />} />

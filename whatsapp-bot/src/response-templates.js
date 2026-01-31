@@ -5,77 +5,72 @@
  */
 
 const TEMPLATES = {
-  // Streamlined greeting (30 words vs 89)
+  // Warm, friendly greeting
   GREETING: ({ customerName }) => ({
-    text: `Hi${customerName ? ` ${customerName}` : ''}! 👋
+    text: `Hey${customerName ? ` ${customerName}` : ''}! 😊 How are you doing?
 
-Ready to order? Just send:
-"2x palm oil to SE15 4AA"
+I can help you with your order today! Just tell me what you need - like "I need 2 bottles of palm oil" or "do you have egusi?"
 
-Or tell me what you need!`,
-    buttons: ['📦 Order Now', '📋 Products', '🔄 Reorder']
+No rush, I'm here to help! 🙌`,
+    buttons: ['📦 Order', '📋 See Products', '🔄 Reorder']
   }),
 
-  ORDER_CONFIRMATION: ({ items, subtotal, deliveryFee, total, address, deliveryZone, notFound }) => {
+  ORDER_CONFIRMATION: ({ items, subtotal, deliveryFee, total, address, deliveryZone, notFound, suggestions }) => {
     let itemList = items.map(item =>
       `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
     ).join('\n');
 
     let notFoundText = notFound && notFound.length > 0
-      ? `\n\n⚠️ Could not find: ${notFound.join(', ')}`
+      ? `\n\n⚠️ I couldn't find: ${notFound.join(', ')} - would you like something else instead?`
       : '';
 
-    return {
-      text: `Thank you for your order! 📝
+    let suggestionText = suggestions ? suggestions : '';
 
-Please confirm these items:
+    return {
+      text: `Perfect! Let me get that sorted for you 😊
 
 ${itemList}
 
-Subtotal: £${subtotal.toFixed(2)}
-Delivery (${deliveryZone?.estimatedDelivery || 'Standard'}): £${deliveryFee.toFixed(2)}
-━━━━━━━━━━━━
-Total: £${total.toFixed(2)}
+Delivery to ${address || 'your address'}: £${deliveryFee.toFixed(2)}
+Total: £${total.toFixed(2)}${suggestionText}${notFoundText}
 
-📍 Delivery to: ${address || 'Not provided'}${notFoundText}
-
-Reply YES to confirm or let me know any changes.`,
-      buttons: ['✅ YES, Confirm', '✏️ Make Changes', '❌ Cancel']
+Everything look good? Just say "yes" and I'll get it ready!`,
+      buttons: ['✅ Yes', '✏️ Make Changes', '❌ Cancel']
     };
   },
 
   ORDER_CONFIRMED: ({ orderId, total, address, deliveryEstimate }) => ({
-    text: `✅ Order Confirmed!
+    text: `✅ Perfect! Your order's confirmed!
 
 Order #: ${orderId.substring(0, 8).toUpperCase()}
 Total: £${total.toFixed(2)}
 
-💳 *Pay Now:*
-https://project-apinlero.vercel.app/checkout?order=${orderId.substring(0, 8)}
-
-Or choose:
-• 💵 Cash on Delivery
-• 🏦 Bank Transfer:
+You can pay:
+• 💳 Online: https://ishas-treat.apinlero.com/checkout?order=${orderId.substring(0, 8)}
+• 💵 Cash when it arrives
+• 🏦 Bank transfer:
   Isha's Treat Ltd
   Sort: 04-00-04
   Acc: 12345678
   Ref: ${orderId.substring(0, 8).toUpperCase()}
 
 Delivery: ${deliveryEstimate}
-We'll notify you when it's on the way!`,
+I'll let you know when it's on the way! 📦`,
     buttons: ['💳 Pay Now', '💵 Cash on Delivery']
   }),
 
   NEED_ADDRESS: ({ items, subtotal, notFound }) => {
     const itemList = items.map(item =>
-      `${item.quantity}x ${item.product_name} £${item.subtotal.toFixed(2)}`
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
     ).join('\n');
 
     return {
-      text: `${itemList}
+      text: `Great! So that's:
+
+${itemList}
 Subtotal: £${subtotal.toFixed(2)}
 
-📍 Send your postcode to continue`,
+📍 Send me your postcode and I'll calculate delivery for you!`,
       buttons: []
     };
   },
@@ -90,34 +85,29 @@ Example: "45 High Street, London E1 4AA"`,
   }),
 
   ORDER_UNCLEAR: () => ({
-    text: `I couldn't understand your order. 😅
+    text: `Hey! I'm not quite sure what you're looking for there 😅
 
-Please try again with this format:
-• Quantity + Product name
+Could you tell me what you need? You can say it however you like - like:
+• "I need 2 palm oil"
+• "Can I get some egusi and rice"
+• "Do you have plantain?"
 
-Examples:
-"2x Palm Oil 5L"
-"3 bags Jollof Rice"
-"5kg Plantain"
-
-Or browse our catalog: apinlero.vercel.app`,
+I'll understand! Or you can browse everything here: ishas-treat.apinlero.com`,
     buttons: ['📋 View Catalog', '💬 Help']
   }),
 
   PRODUCTS_NOT_FOUND: ({ products }) => ({
-    text: `I couldn't find these products in our catalog:
+    text: `Hmm, I couldn't find these in our catalog:
 ${products.map(p => `• ${p}`).join('\n')}
 
-Would you like to:
-1. Try different names
-2. Browse our catalog: apinlero.vercel.app
-
-Popular products:
+Did you mean something like:
 • Palm Oil 5L
 • Jollof Rice Mix
 • Plantain (Green)
 • Egusi Seeds
-• Stockfish`,
+• Stockfish
+
+Or browse everything: ishas-treat.apinlero.com`,
     buttons: ['📋 View Catalog', '💬 Help']
   }),
 
@@ -146,11 +136,11 @@ Just tell me what you'd like to change.`,
   }),
 
   ORDER_CANCELLED: () => ({
-    text: `Order cancelled. No problem!
+    text: `No worries, I've cancelled that for you! 👍
 
-Feel free to place a new order anytime.
+Feel free to place a new order whenever you're ready.
 
-Browse our products: apinlero.vercel.app`,
+Browse our products: ishas-treat.apinlero.com`,
     buttons: ['📦 New Order', '📋 View Catalog']
   }),
 
@@ -168,7 +158,7 @@ Would you like to order this item?`,
     text: `I couldn't find that product.
 
 Please check our catalog for available products:
-apinlero.vercel.app
+ishas-treat.apinlero.com
 
 Or ask about a specific product like:
 "How much is palm oil?"`,
@@ -189,7 +179,7 @@ ${inStock ? 'Would you like to place an order?' : 'Check back soon or try an alt
   PRODUCT_NOT_FOUND: () => ({
     text: `I couldn't find that product in our catalog.
 
-Browse all products: apinlero.vercel.app`,
+Browse all products: ishas-treat.apinlero.com`,
     buttons: ['📋 View Catalog']
   }),
 
@@ -302,21 +292,19 @@ Is there anything else I can help with?`,
   }),
 
   GENERAL_HELP: () => ({
-    text: `Thanks for your message! 😊
+    text: `Hey! 😊 I'm here to help you order from Isha's Treat!
 
-I'm the Àpínlẹ̀rọ ordering assistant. I can help you with:
+You can:
+• Tell me what you need - "I need palm oil and egusi"
+• Ask about prices - "how much is the plantain?"
+• Check delivery - "can you deliver to SE15?"
+• Browse products - just ask!
 
-📦 *Place an order* - "I want 2x Palm Oil"
-💰 *Check prices* - "How much is egusi?"
-📋 *See products* - "Products" or "What do you have?"
-🚚 *Delivery info* - "Delivery to SE1"
-📍 *Track order* - "Order status"
+Just chat with me like normal, I'll understand! 💬
 
-For other questions, please contact us:
-📞 07448 682282
-📧 WhatsApp this number
+Need to speak to someone? Call 07448 682282
 
-Or browse: apinlero.vercel.app`,
+Or browse everything: ishas-treat.apinlero.com`,
     buttons: ['📋 View Products', '📦 Place Order', '💬 Contact Us']
   }),
 
@@ -331,16 +319,17 @@ We apologize for the inconvenience.`,
   }),
 
   OUT_OF_HOURS: () => ({
-    text: `Thank you for your message! 🌙
+    text: `Hey there! 😊
 
-We're currently closed but will respond first thing tomorrow.
+We've finished for the day but I've got your message! We'll get back to you first thing in the morning.
 
-Business Hours:
+We're open:
 Mon-Sat: 8:00 AM - 8:00 PM
 Sunday: Closed
 
-For urgent orders, browse our website:
-apinlero.vercel.app`,
+If you want to browse what we have, check out: ishas-treat.apinlero.com
+
+Speak soon! 💚`,
     buttons: ['📋 View Catalog']
   }),
 
@@ -361,7 +350,7 @@ ${method === 'Cash on Delivery'
 
 Once transferred, we'll confirm receipt and dispatch your order.`
     : `💳 You can pay securely at:
-https://project-apinlero.vercel.app/checkout?order=${orderId}`
+https://ishas-treat.apinlero.com/checkout?order=${orderId}`
 }
 
 We'll notify you when your order is ready for delivery.
@@ -374,7 +363,7 @@ Thank you for your order! 🙏`,
     text: `Sorry, we couldn't load our product catalog right now. 😔
 
 Please try again in a moment or browse our website:
-project-apinlero.vercel.app
+ishas-treat.apinlero.com
 
 Or contact us directly:
 📞 07448 682282`,
@@ -465,6 +454,20 @@ Please place a new order:
 
 Example: "quick palm oil" or "quick 2x egusi"`,
     buttons: ['📋 Products']
+  }),
+
+  // NEW: Typo confirmation
+  TYPO_CONFIRMATION: ({ items, originalText, correctedText, subtotal, deliveryFee, total, address }) => ({
+    text: `Just checking - did you mean *${correctedText}* (not "${originalText}")? 😊
+
+So that's:
+${items.map(item => `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`).join('\n')}
+
+${address ? `Delivery to ${address}: £${deliveryFee.toFixed(2)}` : 'Send your postcode for delivery'}
+Total: £${total.toFixed(2)}
+
+Say "yes" if that's right, or tell me what you actually need!`,
+    buttons: ['✅ Yes, that\'s right', '✏️ Let me correct it']
   })
 };
 

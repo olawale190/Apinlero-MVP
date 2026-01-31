@@ -10,8 +10,14 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase credentials with SERVICE ROLE key
-const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
-const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error('❌ Error: Missing required environment variables');
+  console.error('   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -64,7 +70,8 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
     console.log('⚠️  You need to run this SQL in the Supabase Dashboard.\n');
 
     console.log('📝 To fix this issue:');
-    console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new');
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'YOUR_PROJECT';
+    console.log(`1. Go to: https://supabase.com/dashboard/project/${projectRef}/sql/new`);
     console.log('2. Copy the SQL above');
     console.log('3. Paste and click "Run"');
     console.log('4. Verify you see success messages\n');

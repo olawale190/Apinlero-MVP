@@ -32,8 +32,13 @@ export async function sendWhatsAppMessage(to, body) {
   }
 
   try {
-    // Ensure 'to' number is in correct format
-    const formattedTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+    // Ensure 'to' number is in correct format (whatsapp:+1234567890)
+    let formattedTo = to;
+    if (!formattedTo.startsWith('whatsapp:')) {
+      // Add + if missing
+      const phoneNum = formattedTo.startsWith('+') ? formattedTo : `+${formattedTo}`;
+      formattedTo = `whatsapp:${phoneNum}`;
+    }
 
     const message = await client.messages.create({
       from: twilioWhatsAppNumber,
@@ -59,6 +64,10 @@ export async function sendWhatsAppMessage(to, body) {
  * @returns {Object} Parsed message data
  */
 export function parseTwilioWebhook(body) {
+  // Extract phone number from From field (format: "whatsapp:+1234567890")
+  const rawFrom = body.From || '';
+  const phoneNumber = rawFrom.replace('whatsapp:', '').trim();
+
   return {
     from: body.From, // Format: whatsapp:+1234567890
     to: body.To,     // Format: whatsapp:+14155238886
@@ -66,8 +75,8 @@ export function parseTwilioWebhook(body) {
     messageId: body.MessageSid,
     numMedia: parseInt(body.NumMedia || '0'),
     profileName: body.ProfileName || null, // WhatsApp profile name
-    // Clean phone number (remove 'whatsapp:' prefix)
-    phoneNumber: body.From?.replace('whatsapp:', ''),
+    // Clean phone number (keep + prefix, just remove 'whatsapp:')
+    phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`,
     timestamp: new Date().toISOString()
   };
 }

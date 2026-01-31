@@ -10,9 +10,15 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-// Hardcoded credentials for this one-time cleanup
-const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzE0ODcsImV4cCI6MjA4MDc0NzQ4N30.mnnK_P0liG-cZrTHP2Q3f2aefNNlIUVUBGvSnPVd81Q';
+// Load credentials from environment variables
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Error: Missing required environment variables');
+  console.error('   Please set SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

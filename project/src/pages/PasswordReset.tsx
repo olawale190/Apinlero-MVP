@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Mail, ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getCurrentSubdomain, buildSubdomainUrl } from '../lib/business-resolver';
 
 interface PasswordResetProps {
   onBack: () => void;
@@ -17,8 +18,14 @@ export default function PasswordReset({ onBack }: PasswordResetProps) {
     setIsLoading(true);
 
     try {
+      // Preserve subdomain context in reset password link
+      const subdomain = getCurrentSubdomain();
+      const redirectUrl = subdomain
+        ? buildSubdomainUrl(subdomain, '/reset-password')
+        : `${window.location.origin}/reset-password`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (error) {

@@ -29,7 +29,7 @@ import AIInsightsPanel from '../components/AIInsightsPanel';
 import WhatsAppPromotions from '../components/WhatsAppPromotions';
 import AskApinlero from '../components/AskApinlero';
 import CustomerPrediction from '../components/CustomerPrediction';
-import CulturalEventCalendar from '../components/CulturalEventCalendar';
+import { CalendarSystem } from '../components/calendar';
 import SmartBundles from '../components/SmartBundles';
 import ExpiryWastePredictor from '../components/ExpiryWastePredictor';
 import ChannelVisualization from '../components/ChannelVisualization';
@@ -333,10 +333,10 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           </div>
         )}
 
-        {/* Cultural Event Calendar Tab */}
+        {/* Events Calendar Tab */}
         {activeTab === 'calendar' && (
           <div className="space-y-6">
-            <CulturalEventCalendar orders={orders} products={products} />
+            <CalendarSystem products={products} orders={orders} />
           </div>
         )}
 

@@ -3,8 +3,14 @@
 # Execute RLS Fix via Supabase REST API
 # This uses the service role key to execute SQL commands
 
-SUPABASE_URL="https://gafoezdpaotwvpfldyhc.supabase.co"
-SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM"
+SUPABASE_URL="${SUPABASE_URL:-${VITE_SUPABASE_URL}}"
+SERVICE_ROLE_KEY="${SUPABASE_SERVICE_KEY}"
+
+if [ -z "$SUPABASE_URL" ] || [ -z "$SERVICE_ROLE_KEY" ]; then
+    echo "❌ Error: Missing required environment variables"
+    echo "   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY"
+    exit 1
+fi
 
 echo "🔧 Fixing RLS Policy for Products Table..."
 echo ""

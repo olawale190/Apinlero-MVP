@@ -5,6 +5,7 @@ import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
 import CategoryManager from './CategoryManager';
 import { triggerLowStockAlert, triggerExpiryAlert, isN8nConfigured } from '../lib/n8n';
+import { sendLowStockAlertEmail, isEmailConfigured } from '../lib/email';
 import { uploadAndTrack, BUCKETS, getPublicUrl } from '../lib/storage';
 import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
@@ -160,13 +161,44 @@ export default function InventoryManager({ products: initialProducts, onProductU
   // Handle sending low stock alert
   const handleSendLowStockAlert = async (product: Product) => {
     setSendingAlert(product.id);
-    const result = await triggerLowStockAlert(product.id, product.name, product.stock_quantity);
-    if (result.success) {
-      setAlertSent(product.id);
-      setTimeout(() => setAlertSent(null), 3000);
-    } else {
-      alert(result.error || 'Failed to send alert');
+
+    try {
+      let result;
+
+      // Try direct email service first if configured
+      if (isEmailConfigured()) {
+        // Get business email from session/profile
+        const { data: { user } } = await supabase.auth.getUser();
+        const businessEmail = user?.email || 'owner@business.com';
+        const businessName = 'Your Business'; // TODO: Get from business profile
+
+        result = await sendLowStockAlertEmail({
+          businessEmail,
+          businessName,
+          productName: product.name,
+          currentStock: product.stock_quantity,
+          threshold: 5,
+          productId: product.id
+        });
+      }
+      // Fallback to n8n if configured
+      else if (isN8nConfigured()) {
+        result = await triggerLowStockAlert(product.id, product.name, product.stock_quantity);
+      } else {
+        result = { success: false, error: 'No email service configured' };
+      }
+
+      if (result.success) {
+        setAlertSent(product.id);
+        setTimeout(() => setAlertSent(null), 3000);
+      } else {
+        alert(result.error || 'Failed to send alert');
+      }
+    } catch (error) {
+      console.error('Alert send error:', error);
+      alert('Failed to send alert');
     }
+
     setSendingAlert(null);
   };
 

@@ -7,6 +7,8 @@
 
 # Session summaries may contain sensitive data
 SESSION_SUMMARY_*.md
+SESSION_SUMMARY.md
+STEP_BY_STEP_GUIDE.md
 
 # Node modules
 node_modules/

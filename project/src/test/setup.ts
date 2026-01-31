@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { expect, afterEach, vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
@@ -9,6 +9,38 @@ expect.extend(matchers);
 afterEach(() => {
   cleanup();
 });
+
+// Create a chainable mock for Supabase queries
+const createChainableMock = (defaultReturn: any = { data: [], error: null }) => {
+  const createChain = (): any => {
+    const chain: any = {
+      select: vi.fn(() => createChain()),
+      insert: vi.fn(() => createChain()),
+      update: vi.fn(() => createChain()),
+      delete: vi.fn(() => createChain()),
+      eq: vi.fn(() => createChain()),
+      neq: vi.fn(() => createChain()),
+      gt: vi.fn(() => createChain()),
+      gte: vi.fn(() => createChain()),
+      lt: vi.fn(() => createChain()),
+      lte: vi.fn(() => createChain()),
+      like: vi.fn(() => createChain()),
+      ilike: vi.fn(() => createChain()),
+      is: vi.fn(() => createChain()),
+      in: vi.fn(() => createChain()),
+      contains: vi.fn(() => createChain()),
+      containedBy: vi.fn(() => createChain()),
+      order: vi.fn(() => createChain()),
+      limit: vi.fn(() => createChain()),
+      range: vi.fn(() => createChain()),
+      single: vi.fn(() => Promise.resolve(defaultReturn)),
+      maybeSingle: vi.fn(() => Promise.resolve(defaultReturn)),
+      then: (resolve: any) => Promise.resolve(defaultReturn).then(resolve),
+    };
+    return chain;
+  };
+  return createChain();
+};
 
 // Mock Supabase client
 vi.mock('../lib/supabase', () => ({
@@ -25,25 +57,7 @@ vi.mock('../lib/supabase', () => ({
       resetPasswordForEmail: vi.fn(),
       updateUser: vi.fn(),
     },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-          order: vi.fn(),
-        })),
-        order: vi.fn(),
-        limit: vi.fn(),
-      })),
-      insert: vi.fn(() => ({
-        select: vi.fn(),
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(),
-      })),
-      delete: vi.fn(() => ({
-        eq: vi.fn(),
-      })),
-    })),
+    from: vi.fn(() => createChainableMock()),
     functions: {
       invoke: vi.fn(),
     },
@@ -51,7 +65,7 @@ vi.mock('../lib/supabase', () => ({
       from: vi.fn(() => ({
         upload: vi.fn(),
         download: vi.fn(),
-        getPublicUrl: vi.fn(),
+        getPublicUrl: vi.fn(() => ({ data: { publicUrl: 'https://example.com/image.jpg' } })),
       })),
     },
   },
@@ -83,20 +97,40 @@ global.IntersectionObserver = class IntersectionObserver {
   unobserve() {}
 } as any;
 
-// Mock localStorage
+// Mock localStorage with proper implementation
+const localStorageStore: Record<string, string> = {};
 const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+  getItem: vi.fn((key: string) => localStorageStore[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageStore[key] = value;
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete localStorageStore[key];
+  }),
+  clear: vi.fn(() => {
+    Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
+  }),
 };
-global.localStorage = localStorageMock as any;
+Object.defineProperty(global, 'localStorage', { value: localStorageMock });
 
 // Mock sessionStorage
+const sessionStorageStore: Record<string, string> = {};
 const sessionStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+  getItem: vi.fn((key: string) => sessionStorageStore[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    sessionStorageStore[key] = value;
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete sessionStorageStore[key];
+  }),
+  clear: vi.fn(() => {
+    Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
+  }),
 };
-global.sessionStorage = sessionStorageMock as any;
+Object.defineProperty(global, 'sessionStorage', { value: sessionStorageMock });
+
+// Reset storage before each test
+beforeEach(() => {
+  Object.keys(localStorageStore).forEach(key => delete localStorageStore[key]);
+  Object.keys(sessionStorageStore).forEach(key => delete sessionStorageStore[key]);
+});

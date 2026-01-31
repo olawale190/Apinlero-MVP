@@ -69,7 +69,8 @@ describe('Login Component', () => {
 
     await user.click(screen.getByRole('button', { name: /demo login/i }));
 
-    expect(localStorage.getItem('apinlero_demo_mode')).toBe('true');
+    // Check that localStorage was called with the correct values
+    expect(localStorage.setItem).toHaveBeenCalledWith('apinlero_demo_mode', 'true');
     expect(mockOnLoginSuccess).toHaveBeenCalled();
   });
 });

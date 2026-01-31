@@ -32,36 +32,77 @@ const PRODUCT_ALIASES = {
   'African Nutmeg': ['nutmeg', 'ehuru', 'ariwo']
 };
 
-// Intent keywords
+// Intent keywords - expanded for natural language understanding
 const INTENT_PATTERNS = {
-  GREETING: /^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy)/i,
-  PRODUCTS_LIST: /(products|catalog|catalogue|menu|what\s*(do\s*)?you\s*(have|sell|stock)|view\s*catalog|view\s*products|show\s*me|list)/i,
+  // Greetings - more natural variations
+  GREETING: /^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy|yo|hiya|morning|evening|afternoon|sup|what'?s\s*up)/i,
+
+  // Product listing
+  PRODUCTS_LIST: /(products|catalog|catalogue|menu|what\s*(do\s*)?you\s*(have|sell|stock|got)|view\s*catalog|view\s*products|show\s*me|list|browse)/i,
+
+  // Explicit order start
   START_ORDER: /(📦\s*)?(place\s*(an?\s*)?order|order\s*now|new\s*order|start\s*order|make\s*(an?\s*)?order|i\s*want\s*to\s*order)/i,
-  ORDER: /(order|buy|want|need|get|send|deliver|i('d)?\s*like|can\s*i\s*have|please)/i,
-  PRICE_CHECK: /(how\s*much|price|cost|what('s)?\s*the\s*price)/i,
-  AVAILABILITY: /(do\s*you\s*have|available|in\s*stock|got\s*any)/i,
-  DELIVERY: /(deliver|delivery\s*info|shipping|ship\s*to|send\s*to|delivery\s*to)/i,
-  HOURS: /(open|close|hours|time|when)/i,
-  ORDER_STATUS: /(track|where\s*is|status|my\s*order)/i,
-  CANCEL: /(cancel|refund|return)/i,
-  CONFIRM: /^(yes|yeah|yep|confirm|ok|okay|sure|correct|proceed|✅|same\s*address)$/i,
-  DECLINE: /^(no|nope|cancel|stop|wrong|❌)$/i,
-  THANKS: /(thank|thanks|cheers)/i,
-  PAYMENT_CASH: /(💵\s*)?(cash|cash\s*on\s*delivery|cod|pay\s*cash|pay\s*on\s*delivery)/i,
-  PAYMENT_CARD: /(💳\s*)?(card|pay\s*now|pay\s*online|debit|credit)/i,
-  PAYMENT_TRANSFER: /(🏦\s*)?(bank\s*transfer|transfer|bank|bacs)/i,
+
+  // General order intent - expanded for natural language
+  ORDER: /(order|buy|want|need|get|send|deliver|i('d)?\s*like|can\s*i\s*(have|get)|please|looking\s*for|interested\s*in|gimme|give\s*me)/i,
+
+  // Implicit order intent - cooking/preparing meals
+  IMPLICIT_ORDER: /(cooking|making|preparing|recipe|need\s*for|running\s*low|ran\s*out|finishing|almost\s*out)/i,
+
+  // Price inquiries
+  PRICE_CHECK: /(how\s*much|price|cost|what('s)?\s*the\s*price|how\s*dear)/i,
+
+  // Availability checks
+  AVAILABILITY: /(do\s*you\s*have|available|in\s*stock|got\s*any|still\s*have|have\s*you\s*got)/i,
+
+  // Delivery inquiries
+  DELIVERY: /(deliver|delivery\s*info|shipping|ship\s*to|send\s*to|delivery\s*to|can\s*you\s*deliver)/i,
+
+  // Business hours
+  HOURS: /(open|close|hours|time|when\s*(are\s*you|do\s*you))/i,
+
+  // Order status
+  ORDER_STATUS: /(track|where\s*is|status|my\s*order|order\s*status)/i,
+
+  // Cancellation
+  CANCEL: /(cancel|refund|return|never\s*mind|forget\s*it)/i,
+
+  // Confirmation - more natural variations
+  CONFIRM: /^(yes|yeah|yep|yup|yh|ye|confirm|ok|okay|sure|correct|right|proceed|go\s*ahead|sounds\s*good|perfect|looks\s*good|that'?s\s*right|✅|same\s*address)$/i,
+
+  // Decline
+  DECLINE: /^(no|nope|nah|cancel|stop|wrong|noway|❌)$/i,
+
+  // Thanks
+  THANKS: /(thank|thanks|cheers|appreciate|ta\b)/i,
+
+  // Payment methods
+  PAYMENT_CASH: /(💵\s*)?(cash|cash\s*on\s*delivery|cod|pay\s*cash|pay\s*on\s*delivery|when\s*it\s*arrives)/i,
+  PAYMENT_CARD: /(💳\s*)?(card|pay\s*now|pay\s*online|debit|credit|online\s*payment)/i,
+  PAYMENT_TRANSFER: /(🏦\s*)?(bank\s*transfer|transfer|bank|bacs|wire)/i,
+
   // Quick commands for faster ordering
-  REORDER: /^(reorder|same\s*again|repeat|usual|last\s*order|🔄)$/i,
-  QUICK_ORDER: /^quick\s+/i
+  REORDER: /^(reorder|same\s*again|repeat|usual|last\s*order|my\s*usual|🔄)$/i,
+  QUICK_ORDER: /^quick\s+/i,
+
+  // Conversational/casual - for friendliness
+  CASUAL_INQUIRY: /(what'?s\s*up|how\s*are\s*you|you\s*there|hello\s*there|anyone\s*there)/i
 };
 
 /**
- * Detect the intent of a message
+ * Detect the intent of a message with context awareness
  * @param {string} message - The message text
+ * @param {string|null} conversationState - Current conversation state for context
  * @returns {string} - The detected intent
  */
-export function detectIntent(message) {
+export function detectIntent(message, conversationState = null) {
   const text = message.toLowerCase().trim();
+
+  // Context-aware: If awaiting confirmation, be more lenient
+  if (conversationState === 'AWAITING_CONFIRMATION') {
+    if (INTENT_PATTERNS.CONFIRM.test(text)) return 'CONFIRM';
+    if (INTENT_PATTERNS.DECLINE.test(text)) return 'DECLINE';
+  }
 
   // Check for confirmation/decline first (exact matches)
   if (INTENT_PATTERNS.CONFIRM.test(text)) return 'CONFIRM';
@@ -76,8 +117,11 @@ export function detectIntent(message) {
   if (INTENT_PATTERNS.PAYMENT_CARD.test(text)) return 'PAYMENT_CARD';
   if (INTENT_PATTERNS.PAYMENT_TRANSFER.test(text)) return 'PAYMENT_TRANSFER';
 
-  // Check other intents
+  // Check greetings and casual inquiries
   if (INTENT_PATTERNS.GREETING.test(text) && text.length < 30) return 'GREETING';
+  if (INTENT_PATTERNS.CASUAL_INQUIRY.test(text)) return 'GREETING';
+
+  // Check other intents
   if (INTENT_PATTERNS.START_ORDER.test(text)) return 'START_ORDER';
   if (INTENT_PATTERNS.PRODUCTS_LIST.test(text)) return 'PRODUCTS_LIST';
   if (INTENT_PATTERNS.PRICE_CHECK.test(text)) return 'PRICE_CHECK';
@@ -88,10 +132,27 @@ export function detectIntent(message) {
   if (INTENT_PATTERNS.CANCEL.test(text)) return 'CANCEL';
   if (INTENT_PATTERNS.THANKS.test(text)) return 'THANKS';
 
+  // Check for implicit order intent (cooking/preparing + product mention)
+  if (INTENT_PATTERNS.IMPLICIT_ORDER.test(text) && hasProductMentioned(text)) {
+    return 'NEW_ORDER';
+  }
+
   // Check if it looks like an order (has quantities or product names)
   if (hasOrderIndicators(text)) return 'NEW_ORDER';
 
   return 'GENERAL_INQUIRY';
+}
+
+/**
+ * Check if message mentions any product
+ * @param {string} text - Message text
+ * @returns {boolean} - True if a product is mentioned
+ */
+function hasProductMentioned(text) {
+  const lowerText = text.toLowerCase();
+  return Object.values(PRODUCT_ALIASES).some(aliases =>
+    aliases.some(alias => lowerText.includes(alias.toLowerCase()))
+  );
 }
 
 /**
@@ -149,9 +210,11 @@ export async function parseOrderItems(message) {
         quantity: m.quantity,
         unit: 'Each',
         originalText: m.originalText,
+        matchedText: matchedProduct.matchedText || matchedProduct.name,
         language: matchedProduct.language,
         confidence: matchedProduct.confidence,
-        source: matchedProduct.source
+        source: matchedProduct.source,
+        typoDetected: matchedProduct.typoDetected || false
       });
     }
   }
@@ -175,9 +238,11 @@ export async function parseOrderItems(message) {
         quantity: m.quantity,
         unit: m.unit,
         originalText: m.originalText,
+        matchedText: matchedProduct.matchedText || matchedProduct.name,
         language: matchedProduct.language,
         confidence: matchedProduct.confidence,
-        source: matchedProduct.source
+        source: matchedProduct.source,
+        typoDetected: matchedProduct.typoDetected || false
       });
     }
   }
@@ -203,9 +268,11 @@ export async function parseOrderItems(message) {
             quantity: m.quantity,
             unit: m.unit,
             originalText: m.originalText,
+            matchedText: matchedProduct.matchedText || matchedProduct.name,
             language: matchedProduct.language,
             confidence: matchedProduct.confidence,
-            source: matchedProduct.source
+            source: matchedProduct.source,
+            typoDetected: matchedProduct.typoDetected || false
           });
         }
       }
@@ -228,9 +295,11 @@ export async function parseOrderItems(message) {
               quantity: 1,
               unit: 'Each',
               originalText: phrase,
+              matchedText: matchedProduct.matchedText || matchedProduct.name,
               language: matchedProduct.language,
               confidence: matchedProduct.confidence,
-              source: matchedProduct.source
+              source: matchedProduct.source,
+              typoDetected: matchedProduct.typoDetected || false
             });
             break;
           }
@@ -274,9 +343,12 @@ export async function matchProduct(text) {
           price: graphMatch.price,
           category: graphMatch.category,
           alias: graphMatch.alias,
+          matchedText: graphMatch.alias || graphMatch.product,
+          originalText: text,
           language: graphMatch.language,
           confidence: graphMatch.confidence,
-          source: graphMatch.source
+          source: graphMatch.source,
+          typoDetected: false  // Neo4j matches are exact
         };
       }
     } catch (error) {
@@ -289,12 +361,107 @@ export async function matchProduct(text) {
 }
 
 /**
+ * Calculate Levenshtein distance between two strings
+ * Returns the minimum number of single-character edits needed
+ * @param {string} a - First string
+ * @param {string} b - Second string
+ * @returns {number} - Edit distance
+ */
+function levenshteinDistance(a, b) {
+  const matrix = [];
+
+  // Initialize first column
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  // Initialize first row
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill in the rest of the matrix
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Fuzzy match products with typo tolerance
+ * Uses Levenshtein distance to find close matches
+ * @param {string} text - User input (possibly with typos)
+ * @returns {Object|null} - Best match with confidence score
+ */
+function fuzzyMatchProduct(text) {
+  let bestMatch = null;
+  let bestDistance = Infinity;
+  const normalizedText = text.toLowerCase().trim();
+
+  // Only try fuzzy matching if text is long enough (3+ chars)
+  if (normalizedText.length < 3) return null;
+
+  // Fuzzy match against product names
+  for (const [productName, aliases] of Object.entries(PRODUCT_ALIASES)) {
+    // Check product name with typo tolerance (max 2 character difference)
+    const productDistance = levenshteinDistance(normalizedText, productName.toLowerCase());
+    if (productDistance <= 2 && productDistance < bestDistance) {
+      bestDistance = productDistance;
+      bestMatch = {
+        name: productName,
+        matchedText: productName,
+        originalText: text,
+        language: 'english',
+        confidence: 1 - (productDistance / Math.max(productName.length, normalizedText.length)),
+        source: 'fuzzy_product',
+        typoDetected: productDistance > 0
+      };
+    }
+
+    // Check aliases with stricter tolerance (max 1 character difference)
+    for (const alias of aliases) {
+      const aliasDistance = levenshteinDistance(normalizedText, alias);
+      if (aliasDistance <= 1 && aliasDistance < bestDistance) {
+        bestDistance = aliasDistance;
+        bestMatch = {
+          name: productName,
+          matchedText: alias,
+          originalText: text,
+          language: alias.match(/epo|adin|zomi|ogede|egwusi|agusi|okporoko|panla|ata|elubo|igba|ehuru|ariwo|iyan/) ? 'yoruba' : 'english',
+          confidence: 1 - (aliasDistance / Math.max(alias.length, normalizedText.length)),
+          source: 'fuzzy_alias',
+          typoDetected: aliasDistance > 0
+        };
+      }
+    }
+  }
+
+  // Only return if confidence is high enough (>70%)
+  if (bestMatch && bestMatch.confidence >= 0.7) {
+    return bestMatch;
+  }
+
+  return null;
+}
+
+/**
  * Local fallback product matching (when Neo4j is unavailable)
  * @param {string} text - Normalized product text
  * @returns {Object|null} - Matched product info or null
  */
 function matchProductLocal(text) {
-  // Direct match on product name
+  // Direct match on product name (exact substring)
   for (const [productName, aliases] of Object.entries(PRODUCT_ALIASES)) {
     if (productName.toLowerCase().includes(text) ||
         text.includes(productName.toLowerCase())) {
@@ -303,11 +470,12 @@ function matchProductLocal(text) {
         alias: null,
         language: 'english',
         confidence: 0.9,
-        source: 'local_product'
+        source: 'local_product',
+        typoDetected: false
       };
     }
 
-    // Check aliases
+    // Check aliases (exact substring)
     for (const alias of aliases) {
       if (text.includes(alias) || alias.includes(text)) {
         return {
@@ -315,13 +483,15 @@ function matchProductLocal(text) {
           alias: alias,
           language: alias.match(/epo|adin|zomi|ogede|egwusi|agusi|okporoko|panla|ata|elubo|igba|ehuru|ariwo|iyan/) ? 'yoruba' : 'english',
           confidence: 0.85,
-          source: 'local_alias'
+          source: 'local_alias',
+          typoDetected: false
         };
       }
     }
   }
 
-  return null;
+  // Try fuzzy matching as last resort
+  return fuzzyMatchProduct(text);
 }
 
 /**
@@ -448,10 +618,11 @@ export function isCompleteOrder(items, postcode) {
 /**
  * Parse the full message and return structured data (async for Neo4j)
  * @param {string} message - The message text
+ * @param {string|null} conversationState - Current conversation state for context-aware parsing
  * @returns {Promise<Object>} - Parsed message data
  */
-export async function parseMessage(message) {
-  const intent = detectIntent(message);
+export async function parseMessage(message, conversationState = null) {
+  const intent = detectIntent(message, conversationState);
   const items = await parseOrderItems(message);
   const { address, postcode } = parseAddress(message);
   const deliveryZone = getDeliveryZone(postcode);

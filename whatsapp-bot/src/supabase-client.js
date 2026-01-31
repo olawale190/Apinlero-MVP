@@ -198,14 +198,12 @@ export async function deleteSession(phone, businessId = null) {
  * @returns {Promise<Array>} Array of product objects
  */
 export async function getProducts(businessId) {
-  if (!businessId) {
-    throw new Error('businessId is required for getProducts');
-  }
+  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
+  // TODO: Add business_id column to products table for multi-tenant support
 
   const { data, error} = await supabase
     .from('products')
     .select('*')
-    .eq('business_id', businessId)
     .eq('is_active', true)
     .order('name');
 
@@ -224,15 +222,13 @@ export async function getProducts(businessId) {
  * @returns {Promise<Object|null>} Product object or null
  */
 export async function getProductById(id, businessId) {
-  if (!businessId) {
-    throw new Error('businessId is required for getProductById');
-  }
+  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
+  // TODO: Add business_id column to products table for multi-tenant support
 
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('id', id)
-    .eq('business_id', businessId)
     .single();
 
   if (error) {
@@ -250,14 +246,12 @@ export async function getProductById(id, businessId) {
  * @returns {Promise<Object|null>} Product object or null
  */
 export async function getProductByName(name, businessId) {
-  if (!businessId) {
-    throw new Error('businessId is required for getProductByName');
-  }
+  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
+  // TODO: Add business_id column to products table for multi-tenant support
 
   const { data, error } = await supabase
     .from('products')
     .select('*')
-    .eq('business_id', businessId)
     .ilike('name', `%${name}%`)
     .limit(1)
     .single();

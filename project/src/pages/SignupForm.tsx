@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { CheckCircle, ArrowRight, Building2, Mail, Phone, User, PartyPopper } from 'lucide-react';
 import { colors } from '../config/colors';
 import { triggerWelcomeEmail, isN8nConfigured } from '../lib/n8n';
+import { sendWelcomeEmail, isEmailConfigured } from '../lib/email';
+import { getCurrentSubdomain } from '../lib/business-resolver';
 
 interface SignupFormProps {
-  onSuccess: () => void;
+  onSuccess: (businessSubdomain?: string) => void; // Added subdomain parameter
   onCancel: () => void;
 }
 
@@ -20,6 +22,17 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
     plan: 'solo'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [businessSlug, setBusinessSlug] = useState<string | null>(null);
+
+  // Generate slug from business name (e.g., "Isha's Treat" → "ishas-treat")
+  const generateSlug = (businessName: string): string => {
+    return businessName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .trim()
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-'); // Remove duplicate hyphens
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
@@ -32,17 +45,35 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Generate business slug for subdomain
+    const slug = generateSlug(formData.businessName);
+    setBusinessSlug(slug);
+
     // Simulate API call to save signup
-    // In production, this would save to Supabase
-    setTimeout(() => {
-      // Send welcome email via n8n
-      if (isN8nConfigured()) {
-        triggerWelcomeEmail(
-          formData.email,
-          formData.businessName,
-          formData.ownerName,
-          formData.plan
-        ).catch(console.error);
+    // In production, this would save to Supabase and create business record
+    setTimeout(async () => {
+      // Send welcome email
+      try {
+        if (isEmailConfigured()) {
+          // Use direct email service
+          await sendWelcomeEmail({
+            customerEmail: formData.email,
+            customerName: formData.ownerName,
+            businessName: formData.businessName,
+            storeUrl: undefined,
+            whatsappNumber: undefined
+          });
+        } else if (isN8nConfigured()) {
+          // Fallback to n8n
+          await triggerWelcomeEmail(
+            formData.email,
+            formData.businessName,
+            formData.ownerName,
+            formData.plan
+          );
+        }
+      } catch (error) {
+        console.error('Welcome email error:', error);
       }
 
       setIsSubmitting(false);
@@ -461,12 +492,21 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                 </p>
               </div>
 
-              <a
-                href="/"
-                className="inline-block px-8 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Back to Homepage
-              </a>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() => onSuccess(businessSlug || getCurrentSubdomain() || undefined)}
+                  className="px-8 py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  Continue to Dashboard
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+                <a
+                  href="/"
+                  className="inline-block px-8 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-center"
+                >
+                  Back to Homepage
+                </a>
+              </div>
             </div>
           )}
         </div>

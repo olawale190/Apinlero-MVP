@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Truck, Check, Mail, Send } from 'lucide-react';
 import type { Order } from '../lib/supabase';
 import { supabase } from '../lib/supabase';
 import { triggerOrderEmail, isN8nConfigured } from '../lib/n8n';
+import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail, isEmailConfigured } from '../lib/email';
 
 interface OrdersTableProps {
   orders: Order[];
@@ -23,13 +24,66 @@ export default function OrdersTable({ orders, onOrderUpdate }: OrdersTableProps)
     e.stopPropagation();
     setSendingEmail(orderId);
 
-    const result = await triggerOrderEmail(orderId, type);
+    try {
+      // Find the order
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        alert('Order not found');
+        setSendingEmail(null);
+        return;
+      }
 
-    if (result.success) {
-      setEmailSent(orderId);
-      setTimeout(() => setEmailSent(null), 3000);
-    } else {
-      alert(result.error || 'Failed to send email');
+      let result;
+
+      // Try direct email service first if configured
+      if (isEmailConfigured() && order.customer_email) {
+        if (type === 'confirmation') {
+          result = await sendOrderConfirmationEmail({
+            customerEmail: order.customer_email,
+            customerName: order.customer_name,
+            orderId: order.id,
+            orderNumber: order.id.slice(0, 8).toUpperCase(),
+            items: Array.isArray(order.items) ? order.items.map(item => ({
+              name: item.product_name,
+              quantity: item.quantity,
+              price: item.price
+            })) : [],
+            total: order.total,
+            deliveryAddress: order.delivery_address,
+            estimatedDelivery: undefined
+          });
+        } else {
+          const statusMessages: Record<string, string> = {
+            Pending: 'Your order has been received and is awaiting confirmation.',
+            Confirmed: 'Your order has been confirmed and is being prepared.',
+            Delivered: 'Your order has been delivered. Thank you for your business!'
+          };
+
+          result = await sendOrderStatusUpdateEmail(
+            order.customer_email,
+            order.customer_name,
+            order.id.slice(0, 8).toUpperCase(),
+            order.status,
+            statusMessages[order.status] || `Your order status has been updated to: ${order.status}`
+          );
+        }
+      }
+      // Fallback to n8n if configured
+      else if (isN8nConfigured()) {
+        result = await triggerOrderEmail(orderId, type);
+      } else {
+        result = { success: false, error: 'No email service configured' };
+      }
+
+      if (result.success) {
+        setEmailSent(orderId);
+        setTimeout(() => setEmailSent(null), 3000);
+      } else {
+        alert(result.error || 'Failed to send email');
+      }
+    } catch (error) {
+      console.error('Email send error:', error);
+      alert('Failed to send email');
     }
 
     setSendingEmail(null);
@@ -68,7 +122,22 @@ export default function OrdersTable({ orders, onOrderUpdate }: OrdersTableProps)
     if (!error) {
       onOrderUpdate();
       // Auto-send status update email to customer
-      if (isN8nConfigured()) {
+      const order = orders.find(o => o.id === orderId);
+      if (order?.customer_email && isEmailConfigured()) {
+        const statusMessages: Record<string, string> = {
+          Pending: 'Your order has been received and is awaiting confirmation.',
+          Confirmed: 'Your order has been confirmed and is being prepared.',
+          Delivered: 'Your order has been delivered. Thank you for your business!'
+        };
+
+        sendOrderStatusUpdateEmail(
+          order.customer_email,
+          order.customer_name,
+          order.id.slice(0, 8).toUpperCase(),
+          newStatus,
+          statusMessages[newStatus] || `Your order status has been updated to: ${newStatus}`
+        ).catch(console.error);
+      } else if (isN8nConfigured()) {
         triggerOrderEmail(orderId, 'status').catch(console.error);
       }
     }
@@ -252,7 +321,7 @@ export default function OrdersTable({ orders, onOrderUpdate }: OrdersTableProps)
                         </div>
                       )}
                       {/* Email Notification Buttons */}
-                      {isN8nConfigured() && (
+                      {(isEmailConfigured() || isN8nConfigured()) && (
                         <div className="pt-2 border-t border-gray-200">
                           <p className="text-xs text-gray-500 mb-2">Send Email Notification</p>
                           <div className="flex gap-2">
@@ -449,7 +518,7 @@ export default function OrdersTable({ orders, onOrderUpdate }: OrdersTableProps)
                                   </div>
                                 )}
                                 {/* Email Notification Buttons */}
-                                {isN8nConfigured() && (
+                                {(isEmailConfigured() || isN8nConfigured()) && (
                                   <div className="pt-3 mt-3 border-t border-gray-200">
                                     <p className="text-xs text-gray-500 mb-2">Send Email Notification</p>
                                     <div className="flex gap-2">

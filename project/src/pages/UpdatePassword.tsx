@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Lock, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentSubdomain, buildSubdomainUrl } from '../lib/business-resolver';
 
 export default function UpdatePassword() {
   const navigate = useNavigate();
@@ -38,12 +39,23 @@ export default function UpdatePassword() {
       } else {
         setMessage({
           type: 'success',
-          text: 'Password updated successfully! Redirecting to dashboard...',
+          text: 'Password updated successfully! Redirecting...',
         });
 
-        // Redirect to dashboard after 2 seconds
+        // Redirect back to originating subdomain after 2 seconds
         setTimeout(() => {
-          navigate('/');
+          const subdomain = getCurrentSubdomain();
+
+          if (subdomain === 'app') {
+            // Redirect to dashboard
+            navigate('/app');
+          } else if (subdomain) {
+            // Redirect to business store homepage
+            window.location.href = buildSubdomainUrl(subdomain, '/');
+          } else {
+            // Default to landing page
+            navigate('/');
+          }
         }, 2000);
       }
     } catch {

@@ -12,6 +12,11 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
+vi.mock('../lib/business-resolver', () => ({
+  getCurrentSubdomain: () => 'app',
+  buildSubdomainUrl: (subdomain: string, path: string) => `https://${subdomain}.example.com${path}`,
+}));
+
 describe('PasswordReset Component', () => {
   const mockOnBack = vi.fn();
 

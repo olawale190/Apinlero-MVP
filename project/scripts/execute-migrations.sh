@@ -5,8 +5,14 @@
 
 set -e
 
-SUPABASE_URL="https://gafoezdpaotwvpfldyhc.supabase.co"
-SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM"
+SUPABASE_URL="${SUPABASE_URL:-${VITE_SUPABASE_URL}}"
+SERVICE_ROLE_KEY="${SUPABASE_SERVICE_KEY}"
+
+if [ -z "$SUPABASE_URL" ] || [ -z "$SERVICE_ROLE_KEY" ]; then
+    echo "❌ Error: Missing required environment variables"
+    echo "   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY"
+    exit 1
+fi
 
 echo "🔧 Executing Supabase Migrations..."
 echo ""
@@ -67,12 +73,20 @@ echo "⚠️  Note: Supabase doesn't expose a simple SQL execution endpoint via 
 echo "Instead, we'll use the PostgreSQL connection string."
 echo ""
 
-# Construct the connection string
-DB_HOST="db.gafoezdpaotwvpfldyhc.supabase.co"
+# Construct the connection string from environment variables
+# Extract project ref from SUPABASE_URL
+PROJECT_REF=$(echo "$SUPABASE_URL" | sed -n 's/.*\/\/\([^.]*\)\..*/\1/p')
+DB_HOST="db.${PROJECT_REF}.supabase.co"
 DB_NAME="postgres"
-DB_USER="postgres"
-DB_PASSWORD="y2KyN58yVFnDh2wi"
-DB_PORT="5432"
+DB_USER="${DB_USER:-postgres}"
+DB_PASSWORD="${DB_PASSWORD}"
+DB_PORT="${DB_PORT:-5432}"
+
+if [ -z "$DB_PASSWORD" ]; then
+    echo "❌ Error: DB_PASSWORD environment variable not set"
+    echo "   Get it from: https://supabase.com/dashboard/project/${PROJECT_REF}/settings/database"
+    exit 1
+fi
 
 CONNECTION_STRING="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
@@ -121,7 +135,8 @@ else
     echo "❌ PostgreSQL client (psql) not found."
     echo ""
     echo "📝 Please run these SQL commands manually in Supabase SQL Editor:"
-    echo "   https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new"
+    PROJECT_REF=$(echo "$SUPABASE_URL" | sed -n 's/.*\/\/\([^.]*\)\..*/\1/p')
+    echo "   https://supabase.com/dashboard/project/${PROJECT_REF}/sql/new"
     echo ""
     echo "========================================="
     echo "SQL Command 1: Fix RLS Policy"

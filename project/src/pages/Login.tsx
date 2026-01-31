@@ -57,13 +57,6 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
     setIsLoading(false);
   };
 
-  // Demo login for pilot testing - direct access, no auth required
-  const handleDemoLogin = () => {
-    // Set demo mode flag and go directly to dashboard
-    localStorage.setItem('apinlero_demo_mode', 'true');
-    onLoginSuccess();
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 to-blue-50 flex items-center justify-center px-3 sm:px-4 py-6 sm:py-0">
       <div className="max-w-md w-full">
@@ -158,24 +151,6 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
               </button>
             )}
           </div>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
-            </div>
-          </div>
-
-          {/* Demo Login Button */}
-          <button
-            onClick={handleDemoLogin}
-            className="w-full py-3 rounded-lg font-medium transition-all border-2 border-teal-600 text-teal-600 hover:bg-teal-50"
-          >
-            Demo Login (Pilot Testing)
-          </button>
 
           {/* View Storefront Link */}
           <div className="mt-6 text-center">

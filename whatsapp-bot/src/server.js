@@ -25,6 +25,8 @@ validateEnvironment();
 const whatsappProvider = getWhatsAppProvider();
 console.log(`📱 WhatsApp Provider: ${whatsappProvider || 'None configured'}`);
 
+// Default business ID for single-tenant mode (Twilio)
+const DEFAULT_BUSINESS_ID = process.env.DEFAULT_BUSINESS_ID || 'bf642ec5-8990-4581-bc1c-e4171d472007';
 
 const app = express();
 
@@ -77,14 +79,14 @@ app.post('/webhook/twilio', async (req, res) => {
     const incomingMessage = parseTwilioWebhook(req.body);
     console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber}: ${incomingMessage.body}`);
 
-    // Process message through the full handler (no tenant context for legacy Twilio)
+    // Process message through the full handler (single tenant mode with default business)
     const response = await handleIncomingMessage({
       from: incomingMessage.phoneNumber,
       customerName: incomingMessage.profileName || null,
       text: incomingMessage.body,
       messageId: incomingMessage.messageId,
       provider: 'twilio',
-      businessId: null // Single tenant mode
+      businessId: DEFAULT_BUSINESS_ID // Single tenant mode
     });
 
     // Send response via Twilio
@@ -371,7 +373,7 @@ app.post('/webhook', async (req, res) => {
         text: incomingMessage.body,
         messageId: incomingMessage.messageId,
         provider: 'twilio',
-        businessId: null
+        businessId: DEFAULT_BUSINESS_ID // Use default business for legacy Twilio
       });
 
       // Send response via Twilio

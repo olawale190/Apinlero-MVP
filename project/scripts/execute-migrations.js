@@ -7,8 +7,14 @@
 
 const https = require('https');
 
-const SUPABASE_URL = 'https://gafoezdpaotwvpfldyhc.supabase.co';
-const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error('❌ Error: Missing required environment variables');
+  console.error('   Please set SUPABASE_URL and SUPABASE_SERVICE_KEY');
+  process.exit(1);
+}
 
 // SQL for RLS fix
 const RLS_FIX_SQL = `
@@ -114,7 +120,8 @@ async function main() {
   console.log('⚠️  You need to run these SQL commands in the Supabase Dashboard.\n');
 
   console.log('📝 Instructions:');
-  console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new');
+  const projectRef = SUPABASE_URL.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'YOUR_PROJECT';
+  console.log(`1. Go to: https://supabase.com/dashboard/project/${projectRef}/sql/new`);
   console.log('2. Copy and run the SQL commands below');
   console.log('3. Click "Run" after each block\n');
 

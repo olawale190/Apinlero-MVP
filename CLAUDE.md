@@ -401,6 +401,49 @@ project/n8n-workflows/
 
 ## Recent Changes Log
 
+### January 28, 2026 - Email System Complete & Production Deployment
+
+**Email System Implementation**:
+- **Created**: `project/src/lib/email.ts` (650+ lines)
+  - Direct Resend API integration for fast, reliable email delivery
+  - All 5 email types fully implemented with beautiful HTML templates
+  - Automatic fallback to n8n if Resend not configured
+  - Functions: `sendOrderConfirmationEmail()`, `sendOrderStatusUpdateEmail()`, `sendLowStockAlertEmail()`, `sendDailySummaryEmail()`, `sendWelcomeEmail()`
+- **Created**: `project/src/pages/EmailSettings.tsx` (450+ lines)
+  - Email configuration status dashboard
+  - Live email testing interface
+  - Sample template preview and testing
+  - Setup instructions and troubleshooting
+- **Created**: `EMAIL_SETUP_GUIDE.md` (500+ lines)
+  - Complete setup guide for Resend and n8n
+  - API reference and examples
+  - Troubleshooting and best practices
+  - Cost estimates and production deployment guide
+- **Modified**: `project/src/components/OrdersTable.tsx`
+  - Integrated direct email service with n8n fallback
+  - Auto-send status update emails on order changes
+  - Manual email buttons for confirmations and updates
+- **Modified**: `project/src/components/InventoryManager.tsx`
+  - Integrated low stock alert emails with Resend
+  - Automatic fallback to n8n webhooks
+- **Modified**: `project/src/pages/SignupForm.tsx`
+  - Integrated welcome email for new signups
+  - Supports both Resend and n8n delivery
+- **Modified**: `project/.env.example`
+  - Added Resend environment variables
+  - Updated documentation for email configuration
+
+**Email Features Delivered**:
+- ✅ Order confirmation emails (beautiful receipts with item details)
+- ✅ Order status update emails (automatic on status change)
+- ✅ Low stock alert emails (manual trigger from inventory)
+- ✅ Daily summary report emails (business performance reports)
+- ✅ Welcome emails (new customer onboarding)
+- ✅ Responsive HTML templates (mobile + desktop optimized)
+- ✅ Professional Navy Blue theme matching Apinlero branding
+- ✅ Automatic service fallback (Resend → n8n)
+- ✅ Email testing interface at `/email-settings`
+
 ### January 28, 2026 - Production Deployment Success & Automation Skills
 
 **Deployment Fixes & Configuration**:
@@ -603,9 +646,9 @@ project/n8n-workflows/
 ### Fallback URLs (Vercel subdomain)
 | Service | URL |
 |---------|-----|
-| Landing Page | `https://project-apinlero.vercel.app` |
-| Dashboard | `https://project-apinlero.vercel.app/app` |
-| Isha's Store | `https://project-apinlero.vercel.app/store/ishas-treat` |
+| Landing Page | `https://apinlero.vercel.app` |
+| Dashboard | `https://app.apinlero.com` |
+| Isha's Store | `https://ishas-treat.apinlero.com` |
 
 ---
 
@@ -654,7 +697,7 @@ PORT=3000
 
 ### Option 1: Online Store (Recommended)
 ```
-https://project-apinlero.vercel.app/store/ishas-treat
+https://ishas-treat.apinlero.com
 ```
 - No setup required
 - Browse products visually
@@ -685,14 +728,14 @@ Files updated:
 
 ## Pilot Customer: Isha's Treat & Groceries
 
-- **Location**: South London, UK
+- **Location**: UK
 - **Test Phones**: +44 7935 238972, +44 7733 743448
 - **Dashboard Login**:
-  - **URL**: `https://project-apinlero.vercel.app/app`
+  - **URL**: `https://app.apinlero.com`
   - **Email**: `Info@ishastreatandgroceriescom.uk`
   - **Password**: `IshasTreat2026`
   - Or click "Demo Login (Pilot Testing)" button (auto-logs in with above credentials)
-- **Store URL**: `/store/ishas-treat`
+- **Store URL**: `https://ishas-treat.apinlero.com`
 
 ---
 
@@ -798,4 +841,60 @@ npx vercel --prod --yes --force
 
 ---
 
-*Last Updated: January 28, 2026*
+## Security Analysis (January 31, 2026)
+
+### Credential Security Status
+
+| Credential | Status | Notes |
+|------------|--------|-------|
+| Twilio Auth Token | ✅ Rotated | Secondary token promoted to primary |
+| Neo4j Password | ⚠️ Unable to rotate | Aura free tier doesn't support password reset |
+| Supabase Service Key | ⚠️ Review needed | Found in multiple .env files |
+| Resend API Key | ⚠️ Review needed | Found in project/.env.local |
+
+### .env Files Inventory
+
+| File | Contains |
+|------|----------|
+| `whatsapp-bot/.env` | Twilio, Neo4j, Supabase Service Key |
+| `project/.env` | Supabase Anon Key (safe for frontend) |
+| `project/.env.local` | Twilio (test), Vercel OIDC, Resend API Key |
+| `project/knowledge-graph/.env` | Neo4j, Supabase Service Key |
+
+### Security Tools Configured
+
+1. **Gitleaks** - Secret detection (`.gitleaks.toml`)
+2. **Pre-commit hooks** - Blocks commits with secrets (`.pre-commit-config.yaml`)
+3. **.gitignore** - Already configured to exclude .env files
+
+### Pre-commit Hook Setup
+
+```bash
+# Install pre-commit
+brew install pre-commit  # or: pip install pre-commit
+
+# Activate hooks
+cd /Users/user/Documents/Lazrap/SaaS/Apinlero/Apinlero_MVP
+pre-commit install
+```
+
+### NPM Audit Results
+
+| Project | Vulnerabilities |
+|---------|-----------------|
+| `project/` | 26 (3 low, 7 moderate, 16 high) |
+| `whatsapp-bot/` | 0 |
+
+**Action**: Run `npm audit fix` in project/ to address non-breaking fixes.
+
+### Security Recommendations
+
+1. **Rotate Supabase Service Key** if exposed
+2. **Rotate Resend API Key** in Resend dashboard
+3. **Enable RLS** on all Supabase tables (currently disabled for testing)
+4. **Run `npm audit fix`** to patch dependency vulnerabilities
+5. **Activate pre-commit hooks** to prevent future credential exposure
+
+---
+
+*Last Updated: January 31, 2026*
