@@ -1,0 +1,20 @@
+# Pre-commit hooks for security scanning
+# Install: pip install pre-commit && pre-commit install
+# Or: brew install pre-commit && pre-commit install
+
+repos:
+  # Gitleaks - Secret detection
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # Prevent committing .env files
+  - repo: local
+    hooks:
+      - id: no-env-files
+        name: Check for .env files
+        entry: bash -c 'for f in "$@"; do if [[ "$f" =~ \.env$ ]] && [[ ! "$f" =~ \.example$ ]]; then echo "ERROR: Attempting to commit .env file: $f"; exit 1; fi; done' --
+        language: system
+        files: '\.env'
+        pass_filenames: true

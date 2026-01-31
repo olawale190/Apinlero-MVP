@@ -31,3 +31,6 @@ Thumbs.db
 *.tmp
 *.temp
 .temp/
+
+# Word temp files
+~$*

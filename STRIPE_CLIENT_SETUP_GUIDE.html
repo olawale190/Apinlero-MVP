@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>STRIPE_CLIENT_SETUP_GUIDE</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<h1 id="accept-card-payments-with-stripe">Accept Card Payments with
+Stripe</h1>
+<h2 id="setup-guide-for-ishas-treat-groceries">Setup Guide for Isha’s
+Treat &amp; Groceries</h2>
+<hr />
+<h2 id="what-is-this">What is This?</h2>
+<p>This guide will help you set up <strong>online card payments</strong>
+for your customers. Once complete, customers can pay for their orders
+using credit or debit cards directly on your website.</p>
+<p><strong>Time needed:</strong> 15-20 minutes <strong>Cost:</strong>
+Free to set up (Stripe charges 1.4% + 20p per transaction)</p>
+<hr />
+<h2 id="what-youll-need">What You’ll Need</h2>
+<ul>
+<li>Business email address</li>
+<li>Business bank account details (for receiving payments)</li>
+<li>Government-issued ID (for verification)</li>
+<li>Your business information (address, company number if
+applicable)</li>
+</ul>
+<hr />
+<h2 id="step-by-step-setup">Step-by-Step Setup</h2>
+<h3 id="step-1-create-your-stripe-account">Step 1: Create Your Stripe
+Account</h3>
+<ol type="1">
+<li><strong>Go to Stripe’s website</strong>
+<ul>
+<li>Visit: <a href="https://stripe.com">https://stripe.com</a></li>
+<li>Click the <strong>“Start now”</strong> or <strong>“Sign up”</strong>
+button</li>
+</ul></li>
+<li><strong>Enter your email and create a password</strong>
+<ul>
+<li>Use your business email address</li>
+<li>Choose a strong password</li>
+</ul></li>
+<li><strong>Fill in your business information</strong>
+<ul>
+<li>Business name: <strong>Isha’s Treat &amp; Groceries</strong></li>
+<li>Business type: Select <strong>Retail</strong> or
+<strong>E-commerce</strong></li>
+<li>Country: <strong>United Kingdom</strong></li>
+<li>Currency: <strong>GBP (£)</strong></li>
+</ul></li>
+<li><strong>Verify your email</strong>
+<ul>
+<li>Check your inbox for a verification email from Stripe</li>
+<li>Click the verification link</li>
+</ul></li>
+</ol>
+<hr />
+<h3 id="step-2-complete-business-verification">Step 2: Complete Business
+Verification</h3>
+<p>Stripe needs to verify your business to comply with UK
+regulations.</p>
+<ol type="1">
+<li><strong>Add your business address</strong>
+<ul>
+<li>Enter your registered business address</li>
+<li>This must match your business registration</li>
+</ul></li>
+<li><strong>Add bank account details</strong>
+<ul>
+<li>Account number</li>
+<li>Sort code</li>
+<li>This is where you’ll receive customer payments (usually within 2-3
+business days)</li>
+</ul></li>
+<li><strong>Provide Tax Information</strong>
+<ul>
+<li>If you have a Company Registration Number, enter it</li>
+<li>If you’re a sole trader, provide your UTR (Unique Taxpayer
+Reference)</li>
+</ul></li>
+<li><strong>Verify your identity</strong>
+<ul>
+<li>Upload a government-issued ID (passport or driving license)</li>
+<li>This is a one-time requirement for security</li>
+</ul></li>
+</ol>
+<p><strong>Note:</strong> Stripe may approve you instantly or may take
+1-2 business days to review.</p>
+<hr />
+<h3 id="step-3-get-your-api-keys">Step 3: Get Your API Keys</h3>
+<p>Once your account is verified:</p>
+<ol type="1">
+<li><p><strong>Log into Stripe Dashboard</strong></p>
+<ul>
+<li>Go to: <a href="https://dashboard.stripe.com">https://dashboard.stripe.com</a></li>
+</ul></li>
+<li><p><strong>Navigate to Developers section</strong></p>
+<ul>
+<li>Click <strong>“Developers”</strong> in the top menu</li>
+<li>Click <strong>“API keys”</strong></li>
+</ul></li>
+<li><p><strong>You’ll see two types of keys:</strong></p>
+<p><strong>Test Keys (for testing):</strong></p>
+<ul>
+<li>Publishable key: starts with <code>pk_test_...</code></li>
+<li>Secret key: starts with <code>sk_test_...</code></li>
+</ul>
+<p><strong>Live Keys (for real payments):</strong></p>
+<ul>
+<li>Publishable key: starts with <code>pk_live_...</code></li>
+<li>Secret key: starts with <code>sk_live_...</code></li>
+</ul></li>
+<li><p><strong>Start with TEST keys first</strong></p>
+<ul>
+<li>Click “Reveal test key” next to the Secret key</li>
+<li>Copy both test keys to a safe place (like a password manager)</li>
+</ul></li>
+</ol>
+<hr />
+<h3 id="step-4-connect-stripe-to-your-apinlero-dashboard">Step 4:
+Connect Stripe to Your Apinlero Dashboard</h3>
+<ol type="1">
+<li><strong>Log into your Apinlero dashboard</strong>
+<ul>
+<li>Go to your dashboard URL</li>
+<li>Log in with your credentials</li>
+</ul></li>
+<li><strong>Navigate to Settings</strong>
+<ul>
+<li>Click the <strong>“Settings”</strong> tab in the navigation
+menu</li>
+</ul></li>
+<li><strong>Find the Stripe Payment section</strong>
+<ul>
+<li>You should see “Connect Your Stripe Account”</li>
+</ul></li>
+<li><strong>Enter your Stripe API keys</strong>
+<ul>
+<li><strong>Publishable Key:</strong> Paste your
+<code>pk_test_...</code> key</li>
+<li><strong>Secret Key:</strong> Paste your <code>sk_test_...</code>
+key</li>
+</ul></li>
+<li><strong>Test the connection</strong>
+<ul>
+<li>Click <strong>“Test Connection”</strong> button</li>
+<li>Wait for the success message</li>
+<li>You should see your Stripe account details</li>
+</ul></li>
+<li><strong>Save your configuration</strong>
+<ul>
+<li>Click <strong>“Save Configuration”</strong></li>
+<li>You’ll see a success message</li>
+</ul></li>
+</ol>
+<p><strong>Important:</strong> Keep your Secret Key private! Never share
+it with anyone except when entering it in secure systems like
+Apinlero.</p>
+<hr />
+<h3 id="step-5-test-your-payment-setup">Step 5: Test Your Payment
+Setup</h3>
+<p>Before accepting real payments, test that everything works:</p>
+<ol type="1">
+<li><strong>Place a test order</strong>
+<ul>
+<li>Go to your website</li>
+<li>Add items to cart</li>
+<li>Go to checkout</li>
+</ul></li>
+<li><strong>Use Stripe’s test card</strong>
+<ul>
+<li>Card number: <code>4242 4242 4242 4242</code></li>
+<li>Expiry date: Any future date (e.g., <code>12/34</code>)</li>
+<li>CVC: Any 3 digits (e.g., <code>123</code>)</li>
+<li>Postcode: Any valid UK postcode (e.g., <code>SW1A 1AA</code>)</li>
+</ul></li>
+<li><strong>Complete the payment</strong>
+<ul>
+<li>The payment should succeed</li>
+<li>You should receive an order confirmation</li>
+</ul></li>
+<li><strong>Verify in Stripe Dashboard</strong>
+<ul>
+<li>Go to <a href="https://dashboard.stripe.com/test/payments">https://dashboard.stripe.com/test/payments</a></li>
+<li>You should see your test payment listed</li>
+</ul></li>
+</ol>
+<p><strong>If the test works, you’re ready for real
+payments!</strong></p>
+<hr />
+<h3 id="step-6-go-live-with-real-payments">Step 6: Go Live with Real
+Payments</h3>
+<p>Once you’ve tested successfully:</p>
+<ol type="1">
+<li><strong>Get your LIVE API keys</strong>
+<ul>
+<li>Go to Stripe Dashboard → Developers → API keys</li>
+<li>Find your <strong>Live</strong> keys section</li>
+<li>Copy both live keys (<code>pk_live_...</code> and
+<code>sk_live_...</code>)</li>
+</ul></li>
+<li><strong>Update Apinlero with live keys</strong>
+<ul>
+<li>Go back to Apinlero → Settings</li>
+<li>Replace the test keys with live keys</li>
+<li>Click “Test Connection”</li>
+<li>Click “Save Configuration”</li>
+</ul></li>
+<li><strong>Make a small test payment</strong>
+<ul>
+<li>Place a real order for a small amount (e.g., £1)</li>
+<li>Use your own card to test</li>
+<li>Check that money arrives in your bank account in 2-3 days</li>
+</ul></li>
+<li><strong>Start accepting customer payments!</strong>
+<ul>
+<li>You’re now ready to accept real card payments</li>
+<li>Customers can checkout with their credit/debit cards</li>
+<li>Money will be deposited into your bank account automatically</li>
+</ul></li>
+</ol>
+<hr />
+<h2 id="understanding-stripe-fees">Understanding Stripe Fees</h2>
+<p>Stripe charges the following fees for UK card payments:</p>
+<table>
+<thead>
+<tr>
+<th>Payment Type</th>
+<th>Fee</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UK card</td>
+<td>1.4% + 20p</td>
+</tr>
+<tr>
+<td>European card</td>
+<td>2.5% + 20p</td>
+</tr>
+<tr>
+<td>Non-European card</td>
+<td>2.9% + 20p</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong> - Customer pays: £50.00 - Stripe fee: £0.90
+(1.4% + 20p) - You receive: £49.10</p>
+<p><strong>Note:</strong> These fees are deducted automatically. The
+remaining amount is deposited to your bank account.</p>
+<hr />
+<h2 id="when-do-i-get-paid">When Do I Get Paid?</h2>
+<ul>
+<li><strong>First payment:</strong> 7-14 days after your first
+transaction (Stripe’s standard verification period)</li>
+<li><strong>Subsequent payments:</strong> 2-3 business days after the
+transaction</li>
+<li><strong>Payout schedule:</strong> You can set this to Daily, Weekly,
+or Monthly in Stripe Dashboard</li>
+</ul>
+<p><strong>To check payouts:</strong> - Go to Stripe Dashboard → Balance
+→ Payouts - You’ll see all scheduled and completed payouts</p>
+<hr />
+<h2 id="test-vs-live-mode">Test vs Live Mode</h2>
+<p>Stripe has two modes:</p>
+<h3 id="test-mode-for-testing">Test Mode (for testing)</h3>
+<ul>
+<li>Uses test API keys (<code>pk_test_...</code> and
+<code>sk_test_...</code>)</li>
+<li>No real money involved</li>
+<li>Use test cards (4242 4242 4242 4242)</li>
+<li>Perfect for making sure everything works</li>
+</ul>
+<h3 id="live-mode-for-real-payments">Live Mode (for real payments)</h3>
+<ul>
+<li>Uses live API keys (<code>pk_live_...</code> and
+<code>sk_live_...</code>)</li>
+<li>Real money transactions</li>
+<li>Customer cards are charged</li>
+<li>Always test in Test Mode first!</li>
+</ul>
+<p><strong>Important:</strong> You can toggle between Test and Live mode
+in your Stripe Dashboard using the toggle switch in the top left.</p>
+<hr />
+<h2 id="common-questions">Common Questions</h2>
+<h3 id="q-is-my-money-safe-with-stripe">Q: Is my money safe with
+Stripe?</h3>
+<p><strong>A:</strong> Yes! Stripe is used by millions of businesses
+worldwide, including Amazon, Google, and Shopify. They are fully
+regulated and licensed in the UK.</p>
+<h3 id="q-what-cards-can-customers-use">Q: What cards can customers
+use?</h3>
+<p><strong>A:</strong> Customers can use: - Visa - Mastercard - American
+Express - UK debit cards - Most international cards</p>
+<h3 id="q-what-if-a-customer-disputes-a-payment">Q: What if a customer
+disputes a payment?</h3>
+<p><strong>A:</strong> Stripe handles disputes through their dashboard.
+You’ll be notified and can provide evidence. Most disputes are resolved
+within 2-3 weeks.</p>
+<h3 id="q-can-i-issue-refunds">Q: Can I issue refunds?</h3>
+<p><strong>A:</strong> Yes! You can issue full or partial refunds
+directly from your Stripe Dashboard or through your Apinlero
+dashboard.</p>
+<h3 id="q-what-happens-if-a-payment-fails">Q: What happens if a payment
+fails?</h3>
+<p><strong>A:</strong> The customer will see an error message and can
+try again with a different card. You won’t be charged for failed
+payments.</p>
+<h3 id="q-do-i-need-a-business-bank-account">Q: Do I need a business
+bank account?</h3>
+<p><strong>A:</strong> Stripe recommends using a business bank account,
+but you can use a personal account if you’re a sole trader.</p>
+<hr />
+<h2 id="need-help">Need Help?</h2>
+<h3 id="stripe-support">Stripe Support</h3>
+<ul>
+<li><strong>Help Center:</strong> <a href="https://support.stripe.com">https://support.stripe.com</a></li>
+<li><strong>Email:</strong> support@stripe.com</li>
+<li><strong>Phone:</strong> Available in Stripe Dashboard (UK support
+available)</li>
+</ul>
+<h3 id="apinlero-support">Apinlero Support</h3>
+<ul>
+<li>Contact your Apinlero account manager</li>
+<li>Email: support@apinlero.com</li>
+<li>Documentation: Check your Apinlero dashboard</li>
+</ul>
+<hr />
+<h2 id="security-reminders">Security Reminders</h2>
+<p>✅ <strong>DO:</strong> - Keep your Secret Key private - Use strong
+passwords - Enable two-factor authentication on your Stripe account -
+Regularly check your Stripe Dashboard for unusual activity - Start with
+Test Mode before going live</p>
+<p>❌ <strong>DON’T:</strong> - Share your Secret Key with anyone - Post
+your API keys online or in public forums - Give your Stripe login
+credentials to anyone - Skip the testing phase</p>
+<hr />
+<h2 id="quick-reference-card">Quick Reference Card</h2>
+<p><strong>Stripe Dashboard:</strong> <a href="https://dashboard.stripe.com">dashboard.stripe.com</a></p>
+<p><strong>Test Card:</strong></p>
+<pre><code>Card: 4242 4242 4242 4242
+Expiry: 12/34
+CVC: 123</code></pre>
+<p><strong>Your API Keys:</strong> - Test Publishable: pk_test_… (get
+from Stripe Dashboard) - Test Secret: sk_test_… (get from Stripe
+Dashboard) - Live Publishable: pk_live_… (use when ready to go live) -
+Live Secret: sk_live_… (use when ready to go live)</p>
+<p><strong>Fees:</strong> 1.4% + 20p per UK card transaction</p>
+<p><strong>Payout Time:</strong> 2-3 business days</p>
+<hr />
+<h2 id="checklist">Checklist</h2>
+<p>Use this checklist to track your progress:</p>
+<ul class="task-list">
+<li><label><input type="checkbox"></input>Created Stripe account</label></li>
+<li><label><input type="checkbox"></input>Verified email address</label></li>
+<li><label><input type="checkbox"></input>Completed business
+verification</label></li>
+<li><label><input type="checkbox"></input>Added bank account
+details</label></li>
+<li><label><input type="checkbox"></input>Uploaded ID
+verification</label></li>
+<li><label><input type="checkbox"></input>Got Test API keys from Stripe
+Dashboard</label></li>
+<li><label><input type="checkbox"></input>Logged into Apinlero
+dashboard</label></li>
+<li><label><input type="checkbox"></input>Entered Test API keys in Apinlero
+Settings</label></li>
+<li><label><input type="checkbox"></input>Tested connection
+(success)</label></li>
+<li><label><input type="checkbox"></input>Saved configuration</label></li>
+<li><label><input type="checkbox"></input>Placed test order with test card
+(4242 4242 4242 4242)</label></li>
+<li><label><input type="checkbox"></input>Verified test payment in Stripe
+Dashboard</label></li>
+<li><label><input type="checkbox"></input>Got Live API keys from Stripe
+Dashboard</label></li>
+<li><label><input type="checkbox"></input>Updated Apinlero with Live API
+keys</label></li>
+<li><label><input type="checkbox"></input>Made small real payment
+test</label></li>
+<li><label><input type="checkbox"></input>Started accepting customer
+payments!</label></li>
+</ul>
+<hr />
+<h2 id="next-steps-after-setup">Next Steps After Setup</h2>
+<p>Once you’re accepting payments:</p>
+<ol type="1">
+<li><strong>Monitor your payments</strong>
+<ul>
+<li>Check Stripe Dashboard regularly</li>
+<li>Review successful payments</li>
+<li>Handle any failed payments</li>
+</ul></li>
+<li><strong>Set up email notifications</strong>
+<ul>
+<li>Stripe can email you for each payment</li>
+<li>Configure in Stripe Dashboard → Settings → Emails</li>
+</ul></li>
+<li><strong>Review your finances</strong>
+<ul>
+<li>Download monthly reports from Stripe</li>
+<li>Track your revenue and fees</li>
+<li>Keep records for tax purposes</li>
+</ul></li>
+<li><strong>Consider additional features</strong>
+<ul>
+<li>Apple Pay / Google Pay (can be enabled in Stripe)</li>
+<li>Subscription billing (for regular customers)</li>
+<li>Invoice payments (for business customers)</li>
+</ul></li>
+</ol>
+<hr />
+<p><strong>Congratulations!</strong> 🎉</p>
+<p>You’re now ready to accept online card payments and grow your
+business!</p>
+<p><strong>Questions?</strong> Contact your Apinlero account manager or
+Stripe support.</p>
+<hr />
+<p><em>This guide is for Isha’s Treat &amp; Groceries | Powered by
+Apinlero | Payments by Stripe</em></p>
+</body>
+</html>

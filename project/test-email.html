@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Test - Apinlero</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #1e3a8a; }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+        button {
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background: #1e40af; }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📧 Apinlero Email Test</h1>
+        <p>Test your Resend email configuration</p>
+
+        <input type="email" id="testEmail" placeholder="Enter your email address" required>
+        <button id="sendBtn" onclick="sendTestEmail()">Send Test Email</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const RESEND_API_KEY = 're_ZP6YnEgp_G9NqZXrxN9tx5y4Eo6vzMGf2';
+        const FROM_EMAIL = 'noreply@apinlero.com';
+
+        async function sendTestEmail() {
+            const email = document.getElementById('testEmail').value;
+            const resultDiv = document.getElementById('result');
+            const sendBtn = document.getElementById('sendBtn');
+
+            if (!email) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Please enter an email address';
+                return;
+            }
+
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = '⏳ Sending test email...';
+
+            try {
+                const response = await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${RESEND_API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        from: `Apinlero Test <${FROM_EMAIL}>`,
+                        to: [email],
+                        subject: '✅ Apinlero Email Test - SUCCESS!',
+                        html: `
+                            <!DOCTYPE html>
+                            <html>
+                            <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+                                <h1 style="color: #10b981;">✅ Email Test Successful!</h1>
+                                <p>Your Apinlero email configuration is working correctly.</p>
+                                <p style="color: #6b7280; font-size: 0.9em;">Sent at ${new Date().toISOString()}</p>
+                                <div style="margin-top: 30px; padding: 20px; background: #f3f4f6; border-radius: 8px;">
+                                    <p><strong>Configuration Details:</strong></p>
+                                    <p>From: ${FROM_EMAIL}</p>
+                                    <p>To: ${email}</p>
+                                    <p>Provider: Resend</p>
+                                </div>
+                            </body>
+                            </html>
+                        `
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        ✅ <strong>Success!</strong><br>
+                        Email sent successfully!<br>
+                        Message ID: ${data.id}<br>
+                        Check your inbox at: <strong>${email}</strong>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        ❌ <strong>Error:</strong><br>
+                        ${data.message || 'Failed to send email'}<br>
+                        ${JSON.stringify(data, null, 2)}
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Network error: ${error.message}`;
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send Test Email';
+            }
+        }
+    </script>
+</body>
+</html>
