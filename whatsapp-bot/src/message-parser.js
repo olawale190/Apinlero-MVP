@@ -67,11 +67,11 @@ const INTENT_PATTERNS = {
   // Cancellation
   CANCEL: /(cancel|refund|return|never\s*mind|forget\s*it)/i,
 
-  // Confirmation - more natural variations
-  CONFIRM: /^(yes|yeah|yep|yup|yh|ye|confirm|ok|okay|sure|correct|right|proceed|go\s*ahead|sounds\s*good|perfect|looks\s*good|that'?s\s*right|✅|same\s*address)$/i,
+  // Confirmation - more natural variations (not just exact matches)
+  CONFIRM: /^(yes|yeah|yep|yup|yh|ye|ya|yas|yass|yea|confirm|ok|okay|k|sure|correct|right|proceed|go\s*ahead|sounds\s*good|perfect|looks\s*good|that'?s\s*right|that'?s\s*correct|all\s*good|good|fine|great|absolutely|definitely|affirmative|👍|✅|same\s*address|yes\s*please|yep\s*please|please|do\s*it|let'?s\s*go|go\s*for\s*it)$/i,
 
-  // Decline
-  DECLINE: /^(no|nope|nah|cancel|stop|wrong|noway|❌)$/i,
+  // Decline - more natural variations
+  DECLINE: /^(no|nope|nah|na|cancel|stop|wrong|no\s*way|noway|don'?t|not\s*now|never\s*mind|nevermind|forget\s*it|changed\s*my\s*mind|no\s*thanks|nah\s*thanks|👎|❌|x)$/i,
 
   // Thanks
   THANKS: /(thank|thanks|cheers|appreciate|ta\b)/i,

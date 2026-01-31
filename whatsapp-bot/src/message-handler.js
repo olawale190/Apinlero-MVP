@@ -31,6 +31,41 @@ import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggest
 const AUTO_CONFIRM_THRESHOLD = 30; // £30 for orders below this amount
 const MIN_ORDERS_FOR_AUTO_CONFIRM = 2; // Minimum past orders to enable auto-confirm
 
+// ============================================================
+// STATE-FIRST ROUTING HELPERS
+// Flexible response detection for conversational flow
+// ============================================================
+
+/**
+ * Check if message is a positive/confirmation response
+ * Matches: yes, yeah, yep, sure, ok, 👍, ✅, etc.
+ */
+function isPositiveResponse(text) {
+  return /^(yes|yeah|yep|yup|yh|ye|y|sure|ok|okay|confirm|correct|right|perfect|great|good|go|proceed|done|ready|fine|alright|👍|✅)/i.test(text.trim());
+}
+
+/**
+ * Check if message is a negative/decline response
+ * Matches: no, nope, nah, cancel, ❌, etc.
+ */
+function isNegativeResponse(text) {
+  return /^(no|nope|nah|n|cancel|stop|don't|dont|never|wrong|❌)/i.test(text.trim());
+}
+
+/**
+ * Check if message indicates cash payment preference
+ */
+function isCashPayment(text) {
+  return /cash|cod|pay.*deliver|on.*delivery|💵/i.test(text);
+}
+
+/**
+ * Check if message indicates card/online payment preference
+ */
+function isCardPayment(text) {
+  return /card|online|pay.*now|transfer|bank|💳|🏦/i.test(text);
+}
+
 // In-memory cache for sessions (backed by Supabase)
 // Key format: `${businessId || 'default'}:${phone}`
 const sessionCache = new Map();
@@ -279,6 +314,76 @@ export async function handleIncomingMessage({
   // Handle based on intent and conversation state
   try {
     let response;
+
+    // ============================================================
+    // STATE-FIRST ROUTING - Check conversation state before intent
+    // This ensures proper flow through ordering stages
+    // ============================================================
+
+    // AWAITING_CONFIRMATION: Accept flexible yes/no responses
+    if (conversation.state === 'AWAITING_CONFIRMATION' && conversation.pendingOrder) {
+      if (isPositiveResponse(text)) {
+        response = await handleConfirmation(from, customerName, conversation);
+        await logMessage(from, 'outbound', response.text, 'CONFIRM', conversation.lastOrderId, businessId);
+        return response;
+      }
+      if (isNegativeResponse(text)) {
+        response = handleDecline(conversation);
+        await logMessage(from, 'outbound', response.text, 'DECLINE', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // If adding more items to existing order
+      if (parsed.intent === 'NEW_ORDER' && parsed.items && parsed.items.length > 0) {
+        response = await handleNewOrder(from, customerName, parsed, conversation);
+        await logMessage(from, 'outbound', response.text, 'NEW_ORDER', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Re-prompt for confirmation (user said something unclear)
+      response = generateResponse('AWAITING_CONFIRM_REPROMPT', { pendingOrder: conversation.pendingOrder });
+      await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
+      return response;
+    }
+
+    // AWAITING_PAYMENT: Accept flexible payment responses
+    if (conversation.state === 'AWAITING_PAYMENT') {
+      if (isCashPayment(text)) {
+        response = await handlePaymentChoice(from, conversation, 'cash');
+        await logMessage(from, 'outbound', response.text, 'PAYMENT_CASH', conversation.lastOrderId, businessId);
+        return response;
+      }
+      if (isCardPayment(text)) {
+        response = await handlePaymentChoice(from, conversation, 'card');
+        await logMessage(from, 'outbound', response.text, 'PAYMENT_CARD', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Re-prompt for payment method
+      response = generateResponse('AWAITING_PAYMENT_REPROMPT');
+      await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
+      return response;
+    }
+
+    // AWAITING_ADDRESS: Try to extract address/postcode from any message
+    if (conversation.state === 'AWAITING_ADDRESS') {
+      const { parseAddress } = await import('./message-parser.js');
+      const addressParsed = parseAddress(text);
+      if (addressParsed.postcode) {
+        // Has postcode - continue with order using existing pending order data
+        parsed.postcode = addressParsed.postcode;
+        parsed.address = addressParsed.address || text;
+        parsed.items = conversation.pendingOrder?.items || parsed.items;
+        response = await handleNewOrder(from, customerName, parsed, conversation);
+        await logMessage(from, 'outbound', response.text, 'ADDRESS_PROVIDED', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Re-prompt for address
+      response = generateResponse('STILL_NEED_ADDRESS');
+      await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
+      return response;
+    }
+
+    // ============================================================
+    // INTENT-BASED ROUTING (fallback for other states)
+    // ============================================================
 
     switch (parsed.intent) {
       case 'GREETING':

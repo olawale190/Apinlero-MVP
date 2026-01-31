@@ -59,13 +59,18 @@ app.get('/', (req, res) => {
       'Payment flow'
     ],
     endpoints: {
-      health: 'GET /',
+      health: 'GET /health',
       twilio: 'POST /webhook/twilio',
       meta: 'POST /webhook/meta',
       metaVerify: 'GET /webhook/meta',
       n8nRouter: 'POST /webhook/n8n'
     }
   });
+});
+
+// Railway health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ============================================================================

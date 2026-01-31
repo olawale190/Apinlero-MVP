@@ -468,6 +468,42 @@ Total: £${total.toFixed(2)}
 
 Say "yes" if that's right, or tell me what you actually need!`,
     buttons: ['✅ Yes, that\'s right', '✏️ Let me correct it']
+  }),
+
+  // Re-prompt templates for state-based conversations
+  REPROMPT_CONFIRMATION: ({ items, total }) => ({
+    text: `Sorry, I didn't quite catch that! 😅
+
+Just to confirm your order:
+${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+Total: £${total.toFixed(2)}
+
+Reply "yes" to confirm, "no" to cancel, or tell me what you'd like to change.`,
+    buttons: ['✅ Yes', '❌ No', '✏️ Make Changes']
+  }),
+
+  REPROMPT_PAYMENT: ({ orderId }) => ({
+    text: `How would you like to pay for order #${orderId}? 💳
+
+Just reply with:
+• "cash" - pay when it arrives
+• "card" - pay online now
+• "transfer" - bank transfer
+
+Or tap one of the buttons below!`,
+    buttons: ['💵 Cash', '💳 Card', '🏦 Transfer']
+  }),
+
+  REPROMPT_ADDRESS: ({ items, subtotal }) => ({
+    text: `I still need your delivery address to complete the order! 📍
+
+Your order so far:
+${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+Subtotal: £${subtotal.toFixed(2)}
+
+Please send your full address with postcode, like:
+"45 High Street, London E1 4AA"`,
+    buttons: []
   })
 };
 
