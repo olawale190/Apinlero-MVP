@@ -22,7 +22,7 @@ interface Product {
   price: number;
   category: string;
   unit: string;
-  stock_quantity: number;
+  stock_quantity?: number;
   is_active: boolean;
   sku?: string;
   barcode?: string;

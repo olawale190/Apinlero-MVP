@@ -7,7 +7,7 @@ interface Product {
   price: number;
   category: string;
   unit: string;
-  stock_quantity: number;
+  stock_quantity?: number;
   sku?: string;
 }
 

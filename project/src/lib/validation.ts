@@ -78,7 +78,7 @@ export const orderSchema = z.object({
     })
     .or(z.literal('Walk-in customer')),
   channel: z.enum(['WhatsApp', 'Web', 'Phone', 'Walk-in'], {
-    errorMap: () => ({ message: 'Invalid order channel' })
+    message: 'Invalid order channel'
   }),
   items: z.array(orderItemSchema)
     .min(1, 'Order must contain at least one item')
@@ -90,13 +90,13 @@ export const orderSchema = z.object({
     .positive('Total must be positive')
     .max(100000, 'Order total too high'),
   status: z.enum(['Pending', 'Confirmed', 'Delivered'], {
-    errorMap: () => ({ message: 'Invalid order status' })
+    message: 'Invalid order status'
   }).optional(),
   payment_status: z.enum(['pending', 'paid', 'refunded', 'failed'], {
-    errorMap: () => ({ message: 'Invalid payment status' })
+    message: 'Invalid payment status'
   }).optional(),
   payment_method: z.enum(['cash', 'card', 'bank_transfer', 'online'], {
-    errorMap: () => ({ message: 'Invalid payment method' })
+    message: 'Invalid payment method'
   }).optional(),
   notes: z.string()
     .max(1000, 'Notes too long')
@@ -197,7 +197,7 @@ export function validateOrder(data: unknown) {
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errorMessages = error.issues.map(e => `${e.path.join('.')}: ${e.message}`);
       throw new Error(`Validation failed: ${errorMessages.join(', ')}`);
     }
     throw error;
@@ -218,7 +218,7 @@ export function validateProduct(data: unknown) {
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errorMessages = error.issues.map(e => `${e.path.join('.')}: ${e.message}`);
       throw new Error(`Validation failed: ${errorMessages.join(', ')}`);
     }
     throw error;
@@ -241,7 +241,7 @@ export function validateCustomer(data: unknown) {
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errorMessages = error.issues.map(e => `${e.path.join('.')}: ${e.message}`);
       throw new Error(`Validation failed: ${errorMessages.join(', ')}`);
     }
     throw error;

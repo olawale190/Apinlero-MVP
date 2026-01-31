@@ -322,7 +322,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         {/* WhatsApp Promotions Tab */}
         {activeTab === 'promotions' && (
           <div className="space-y-6">
-            <WhatsAppPromotions orders={orders} />
+            <WhatsAppPromotions orders={orders} products={products} />
           </div>
         )}
 

@@ -35,6 +35,11 @@ export interface Product {
   name: string;
   price: number;
   category: string;
+  sub_category?: string;
+  unit: string;
+  image_url?: string;
+  is_active: boolean;
+  stock_quantity?: number;
   created_at: string;
 }
 
@@ -47,6 +52,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   customer_name: string;
+  customer_email?: string;
   phone_number: string;
   delivery_address: string;
   channel: 'WhatsApp' | 'Web' | 'Phone' | 'Walk-in';
