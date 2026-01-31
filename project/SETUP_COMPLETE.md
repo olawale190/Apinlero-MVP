@@ -5,7 +5,7 @@
 ### Step 1: Seed Products to Database
 
 1. Go to your Supabase Dashboard: https://supabase.com/dashboard
-2. Select your project: `***REMOVED***`
+2. Select your project: `hxuzzhtjmpkhhmefajde`
 3. Go to **SQL Editor**
 4. Copy and paste the contents of `seed-isha-treat-products.sql`
 5. Click **Run** to add 70+ products

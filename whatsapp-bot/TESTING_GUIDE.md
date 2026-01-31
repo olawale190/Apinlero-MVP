@@ -143,7 +143,7 @@ TWILIO_AUTH_TOKEN=your-auth-token
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
 # Database
-SUPABASE_URL=https://***REMOVED***.supabase.co
+SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 SUPABASE_SERVICE_KEY=your-service-key
 
 # Server

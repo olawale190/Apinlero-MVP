@@ -10,7 +10,7 @@ const { Client } = pg;
 // Supabase database connection
 // Using direct database connection (not pooler)
 const connectionConfig = {
-  host: 'db.***REMOVED***.supabase.co',
+  host: 'db.gafoezdpaotwvpfldyhc.supabase.co',
   port: 5432,
   database: 'postgres',
   user: 'postgres',
@@ -74,7 +74,7 @@ async function fixRLS() {
     if (error.message.includes('authentication') || error.message.includes('password')) {
       console.error('\n⚠️  Database password may be incorrect or expired.');
       console.error('Please run the SQL manually in Supabase Dashboard:');
-      console.error('https://supabase.com/dashboard/project/***REMOVED***/sql/new\n');
+      console.error('https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new\n');
       console.error('---SQL START---');
       console.error(RLS_FIX_SQL);
       console.error('---SQL END---\n');

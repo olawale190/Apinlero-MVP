@@ -765,7 +765,7 @@ Sample orders distributed across:
 
 **Environment Variables:**
 ```
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGc... (public anon key)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_... (test key for MVP)
 ```

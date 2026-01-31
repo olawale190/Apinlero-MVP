@@ -10,8 +10,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = 'https://***REMOVED***.supabase.co';
-const serviceRoleKey = '***REMOVED***';
+const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
+const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -50,7 +50,7 @@ async function testAndFix() {
   console.log('\n' + '='.repeat(70));
   console.log('📋 TO FIX THE RLS ISSUE FOR REGULAR USERS:');
   console.log('='.repeat(70));
-  console.log('\n1. Go to: https://supabase.com/dashboard/project/***REMOVED***/sql/new\n');
+  console.log('\n1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new\n');
   console.log('2. Paste this SQL and click RUN:\n');
 
   const sql = `-- Fix Products RLS

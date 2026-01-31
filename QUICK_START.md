@@ -5,7 +5,7 @@
 ### ✅ Step 1: Run SQL Script (10 min)
 
 1. Go to: https://supabase.com/dashboard
-2. Open your project: `***REMOVED***.supabase.co`
+2. Open your project: `hxuzzhtjmpkhhmefajde.supabase.co`
 3. Click: **SQL Editor** → **+ New query**
 4. Open file: `project/supabase-production-setup.sql`
 5. Copy ALL and paste into Supabase
@@ -173,7 +173,7 @@ Your project includes comprehensive guides:
 ## 📞 Quick Links
 
 - **Supabase Dashboard:** https://supabase.com/dashboard
-- **Your Project:** https://***REMOVED***.supabase.co
+- **Your Project:** https://hxuzzhtjmpkhhmefajde.supabase.co
 - **GitHub:** https://github.com/new
 - **Stripe:** https://stripe.com/register
 

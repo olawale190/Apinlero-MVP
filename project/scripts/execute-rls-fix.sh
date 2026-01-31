@@ -3,8 +3,8 @@
 # Execute RLS Fix via Supabase REST API
 # This uses the service role key to execute SQL commands
 
-SUPABASE_URL="https://***REMOVED***.supabase.co"
-SERVICE_ROLE_KEY="***REMOVED***"
+SUPABASE_URL="https://gafoezdpaotwvpfldyhc.supabase.co"
+SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM"
 
 echo "🔧 Fixing RLS Policy for Products Table..."
 echo ""

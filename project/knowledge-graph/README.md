@@ -42,7 +42,7 @@ Edit `.env` with your credentials:
 NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your-password
-SUPABASE_URL=https://***REMOVED***.supabase.co
+SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key
 ```
 

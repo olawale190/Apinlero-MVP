@@ -8,7 +8,7 @@ This is blocking Isha from adding products to inventory.
 ## Quick Fix (5 minutes)
 
 ### Step 1: Open Supabase SQL Editor
-Go to: https://supabase.com/dashboard/project/***REMOVED***/sql/new
+Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new
 
 ### Step 2: Copy and Run This SQL
 

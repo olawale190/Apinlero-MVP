@@ -36,7 +36,7 @@ WHATSAPP_VERIFY_TOKEN=apinlero-verify-token  # Choose your own
 WHATSAPP_BUSINESS_ID=your-business-id
 
 # Supabase
-SUPABASE_URL=https://***REMOVED***.supabase.co
+SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 SUPABASE_SERVICE_KEY=your-service-key
 
 # Server

@@ -11,7 +11,7 @@ This guide will walk you through deploying your Àpínlẹ̀rọ MVP to producti
 #### Step 1.1: Run Production SQL Script
 
 1. Go to https://supabase.com/dashboard
-2. Select your project: `***REMOVED***.supabase.co`
+2. Select your project: `hxuzzhtjmpkhhmefajde.supabase.co`
 3. Click **SQL Editor** in left sidebar
 4. Click **+ New query**
 5. Open `supabase-production-setup.sql` from your project folder
@@ -60,7 +60,7 @@ This guide will walk you through deploying your Àpínlẹ̀rọ MVP to producti
 Your `.env` file currently has:
 
 ```env
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
@@ -190,7 +190,7 @@ vercel
 
 | Name | Value |
 |------|-------|
-| `VITE_SUPABASE_URL` | `https://***REMOVED***.supabase.co` |
+| `VITE_SUPABASE_URL` | `https://hxuzzhtjmpkhhmefajde.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Your anon key from `.env` |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | Your Stripe key (if using) |
 

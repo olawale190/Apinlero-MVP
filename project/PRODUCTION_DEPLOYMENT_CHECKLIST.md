@@ -154,7 +154,7 @@ Rollback immediately if:
 ## 📞 Emergency Contacts
 
 - **Vercel Dashboard**: https://vercel.com/apinlero/project
-- **Supabase Dashboard**: https://supabase.com/dashboard/project/***REMOVED***
+- **Supabase Dashboard**: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc
 - **Stripe Dashboard**: https://dashboard.stripe.com
 
 ## 📚 Documentation

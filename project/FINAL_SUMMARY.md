@@ -285,7 +285,7 @@ Apinlero_MVP/project/
 ### Step 1: Run SQL Script in Supabase (10 minutes)
 
 1. Go to https://supabase.com/dashboard
-2. Open your project: `***REMOVED***.supabase.co`
+2. Open your project: `hxuzzhtjmpkhhmefajde.supabase.co`
 3. Click **SQL Editor** → **+ New query**
 4. Open file: `supabase-production-setup.sql`
 5. Copy ALL content and paste into Supabase

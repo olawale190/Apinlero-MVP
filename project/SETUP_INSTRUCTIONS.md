@@ -15,7 +15,7 @@
 1. Open your browser
 2. Go to: https://supabase.com/dashboard
 3. Sign in to your account
-4. You should see your project: `***REMOVED***.supabase.co`
+4. You should see your project: `hxuzzhtjmpkhhmefajde.supabase.co`
 
 ### 1.2 Open SQL Editor
 

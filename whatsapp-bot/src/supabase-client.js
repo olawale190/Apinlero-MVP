@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://***REMOVED***.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gafoezdpaotwvpfldyhc.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!SUPABASE_KEY) {

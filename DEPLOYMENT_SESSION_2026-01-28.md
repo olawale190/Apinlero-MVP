@@ -136,7 +136,7 @@ Fix Vercel deployment failures and successfully deploy multi-tenant features to 
 
 **Required Variables**:
 ```bash
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://gafoezdpaotwvpfldyhc.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGci...
 VITE_APP_NAME=Apinlero
 VITE_APP_URL=https://project-apinlero.vercel.app

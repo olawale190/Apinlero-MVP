@@ -510,7 +510,7 @@ import { FixedSizeList } from 'react-window';
 
 ### RESTful Endpoints (Supabase)
 
-**Base URL:** `https://***REMOVED***.supabase.co/rest/v1`
+**Base URL:** `https://hxuzzhtjmpkhhmefajde.supabase.co/rest/v1`
 
 **Core Endpoints:**
 
@@ -614,7 +614,7 @@ Code Push (Git) → GitHub → Vercel Build → Deploy to Edge → Live
 
 ```bash
 # Production (Vercel)
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGc...
 VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 NEO4J_URI=neo4j+s://production.databases.neo4j.io
@@ -622,7 +622,7 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=*** (secret)
 
 # Development (Local)
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://hxuzzhtjmpkhhmefajde.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGc...
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
 NEO4J_URI=neo4j://localhost:7687

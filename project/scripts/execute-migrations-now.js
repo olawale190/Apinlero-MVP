@@ -13,8 +13,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SUPABASE_URL = 'https://***REMOVED***.supabase.co';
-const SERVICE_ROLE_KEY = '***REMOVED***';
+const SUPABASE_URL = 'https://gafoezdpaotwvpfldyhc.supabase.co';
+const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: {
@@ -110,7 +110,7 @@ async function executeMigrations() {
     console.log('⚠️  RLS Policy Update Required');
     console.log('=========================================\n');
     console.log('The RLS policies need to be updated via Supabase Dashboard:');
-    console.log('1. Go to: https://supabase.com/dashboard/project/***REMOVED***/sql/new');
+    console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new');
     console.log('2. Copy and run this SQL:\n');
 
     console.log('---SQL START---');

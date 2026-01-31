@@ -11,7 +11,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Hardcoded credentials for this one-time cleanup
-const supabaseUrl = 'https://***REMOVED***.supabase.co';
+const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzE0ODcsImV4cCI6MjA4MDc0NzQ4N30.mnnK_P0liG-cZrTHP2Q3f2aefNNlIUVUBGvSnPVd81Q';
 
 const supabase = createClient(supabaseUrl, supabaseKey);

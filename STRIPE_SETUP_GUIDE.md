@@ -286,7 +286,7 @@ export function StripeSettings() {
 
 1. In Stripe Dashboard, go to **Developers → Webhooks**
 2. Click "Add Endpoint"
-3. Endpoint URL: `https://***REMOVED***.supabase.co/functions/v1/stripe-webhook?business_id=YOUR_BUSINESS_ID`
+3. Endpoint URL: `https://gafoezdpaotwvpfldyhc.supabase.co/functions/v1/stripe-webhook?business_id=YOUR_BUSINESS_ID`
 4. Select events to listen for:
    - `payment_intent.succeeded`
    - `payment_intent.payment_failed`

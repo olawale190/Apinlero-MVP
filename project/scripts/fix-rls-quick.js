@@ -10,8 +10,8 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase credentials with SERVICE ROLE key
-const supabaseUrl = 'https://***REMOVED***.supabase.co';
-const serviceRoleKey = '***REMOVED***';
+const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
+const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -64,7 +64,7 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
     console.log('⚠️  You need to run this SQL in the Supabase Dashboard.\n');
 
     console.log('📝 To fix this issue:');
-    console.log('1. Go to: https://supabase.com/dashboard/project/***REMOVED***/sql/new');
+    console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new');
     console.log('2. Copy the SQL above');
     console.log('3. Paste and click "Run"');
     console.log('4. Verify you see success messages\n');

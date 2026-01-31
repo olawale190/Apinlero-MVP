@@ -378,8 +378,8 @@ project/n8n-workflows/
 - **Gotcha**: Local env changes don't affect production - always update Vercel env vars
 
 ### Supabase Projects
-- **Production**: `***REMOVED***.supabase.co` (ApinleroMVP)
-- **Note**: A second project `***REMOVED***.supabase.co` exists but is NOT used
+- **Production**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP)
+- **Note**: A second project `hxuzzhtjmpkhhmefajde.supabase.co` exists but is NOT used
 
 ---
 
@@ -554,14 +554,14 @@ project/n8n-workflows/
 ### January 22, 2026 - Product Image Upload Fix
 - **Issue**: Product images not uploading - "Storage issues detected" error
 - **Root Cause**: App was connected to wrong Supabase project
-  - Vercel env vars pointed to `***REMOVED***.supabase.co`
-  - Storage buckets were in `***REMOVED***.supabase.co`
+  - Vercel env vars pointed to `hxuzzhtjmpkhhmefajde.supabase.co`
+  - Storage buckets were in `gafoezdpaotwvpfldyhc.supabase.co`
 - **Fix Applied**:
   - Updated `.env.local` to use correct Supabase URL
   - Updated Vercel environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
   - Redeployed to Vercel
 - **Storage Diagnostics**: Added diagnostics panel (Database icon in Inventory Manager toolbar)
-- **Correct Supabase Project**: `***REMOVED***.supabase.co` (ApinleroMVP)
+- **Correct Supabase Project**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP)
 
 ### January 20, 2026 - WhatsApp Multi-Tenant & Skill System
 - **n8n WhatsApp Router**: Workflow active at `https://main-production-668a.up.railway.app`
@@ -726,8 +726,8 @@ npx vercel --prod --yes
 4. **If buckets exist but upload fails**: Check Vercel env vars match correct Supabase project
 
 ### Multiple Supabase Projects
-- **Correct Project**: `***REMOVED***.supabase.co` (ApinleroMVP on Lazrap org)
-- **Wrong Project**: `***REMOVED***.supabase.co` (do not use)
+- **Correct Project**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP on Lazrap org)
+- **Wrong Project**: `hxuzzhtjmpkhhmefajde.supabase.co` (do not use)
 - Always verify Vercel env vars point to correct project after any environment changes
 
 ### Vercel Deployment

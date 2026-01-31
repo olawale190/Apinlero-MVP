@@ -7,8 +7,8 @@
 
 const https = require('https');
 
-const SUPABASE_URL = 'https://***REMOVED***.supabase.co';
-const SERVICE_ROLE_KEY = '***REMOVED***';
+const SUPABASE_URL = 'https://gafoezdpaotwvpfldyhc.supabase.co';
+const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM';
 
 // SQL for RLS fix
 const RLS_FIX_SQL = `
@@ -114,7 +114,7 @@ async function main() {
   console.log('⚠️  You need to run these SQL commands in the Supabase Dashboard.\n');
 
   console.log('📝 Instructions:');
-  console.log('1. Go to: https://supabase.com/dashboard/project/***REMOVED***/sql/new');
+  console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new');
   console.log('2. Copy and run the SQL commands below');
   console.log('3. Click "Run" after each block\n');
 

@@ -46,14 +46,14 @@ This document outlines the security model for Apinlero, including RLS policies, 
 ### Frontend (.env.local / Vercel)
 ```bash
 # PUBLIC - safe to expose in browser
-VITE_SUPABASE_URL=https://***REMOVED***.supabase.co
+VITE_SUPABASE_URL=https://gafoezdpaotwvpfldyhc.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...  # anon key - limited by RLS
 ```
 
 ### Backend (Railway)
 ```bash
 # SECRET - never expose to browser
-SUPABASE_URL=https://***REMOVED***.supabase.co
+SUPABASE_URL=https://gafoezdpaotwvpfldyhc.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...  # service role - bypasses RLS
 ```
 
@@ -78,7 +78,7 @@ export function validateEnvironment() {
   }
 
   // Check we're using the correct project
-  const expectedProject = '***REMOVED***';
+  const expectedProject = 'gafoezdpaotwvpfldyhc';
   if (!url.includes(expectedProject)) {
     console.error(`Wrong Supabase project! Expected ${expectedProject}`);
     throw new Error('Supabase project mismatch');

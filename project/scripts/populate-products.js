@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://***REMOVED***.supabase.co';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://hxuzzhtjmpkhhmefajde.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseKey) {

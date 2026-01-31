@@ -12,7 +12,7 @@
 
 1. **Go to your Supabase Dashboard:**
    - URL: https://supabase.com/dashboard
-   - Navigate to your project (the one with URL: ***REMOVED***.supabase.co)
+   - Navigate to your project (the one with URL: hxuzzhtjmpkhhmefajde.supabase.co)
 
 2. **Open SQL Editor:**
    - Click "SQL Editor" in the left sidebar

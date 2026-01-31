@@ -167,8 +167,8 @@ Various - storage not found, data missing, etc.
 **Root Cause**:
 Vercel environment variables pointed to a different Supabase project than the one being used for development.
 
-- **Local `.env.local`**: `***REMOVED***.supabase.co` (correct)
-- **Vercel env vars**: `***REMOVED***.supabase.co` (wrong)
+- **Local `.env.local`**: `gafoezdpaotwvpfldyhc.supabase.co` (correct)
+- **Vercel env vars**: `hxuzzhtjmpkhhmefajde.supabase.co` (wrong)
 
 **Solution**:
 1. Identify correct Supabase project URL
@@ -183,7 +183,7 @@ npx vercel env rm VITE_SUPABASE_URL production --yes
 
 # Add correct value
 npx vercel env add VITE_SUPABASE_URL production
-# Enter: https://***REMOVED***.supabase.co
+# Enter: https://gafoezdpaotwvpfldyhc.supabase.co
 
 # Redeploy
 npx vercel --prod --yes
@@ -194,7 +194,7 @@ npx vercel --prod --yes
 - Document the correct Supabase project in CLAUDE.md
 - Use a single source of truth for env vars
 
-**Correct Supabase Project**: `***REMOVED***.supabase.co` (ApinleroMVP)
+**Correct Supabase Project**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP)
 
 ---
 
@@ -310,7 +310,7 @@ npx vercel env ls production
 ```
 
 ### 2. Correct Supabase Project
-- URL should contain: `***REMOVED***`
+- URL should contain: `gafoezdpaotwvpfldyhc`
 - Check in Supabase Dashboard which project has your data
 
 ### 3. RLS Policies
@@ -379,7 +379,7 @@ railway logs
 ```bash
 # Test Supabase connection
 curl -H "apikey: YOUR_ANON_KEY" \
-  "https://***REMOVED***.supabase.co/rest/v1/products?limit=1"
+  "https://gafoezdpaotwvpfldyhc.supabase.co/rest/v1/products?limit=1"
 
 # Check Railway bot status
 curl https://web-production-63e51.up.railway.app/health

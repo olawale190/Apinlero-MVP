@@ -8,9 +8,9 @@
 const { Client } = require('pg');
 
 // Supabase database connection details
-// Get these from: https://supabase.com/dashboard/project/***REMOVED***/settings/database
+// Get these from: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/settings/database
 const connectionString = process.env.DATABASE_URL ||
-  'postgresql://postgres.***REMOVED***:[YOUR-PASSWORD]@aws-0-eu-west-2.pooler.supabase.com:6543/postgres';
+  'postgresql://postgres.gafoezdpaotwvpfldyhc:[YOUR-PASSWORD]@aws-0-eu-west-2.pooler.supabase.com:6543/postgres';
 
 // SQL for RLS fix
 const RLS_FIX_SQL = `
@@ -59,13 +59,13 @@ async function main() {
   if (connectionString.includes('[YOUR-PASSWORD]')) {
     console.log('❌ Database password not configured!\n');
     console.log('To get your database password:');
-    console.log('1. Go to: https://supabase.com/dashboard/project/***REMOVED***/settings/database');
+    console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/settings/database');
     console.log('2. Look for "Connection string" or "Database Password"');
     console.log('3. Either:');
     console.log('   a) Set DATABASE_URL environment variable with the full connection string');
     console.log('   b) Update the connectionString in this script');
     console.log('\nOr run the SQL manually in Supabase Dashboard:');
-    console.log('https://supabase.com/dashboard/project/***REMOVED***/sql/new\n');
+    console.log('https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new\n');
 
     console.log('=========================================');
     console.log('SQL to run:');

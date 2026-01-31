@@ -5,8 +5,8 @@
 
 set -e
 
-SUPABASE_URL="https://***REMOVED***.supabase.co"
-SERVICE_ROLE_KEY="***REMOVED***"
+SUPABASE_URL="https://gafoezdpaotwvpfldyhc.supabase.co"
+SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE3MTQ4NywiZXhwIjoyMDgwNzQ3NDg3fQ.o3iNhUEMQ5kUoRoEcu-YdAq8gFB9CHKtaHu9SsXD-VM"
 
 echo "🔧 Executing Supabase Migrations..."
 echo ""
@@ -68,7 +68,7 @@ echo "Instead, we'll use the PostgreSQL connection string."
 echo ""
 
 # Construct the connection string
-DB_HOST="db.***REMOVED***.supabase.co"
+DB_HOST="db.gafoezdpaotwvpfldyhc.supabase.co"
 DB_NAME="postgres"
 DB_USER="postgres"
 DB_PASSWORD="y2KyN58yVFnDh2wi"
@@ -121,7 +121,7 @@ else
     echo "❌ PostgreSQL client (psql) not found."
     echo ""
     echo "📝 Please run these SQL commands manually in Supabase SQL Editor:"
-    echo "   https://supabase.com/dashboard/project/***REMOVED***/sql/new"
+    echo "   https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql/new"
     echo ""
     echo "========================================="
     echo "SQL Command 1: Fix RLS Policy"

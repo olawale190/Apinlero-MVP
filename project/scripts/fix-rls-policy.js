@@ -10,7 +10,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Supabase credentials
-const supabaseUrl = 'https://***REMOVED***.supabase.co';
+const supabaseUrl = 'https://gafoezdpaotwvpfldyhc.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzE0ODcsImV4cCI6MjA4MDc0NzQ4N30.mnnK_P0liG-cZrTHP2Q3f2aefNNlIUVUBGvSnPVd81Q';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -46,7 +46,7 @@ ${SQL_COMMANDS.join(';\n\n')};\n`;
   console.log('=' .repeat(70));
 
   console.log('\n📝 Instructions:');
-  console.log('1. Go to: https://supabase.com/dashboard/project/***REMOVED***/sql');
+  console.log('1. Go to: https://supabase.com/dashboard/project/gafoezdpaotwvpfldyhc/sql');
   console.log('2. Copy the SQL above');
   console.log('3. Paste into SQL Editor');
   console.log('4. Click "Run"');

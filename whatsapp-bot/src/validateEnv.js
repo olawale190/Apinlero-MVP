@@ -29,7 +29,7 @@ export function validateEnvironment() {
     }
 
     // Check we're using the correct project
-    const expectedProject = '***REMOVED***';
+    const expectedProject = 'gafoezdpaotwvpfldyhc';
     if (!supabaseUrl.includes(expectedProject)) {
       errors.push(
         `Supabase project mismatch! Expected ${expectedProject} but got ${supabaseUrl}`
