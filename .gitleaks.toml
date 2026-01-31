@@ -1,0 +1,42 @@
+# Gitleaks configuration for Apinlero
+# This prevents secrets from being committed to git
+
+title = "Apinlero Secret Detection"
+
+[allowlist]
+description = "Allowlist for false positives"
+paths = [
+    '''node_modules''',
+    '''\.env\.example$''',
+    '''package-lock\.json$''',
+]
+
+[[rules]]
+id = "twilio-auth-token"
+description = "Twilio Auth Token"
+regex = '''(?i)twilio[_-]?auth[_-]?token["\s:=]+["\']?([a-f0-9]{32})["\']?'''
+tags = ["twilio", "api"]
+
+[[rules]]
+id = "supabase-service-key"
+description = "Supabase Service Key (JWT)"
+regex = '''(?i)supabase[_-]?service[_-]?key["\s:=]+["\']?(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)["\']?'''
+tags = ["supabase", "jwt"]
+
+[[rules]]
+id = "neo4j-password"
+description = "Neo4j Password"
+regex = '''(?i)neo4j[_-]?password["\s:=]+["\']?([A-Za-z0-9_-]{20,})["\']?'''
+tags = ["neo4j", "database"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API Key"
+regex = '''re_[A-Za-z0-9_]{20,}'''
+tags = ["resend", "email"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey|secret[_-]?key)["\s:=]+["\']?([A-Za-z0-9_-]{20,})["\']?'''
+tags = ["generic", "api"]
