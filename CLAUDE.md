@@ -401,6 +401,50 @@ project/n8n-workflows/
 
 ## Recent Changes Log
 
+### January 31, 2026 - Email Domain Verification & Code Push
+
+**Resend Domain Verification (apinlero.com)**:
+- Added domain `apinlero.com` to Resend for verified email sending
+- **DNS Records Added in Namecheap**:
+  | Record | Host | Status |
+  |--------|------|--------|
+  | DKIM (TXT) | `resend._domainkey` | ✅ Verified |
+  | SPF (TXT) | `send` | ⏳ Pending |
+  | DMARC (TXT) | `_dmarc` | ⏳ Pending |
+  | MX | `send` | ⏭️ Skipped (optional) |
+- **Note**: MX record is optional (for bounce handling). Namecheap Advanced DNS doesn't show MX in dropdown - would need to use Mail Settings section.
+- **Current Sender**: `onboarding@resend.dev` (Resend sandbox)
+- **Production Sender**: `noreply@apinlero.com` (once fully verified)
+
+**Code Committed & Pushed to GitHub**:
+- **Commit**: `ad70f7d` - feat: add email system, calendar, and multi-tenant improvements
+- **Files Changed**: 53 files, 12,821 insertions, 9,468 deletions
+- **Security**: Gitleaks scan passed - no secrets detected
+
+**New Features Added**:
+| Feature | Files |
+|---------|-------|
+| Email System | `src/lib/email.ts`, `src/pages/EmailSettings.tsx` |
+| Calendar System | `src/components/calendar/*` (10 files) |
+| Business Context | `src/contexts/BusinessContext.tsx` |
+| Business Resolver | `src/lib/business-resolver.ts` |
+| Calendar Utilities | `src/lib/calendar.ts`, `src/hooks/useCalendarEvents.ts` |
+| WhatsApp Humanization | `whatsapp-bot/src/smart-suggestions.js` |
+
+**Email Configuration**:
+```bash
+VITE_RESEND_API_KEY=re_ZP6YnEgp_...
+VITE_FROM_EMAIL=onboarding@resend.dev  # Change to noreply@apinlero.com after verification
+VITE_BUSINESS_EMAIL=info@apinlero.com
+```
+
+**Next Steps**:
+- [ ] Wait for SPF/DMARC DNS records to verify in Resend
+- [ ] Update `VITE_FROM_EMAIL` to `noreply@apinlero.com`
+- [ ] Test email sending from verified domain
+
+---
+
 ### January 28, 2026 - Email System Complete & Production Deployment
 
 **Email System Implementation**:
@@ -865,18 +909,16 @@ npx vercel --prod --yes --force
 
 1. **Gitleaks** - Secret detection (`.gitleaks.toml`)
 2. **Pre-commit hooks** - Blocks commits with secrets (`.pre-commit-config.yaml`)
-3. **.gitignore** - Already configured to exclude .env files
+3. **Global pre-commit hook** - Available for all projects (`~/.git-templates/hooks/pre-commit`)
+4. **.gitignore** - Already configured to exclude .env files
 
-### Pre-commit Hook Setup
+### Global Pre-commit Hook (All Projects)
 
-```bash
-# Install pre-commit
-brew install pre-commit  # or: pip install pre-commit
+The global hook is installed at `~/.git-templates/hooks/pre-commit` and automatically applies to:
+- All new `git init` or `git clone` operations
+- Detects: .env files, Twilio/Supabase/Neo4j/Resend credentials, JWT tokens, API keys
 
-# Activate hooks
-cd /Users/user/Documents/Lazrap/SaaS/Apinlero/Apinlero_MVP
-pre-commit install
-```
+For existing repos, run: `git init` (safe - won't affect your repo)
 
 ### NPM Audit Results
 
