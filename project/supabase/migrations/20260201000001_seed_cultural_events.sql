@@ -297,6 +297,186 @@ BEGIN
    '🌙', 200, ARRAY['Muslim', 'Somali', 'Pakistani', 'Bangladeshi', 'Arab'],
    ARRAY['Rice', 'Meat', 'Palm Oil', 'Spices', 'Flour', 'Sweets'],
    '[{"product": "Rice 5kg", "extraUnits": 60}, {"product": "Goat Meat", "extraUnits": 50}]'::jsonb,
+   '#8B5CF6', true, false, null),
+
+  -- VALENTINE'S DAY 2026
+  (target_business_id, 'Valentine''s Day 2026', 'Romantic meals and chocolates in demand.',
+   'cultural_event', '2026-02-14'::timestamptz, true,
+   '❤️', 60, ARRAY['All'],
+   ARRAY['Chocolates', 'Wine', 'Desserts', 'Special Ingredients', 'Flowers'],
+   '[{"product": "Chocolates", "extraUnits": 30}, {"product": "Wine", "extraUnits": 20}, {"product": "Desserts", "extraUnits": 15}]'::jsonb,
+   '#EC4899', true, false, null),
+
+  -- HOLI 2026
+  (target_business_id, 'Holi 2026', 'Hindu festival of colours. Sweets and festive foods.',
+   'cultural_event', '2026-03-03'::timestamptz, true,
+   '🎨', 120, ARRAY['Indian', 'Hindu', 'Nepali', 'South Asian'],
+   ARRAY['Ghee', 'Flour', 'Sugar', 'Milk', 'Sweets', 'Spices', 'Colours'],
+   '[{"product": "Ghee", "extraUnits": 30}, {"product": "Flour", "extraUnits": 25}, {"product": "Sugar", "extraUnits": 20}]'::jsonb,
+   '#F97316', true, false, null),
+
+  -- MOTHER'S DAY UK 2026
+  (target_business_id, 'Mother''s Day (UK) 2026', 'Special meals for mothers. Family gatherings.',
+   'cultural_event', '2026-03-22'::timestamptz, true,
+   '💐', 80, ARRAY['All'],
+   ARRAY['Chicken', 'Rice', 'Cakes', 'Drinks', 'Vegetables', 'Flowers'],
+   '[{"product": "Chicken", "extraUnits": 25}, {"product": "Rice", "extraUnits": 20}, {"product": "Cakes", "extraUnits": 15}]'::jsonb,
+   '#EC4899', true, false, null),
+
+  -- EASTER 2026
+  (target_business_id, 'Good Friday 2026', 'Christian day of fasting and reflection. Fish in high demand.',
+   'cultural_event', '2026-04-03'::timestamptz, true,
+   '✝️', 90, ARRAY['Nigerian', 'Ghanaian', 'Caribbean', 'Polish', 'Christian'],
+   ARRAY['Fish', 'Stockfish', 'Vegetables', 'Rice'],
+   '[{"product": "Stockfish", "extraUnits": 30}, {"product": "Fish", "extraUnits": 35}, {"product": "Rice", "extraUnits": 20}]'::jsonb,
+   '#6B7280', true, false, null),
+
+  (target_business_id, 'Easter Sunday 2026', 'Christian celebration. Large family meals and gatherings.',
+   'cultural_event', '2026-04-05'::timestamptz, true,
+   '🐣', 130, ARRAY['Nigerian', 'Ghanaian', 'Caribbean', 'Polish', 'Christian', 'All'],
+   ARRAY['Rice', 'Chicken', 'Lamb', 'Vegetables', 'Fish', 'Drinks', 'Eggs', 'Chocolate'],
+   '[{"product": "Rice 5kg", "extraUnits": 35}, {"product": "Chicken", "extraUnits": 30}, {"product": "Lamb", "extraUnits": 25}, {"product": "Eggs", "extraUnits": 40}]'::jsonb,
+   '#A855F7', true, false, null),
+
+  (target_business_id, 'Easter Monday 2026', 'Bank holiday. Family gatherings continue.',
+   'cultural_event', '2026-04-06'::timestamptz, true,
+   '🐰', 70, ARRAY['All'],
+   ARRAY['Leftovers', 'Snacks', 'Drinks', 'Quick Meals'],
+   '[{"product": "Snacks", "extraUnits": 20}, {"product": "Drinks", "extraUnits": 25}]'::jsonb,
+   '#A855F7', true, false, null),
+
+  -- VAISAKHI 2026
+  (target_business_id, 'Vaisakhi 2026', 'Sikh New Year and harvest festival. Community meals.',
+   'cultural_event', '2026-04-14'::timestamptz, true,
+   '🎊', 100, ARRAY['Sikh', 'Punjabi', 'Indian'],
+   ARRAY['Rice', 'Flour', 'Lentils', 'Ghee', 'Vegetables', 'Paneer'],
+   '[{"product": "Basmati Rice", "extraUnits": 30}, {"product": "Flour", "extraUnits": 25}, {"product": "Ghee", "extraUnits": 20}]'::jsonb,
+   '#F97316', true, false, null),
+
+  -- EID AL-ADHA 2026
+  (target_business_id, 'Eid al-Adha 2026', 'Festival of Sacrifice. Highest meat demand of the year.',
+   'cultural_event', '2026-05-27'::timestamptz, true,
+   '🐑', 220, ARRAY['Muslim', 'Somali', 'Pakistani', 'Bangladeshi', 'Arab', 'Nigerian'],
+   ARRAY['Lamb', 'Goat', 'Rice', 'Spices', 'Vegetables'],
+   '[{"product": "Goat Meat", "extraUnits": 70}, {"product": "Lamb", "extraUnits": 60}, {"product": "Rice 5kg", "extraUnits": 50}]'::jsonb,
+   '#8B5CF6', true, false, null),
+
+  -- FATHER'S DAY 2026
+  (target_business_id, 'Father''s Day 2026', 'Family gatherings and BBQ season.',
+   'cultural_event', '2026-06-21'::timestamptz, true,
+   '👔', 70, ARRAY['All'],
+   ARRAY['Meat', 'Drinks', 'BBQ Items', 'Snacks', 'Beer'],
+   '[{"product": "Meat", "extraUnits": 30}, {"product": "Drinks", "extraUnits": 25}, {"product": "BBQ Items", "extraUnits": 20}]'::jsonb,
+   '#3B82F6', true, false, null),
+
+  -- WINDRUSH DAY 2026
+  (target_business_id, 'Windrush Day 2026', 'Celebrating Caribbean heritage in the UK.',
+   'cultural_event', '2026-06-22'::timestamptz, true,
+   '🇯🇲', 90, ARRAY['Caribbean', 'Jamaican', 'Trinidadian', 'Barbadian'],
+   ARRAY['Rice', 'Jerk Seasoning', 'Plantain', 'Ackee', 'Saltfish', 'Rum'],
+   '[{"product": "Plantain", "extraUnits": 35}, {"product": "Ackee", "extraUnits": 25}, {"product": "Jerk Seasoning", "extraUnits": 30}]'::jsonb,
+   '#FBBF24', true, false, null),
+
+  -- JAMAICA INDEPENDENCE DAY 2026
+  (target_business_id, 'Jamaica Independence Day 2026', 'Jamaican national day celebrations.',
+   'cultural_event', '2026-08-06'::timestamptz, true,
+   '🇯🇲', 100, ARRAY['Jamaican', 'Caribbean'],
+   ARRAY['Rice', 'Jerk Seasoning', 'Plantain', 'Ackee', 'Rum', 'Red Stripe'],
+   '[{"product": "Plantain", "extraUnits": 30}, {"product": "Jerk Seasoning", "extraUnits": 25}, {"product": "Ackee", "extraUnits": 20}]'::jsonb,
+   '#FBBF24', true, false, null),
+
+  -- NOTTING HILL CARNIVAL 2026
+  (target_business_id, 'Notting Hill Carnival 2026', 'Europe''s biggest street festival. Massive Caribbean food demand.',
+   'cultural_event', '2026-08-30'::timestamptz, true,
+   '🎭', 180, ARRAY['Caribbean', 'Jamaican', 'Trinidadian', 'All'],
+   ARRAY['Jerk Chicken ingredients', 'Rice', 'Plantain', 'Rum', 'Drinks'],
+   '[{"product": "Rice", "extraUnits": 50}, {"product": "Plantain", "extraUnits": 45}, {"product": "Jerk Seasoning", "extraUnits": 40}]'::jsonb,
+   '#FBBF24', true, false, null),
+
+  -- NIGERIAN INDEPENDENCE DAY 2026
+  (target_business_id, 'Nigerian Independence Day 2026', 'Nigeria''s national day. Major celebration with traditional foods.',
+   'cultural_event', '2026-10-01'::timestamptz, true,
+   '🇳🇬', 120, ARRAY['Nigerian', 'West African'],
+   ARRAY['Jollof Rice ingredients', 'Palm Oil', 'Meat', 'Egusi', 'Stockfish'],
+   '[{"product": "Rice 5kg", "extraUnits": 40}, {"product": "Tomato Paste", "extraUnits": 35}, {"product": "Palm Oil", "extraUnits": 30}, {"product": "Egusi", "extraUnits": 25}]'::jsonb,
+   '#22C55E', true, false, null),
+
+  -- BLACK HISTORY MONTH UK 2026
+  (target_business_id, 'Black History Month (UK) 2026', 'Celebrating Black heritage and culture in the UK.',
+   'cultural_event', '2026-10-01'::timestamptz, true,
+   '✊🏿', 70, ARRAY['African', 'Caribbean', 'Black British'],
+   ARRAY['African Foods', 'Caribbean Foods', 'Palm Oil', 'Plantain'],
+   '[{"product": "Plantain", "extraUnits": 25}, {"product": "Palm Oil", "extraUnits": 20}]'::jsonb,
+   '#6B7280', true, false, null),
+
+  -- DIWALI 2026
+  (target_business_id, 'Diwali 2026', 'Festival of Lights. Biggest Hindu celebration. Sweets and gifts exchanged.',
+   'cultural_event', '2026-11-08'::timestamptz, true,
+   '🪔', 200, ARRAY['Hindu', 'Sikh', 'Jain', 'Indian', 'Nepali', 'South Asian'],
+   ARRAY['Rice', 'Spices', 'Ghee', 'Sweets', 'Dry Fruits', 'Flour'],
+   '[{"product": "Basmati Rice", "extraUnits": 50}, {"product": "Ghee", "extraUnits": 40}, {"product": "Sweets", "extraUnits": 60}, {"product": "Dry Fruits", "extraUnits": 45}]'::jsonb,
+   '#F97316', true, false, null),
+
+  -- BONFIRE NIGHT 2026
+  (target_business_id, 'Bonfire Night 2026', 'Guy Fawkes Night. BBQ and outdoor food parties.',
+   'cultural_event', '2026-11-05'::timestamptz, true,
+   '🎆', 60, ARRAY['All'],
+   ARRAY['Sausages', 'Burgers', 'Drinks', 'Snacks', 'Hot Chocolate', 'Marshmallows'],
+   '[{"product": "Sausages", "extraUnits": 25}, {"product": "Drinks", "extraUnits": 30}, {"product": "Hot Chocolate", "extraUnits": 20}]'::jsonb,
+   '#EF4444', true, false, null),
+
+  -- THANKSGIVING (US community in UK) 2026
+  (target_business_id, 'Thanksgiving 2026', 'American Thanksgiving. US community in UK celebrates.',
+   'cultural_event', '2026-11-26'::timestamptz, true,
+   '🦃', 50, ARRAY['American', 'US Expats'],
+   ARRAY['Turkey', 'Cranberry Sauce', 'Pumpkin', 'Potatoes', 'Gravy'],
+   '[{"product": "Turkey", "extraUnits": 20}, {"product": "Cranberry Sauce", "extraUnits": 15}]'::jsonb,
+   '#F97316', true, false, null),
+
+  -- HANUKKAH 2026
+  (target_business_id, 'Hanukkah 2026', 'Jewish Festival of Lights. Fried foods and latkes.',
+   'cultural_event', '2026-12-05'::timestamptz, true,
+   '🕎', 80, ARRAY['Jewish'],
+   ARRAY['Potatoes', 'Oil', 'Flour', 'Eggs', 'Cheese'],
+   '[{"product": "Potatoes", "extraUnits": 30}, {"product": "Oil", "extraUnits": 25}]'::jsonb,
+   '#3B82F6', true, false, null),
+
+  -- CHRISTMAS 2026
+  (target_business_id, 'Christmas Eve 2026', 'Christmas Eve preparations. Last-minute shopping rush.',
+   'cultural_event', '2026-12-24'::timestamptz, true,
+   '🎄', 150, ARRAY['All'],
+   ARRAY['Turkey', 'Chicken', 'Vegetables', 'Drinks', 'Snacks', 'Desserts'],
+   '[{"product": "Turkey", "extraUnits": 30}, {"product": "Chicken", "extraUnits": 40}, {"product": "Vegetables", "extraUnits": 50}]'::jsonb,
+   '#22C55E', true, false, null),
+
+  (target_business_id, 'Christmas Day 2026', 'Major UK holiday. Biggest sales period of the year.',
+   'cultural_event', '2026-12-25'::timestamptz, true,
+   '🎄', 250, ARRAY['All'],
+   ARRAY['Rice', 'Chicken', 'Turkey', 'Drinks', 'Snacks', 'Vegetables', 'Desserts'],
+   '[{"product": "Rice 5kg", "extraUnits": 70}, {"product": "Chicken", "extraUnits": 60}, {"product": "Turkey", "extraUnits": 40}, {"product": "Palm Oil", "extraUnits": 45}]'::jsonb,
+   '#22C55E', true, false, null),
+
+  (target_business_id, 'Boxing Day 2026', 'Day after Christmas. Leftovers and continued celebrations.',
+   'cultural_event', '2026-12-26'::timestamptz, true,
+   '🎁', 60, ARRAY['All'],
+   ARRAY['Snacks', 'Drinks', 'Quick Meals', 'Leftovers'],
+   '[{"product": "Snacks", "extraUnits": 25}, {"product": "Drinks", "extraUnits": 30}]'::jsonb,
+   '#22C55E', true, false, null),
+
+  -- KWANZAA 2026
+  (target_business_id, 'Kwanzaa 2026', 'Week-long celebration of African heritage (Dec 26 - Jan 1).',
+   'cultural_event', '2026-12-26'::timestamptz, true,
+   '🖤', 50, ARRAY['African American', 'Black British', 'African'],
+   ARRAY['African Foods', 'Vegetables', 'Fruits', 'Nuts'],
+   '[{"product": "Fruits", "extraUnits": 20}, {"product": "Vegetables", "extraUnits": 20}]'::jsonb,
+   '#6B7280', true, false, null),
+
+  -- NEW YEAR'S EVE 2026
+  (target_business_id, 'New Year''s Eve 2026', 'New Year''s Eve celebrations. Party food and drinks.',
+   'cultural_event', '2026-12-31'::timestamptz, true,
+   '🥂', 120, ARRAY['All'],
+   ARRAY['Drinks', 'Snacks', 'Party Food', 'Champagne', 'Fireworks Snacks'],
+   '[{"product": "Drinks", "extraUnits": 50}, {"product": "Snacks", "extraUnits": 40}, {"product": "Champagne", "extraUnits": 30}]'::jsonb,
    '#8B5CF6', true, false, null);
 
 END;
