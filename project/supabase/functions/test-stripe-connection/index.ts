@@ -9,12 +9,35 @@
 
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
 
-// CORS headers for browser requests
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-};
+/**
+ * SECURITY: Validate origin and return appropriate CORS headers
+ * Only allows requests from apinlero.com subdomains
+ */
+function getCorsHeaders(req: Request): { headers: Record<string, string>; allowed: boolean } {
+  const origin = req.headers.get('origin') || '';
+
+  // Allow apinlero.com subdomains (e.g., app.apinlero.com)
+  // Also allow localhost for development
+  const isAllowed = /^https:\/\/[\w-]+\.apinlero\.com$/.test(origin) ||
+                    /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+                    /^https:\/\/apinlero\.com$/.test(origin);
+
+  if (!isAllowed) {
+    return {
+      headers: {},
+      allowed: false
+    };
+  }
+
+  return {
+    headers: {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    },
+    allowed: true
+  };
+}
 
 interface TestRequest {
   publishableKey: string;
@@ -22,9 +45,23 @@ interface TestRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  // SECURITY: Validate CORS origin
+  const { headers: corsHeaders, allowed } = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Block requests from unauthorized origins
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Origin not allowed' }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   try {

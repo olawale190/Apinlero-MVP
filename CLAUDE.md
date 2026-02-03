@@ -1,4 +1,4 @@
-<!--# Apinlero MVP - Development Notes-->
+# Apinlero MVP - Development Notes
 
 This document tracks the development progress and architecture decisions for the Apinlero MVP project.
 
@@ -6,11 +6,14 @@ This document tracks the development progress and architecture decisions for the
 
 ## Project Overview
 
-**Apinlero** is a wholesale/retail management platform for small businesses, featuring:
+**Apinlero** is a multi-tenant SaaS platform for ethnic grocery businesses in the UK, featuring:
+- Multi-tenant storefront with subdomain routing (e.g., `ishas-treat.apinlero.com`)
+- Business dashboard at `app.apinlero.com`
+- WhatsApp ordering bot with AI-powered natural language processing
 - Inventory management with barcode/QR scanning
-- WhatsApp integration for customer orders
 - Multi-channel order processing (Web, WhatsApp, Phone)
-- Product catalog with image uploads
+- Stripe payments integration
+- Email notifications via Resend
 - Automated alerts and reporting via n8n
 
 **Primary Use Case**: Isha's Treat - African grocery wholesale/retail business in the UK
@@ -21,654 +24,188 @@ This document tracks the development progress and architecture decisions for the
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | React + TypeScript + Vite |
-| **Styling** | Tailwind CSS |
+| **Frontend** | React 18 + TypeScript + Vite 7 |
+| **Styling** | Tailwind CSS 3.4 |
+| **Routing** | React Router DOM 7 |
 | **Database** | Supabase (PostgreSQL) |
 | **Storage** | Supabase Storage |
-| **Auth** | Supabase Auth |
-| **Hosting** | Vercel (Frontend), Railway (Backend/Bot) |
+| **Auth** | Supabase Auth (Email + Google OAuth) |
+| **Payments** | Stripe |
+| **Email** | Resend API |
+| **Hosting** | Vercel (Frontend), Railway (WhatsApp Bot) |
 | **Automation** | n8n (workflows, emails, backups) |
 | **WhatsApp** | Twilio WhatsApp API |
 | **Knowledge Graph** | Neo4j Aura (product aliases) |
+| **Testing** | Vitest + Testing Library |
+| **Monitoring** | Sentry |
 
 ---
 
-## Infrastructure Setup (Completed)
+## Project Structure
 
-### Supabase Configuration
-- **Region**: Ireland (eu-west-1) - GDPR compliant for UK business
-- **Storage Buckets Created**:
-  - `apinlero-media` (private) - WhatsApp images, voice notes
-  - `apinlero-documents` (private) - Receipts, invoices, reports
-  - `apinlero-products` (public) - Product catalog images
-
-### Database Tables
-Core tables exist in Supabase. Additional tables created for storage tracking:
-- `media_files` - Tracks all uploaded files with metadata
-- `storage_usage` - Daily storage statistics
-- `daily_reports` - Business reports archive
-- `backup_logs` - Backup operation history
-
-SQL migration file: `project/supabase_storage_migration.sql`
-
----
-
-## Features Implemented
-
-### 1. Inventory Manager (`project/src/components/InventoryManager.tsx`)
-
-**Core Features**:
-- Product CRUD operations
-- Stock quantity management (+/- controls)
-- Low stock alerts (threshold: 5 units)
-- Expiry date tracking with alerts
-- Category management
-- Barcode/QR code scanning
-- QR code generation for products
-- Bulk pricing tiers
-
-**Product Image Upload** (Recently Added):
-- Image upload in Add Product form
-- Image upload in Edit Product form
-- Image preview before saving
-- Loading indicator during upload
-- Remove image functionality
-- File validation (max 5MB, images only)
-- Images display in inventory grid
-- "OUT OF STOCK" badge overlay on product images
-
-### 2. Storage System (`project/src/lib/storage.ts`)
-
-**Functions Available**:
-```typescript
-// Basic Storage Operations
-uploadFile(bucket, file, folder?)
-uploadBase64File(bucket, base64Data, fileName, contentType, folder?)
-getPublicUrl(bucket, path)
-getSignedUrl(bucket, path, expiresIn?)
-downloadFile(bucket, path)
-listFiles(bucket, folder?, limit?)
-deleteFile(bucket, path)
-testStorageConnection()
-
-// Database Tracking
-logFileToDatabase(record)
-uploadAndTrack(bucket, file, options)  // Upload + track in one call
-getCustomerFiles(customerPhone)
-getOrderFiles(orderId)
-
-// Statistics
-getStorageStats()
-checkStorageLimits()
 ```
-
-**Bucket Constants**:
-```typescript
-BUCKETS = {
-  MEDIA: 'apinlero-media',
-  DOCUMENTS: 'apinlero-documents',
-  PRODUCTS: 'apinlero-products'
-}
-```
-
-### 3. n8n Integration (`project/src/lib/n8n-storage.ts`)
-
-**Webhook Endpoints**:
-- `POST /storage/upload` - Universal file upload
-- `POST /storage/whatsapp-media` - Store WhatsApp media
-- `POST /storage/generate-receipt` - Create PDF receipts
-- `POST /storage/backup` - Trigger manual backup
-- `GET /storage/stats` - Get storage statistics
-- `POST /manual-order-email` - Send order confirmation
-- `POST /manual-stock-alert` - Low stock notification
-- `POST /manual-expiry-alert` - Expiry warning
-- `POST /manual-daily-summary` - Daily business report
-
-### 4. n8n Workflows (`project/n8n-workflows/`)
-
-**Unified Storage Orchestrator** (`unified-storage-orchestrator.json`):
-- Central workflow for all storage operations
-- Routes files to appropriate buckets
-- Handles WhatsApp media from Twilio
-- Logs all uploads to database
-
-**Daily Operations** (`daily-operations-workflow.json`):
-- Scheduled triggers: 6 AM (reports), 10 PM (backups)
-- Fetches daily orders and calculates stats
-- Checks low stock products
-- Checks expiring products (7-day warning)
-- Creates daily reports
-- Performs nightly backups
-
----
-
-## Key Files Reference
-
-| File | Purpose |
-|------|---------|
-| `project/src/components/InventoryManager.tsx` | Main inventory UI component |
-| `project/src/lib/storage.ts` | Supabase storage utilities |
-| `project/src/lib/imageCompression.ts` | Image compression before upload |
-| `project/src/lib/n8n-storage.ts` | n8n webhook triggers |
-| `project/src/lib/n8n.ts` | n8n alert functions |
-| `project/src/lib/supabase.ts` | Supabase client setup |
-| `project/src/pages/PrivacyPolicy.tsx` | UK GDPR privacy policy page |
-| `project/src/components/ConsentBanner.tsx` | Cookie consent mechanism |
-| `project/supabase_storage_migration.sql` | Database migration for storage tracking |
-| `project/n8n-workflows/*.json` | n8n workflow definitions |
-| `INFRASTRUCTURE_GUIDE.md` | Complete infrastructure documentation |
-| `SECURITY_GUIDE.md` | RLS policies, environment setup, security best practices |
-| `TROUBLESHOOTING.md` | Common issues, error solutions, debugging checklist |
-| `docs/DATA_DELETION_PROCESS.md` | GDPR data deletion procedures |
-
----
-
-## Environment Variables Required
-
-```bash
-# Supabase
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-
-# n8n (optional - for automation features)
-VITE_N8N_WEBHOOK_URL=https://your-instance.app.n8n.cloud/webhook
-
-# Twilio (for WhatsApp)
-TWILIO_ACCOUNT_SID=ACxxxx
-TWILIO_AUTH_TOKEN=xxxx
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-
-# Neo4j (for product knowledge graph)
-NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=xxxxx
+Apinlero/
+├── Apinlero_MVP/
+│   ├── CLAUDE.md              # This file
+│   ├── project/               # Main React frontend
+│   │   ├── src/
+│   │   │   ├── App.tsx        # Main app with routing
+│   │   │   ├── main.tsx       # Entry point
+│   │   │   ├── components/    # React components
+│   │   │   │   ├── calendar/  # Calendar system
+│   │   │   │   ├── landing/   # Landing page components
+│   │   │   │   ├── platform/  # Platform marketing components
+│   │   │   │   └── auth/      # Auth UI components
+│   │   │   ├── pages/         # Page components
+│   │   │   │   ├── account/   # Customer account pages
+│   │   │   │   ├── Dashboard.tsx
+│   │   │   │   ├── Shop.tsx
+│   │   │   │   ├── Checkout.tsx
+│   │   │   │   └── ...
+│   │   │   ├── contexts/      # React contexts
+│   │   │   │   ├── AuthContext.tsx      # Customer auth
+│   │   │   │   └── BusinessContext.tsx  # Multi-tenant business
+│   │   │   ├── context/       # Legacy contexts
+│   │   │   │   └── CartContext.tsx
+│   │   │   ├── lib/           # Utility libraries
+│   │   │   │   ├── supabase.ts
+│   │   │   │   ├── stripe.ts
+│   │   │   │   ├── email.ts
+│   │   │   │   ├── storage.ts
+│   │   │   │   ├── calendar.ts
+│   │   │   │   └── business-resolver.ts
+│   │   │   ├── hooks/         # Custom React hooks
+│   │   │   ├── types/         # TypeScript types
+│   │   │   └── config/        # App configuration
+│   │   ├── api/               # Vercel serverless functions
+│   │   │   ├── notify.js      # Order notifications
+│   │   │   └── whatsapp.js    # WhatsApp webhooks
+│   │   ├── backend/           # Express backend (legacy)
+│   │   ├── supabase/          # Supabase config
+│   │   ├── n8n-workflows/     # n8n workflow JSON files
+│   │   ├── scripts/           # Utility scripts
+│   │   └── *.sql              # Database migrations
+│   └── whatsapp-bot/          # WhatsApp bot service
+│       ├── src/
+│       │   ├── server.js          # Express server
+│       │   ├── message-handler.js # Message processing
+│       │   ├── message-parser.js  # NLP parsing
+│       │   ├── response-templates.js
+│       │   ├── supabase-client.js
+│       │   └── neo4j-matcher.js   # Product matching
+│       └── __tests__/         # Jest tests
+├── Documents/                 # Business documents
+└── Assets/                    # Design assets
 ```
 
 ---
 
-## Cost Estimates (Monthly)
+## Key Architectural Patterns
 
-| Phase | Customers | Estimated Cost |
-|-------|-----------|----------------|
-| Launch | 0-50 | ~£25 |
-| Growth | 50-200 | ~£55 |
-| Scaling | 200-500 | ~£145 |
-| Scale | 500-1000 | ~£245 |
-| Enterprise | 1000+ | ~£470+ |
+### Multi-Tenant Routing
 
-See `INFRASTRUCTURE_GUIDE.md` for detailed breakdown.
+The app uses subdomain-based routing for multi-tenancy:
 
----
+1. **Root domain** (`apinlero.com`) - Landing page
+2. **App subdomain** (`app.apinlero.com`) - Business dashboard
+3. **Business subdomains** (`{slug}.apinlero.com`) - Customer storefronts
 
-## UK GDPR Compliance
+Routing logic in [App.tsx](Apinlero_MVP/project/src/App.tsx):
+- `BusinessProvider` wraps the app for global business context
+- `getCurrentSubdomain()` detects the current subdomain
+- `getBusinessBySlug()` fetches business data from Supabase
 
-- [x] Supabase in EU region (Ireland)
-- [x] Private buckets for customer data
-- [x] Signed URLs with expiry for private files
-- [x] Service keys kept server-side only
-- [x] Privacy Policy (`/privacy` route, `src/pages/PrivacyPolicy.tsx`)
-- [x] Customer consent mechanism (`src/components/ConsentBanner.tsx`)
-- [x] Data deletion process (`docs/DATA_DELETION_PROCESS.md`)
+### State Management
 
----
+- **React Context** for global state:
+  - `AuthContext` - Customer authentication state
+  - `BusinessContext` - Current business/tenant context
+  - `CartContext` - Shopping cart state
 
-## Next Steps
+### Authentication
 
-### Critical - Post-Deployment Tasks
-- [ ] **Run database migrations** - Execute production migrations in Supabase SQL Editor:
-  - `20260127000000_add_business_id_to_core_tables.sql`
-  - `20260127000001_backfill_business_id.sql`
-  - `20260127000002_enable_rls_policies.sql`
-  - `20260127010000_add_stripe_encryption.sql`
-- [ ] **Configure Stripe webhook** - Add endpoint: `https://app.apinlero.com/api/webhooks/stripe`
-- [ ] **Test critical flows** - User registration, login, password reset, Stripe payments
-- [ ] **Seed demo data** - Execute `scripts/seed-demo-data.sql` for demo/visa presentation (if needed)
-- [ ] Set up n8n cloud instance and import workflows from `n8n-workflows/`
+- **Supabase Auth** for both business owners and customers
+- Email/password and Google OAuth supported
+- Customer profiles stored in `customer_profiles` table
+- Business owner auth separate from customer auth
 
-### Immediate (This Week)
-- [x] **Environment validation** - Added `validateEnv.ts` (frontend) and `validateEnv.js` (backend)
-- [x] **Stripe Edge Functions** - Created `create-payment-intent` and `stripe-webhook` functions
-- [x] **Enhanced StatsCards** - Added trend indicators and channel distribution chart
-- [x] **Improved AI Insights** - Added cultural events calendar, churn warnings, stock predictions
-- [x] Add image compression before upload (`src/lib/imageCompression.ts`)
-- [x] Add product image display in customer-facing store
-- [ ] Test WhatsApp media storage flow end-to-end
-- [ ] Verify image upload with Storage Diagnostics
+### Database Design
 
-### Short Term (Next 2 Weeks)
-- [ ] Configure daily backup workflow schedule in n8n
-- [ ] Set up uptime monitoring
-- [ ] Complete Meta WhatsApp Cloud API setup (business verification)
-- [ ] Test Stripe payment flow end-to-end
-
-### Medium Term (Next Month)
-- [ ] Add image gallery for products (multiple images)
-- [ ] WhatsApp bot integration with product images
-- [ ] Customer order history with receipts
-- [ ] Advanced reporting dashboard
-- [ ] Mobile-optimized inventory management
+Multi-tenant with `business_id` on all core tables:
+- `businesses` - Tenant registry
+- `products` - Product catalog (per business)
+- `orders` - Customer orders
+- `customer_profiles` - Customer accounts
+- `categories` - Product categories
+- `whatsapp_configs` - Per-business WhatsApp settings
 
 ---
 
 ## Development Commands
 
 ```bash
-# Start development server
-cd project
-npm run dev
+# Frontend (project/)
+cd Apinlero_MVP/project
+npm install
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run preview      # Preview production build
+npm run test         # Run tests
+npm run test:ui      # Test UI
+npm run typecheck    # TypeScript check
 
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+# WhatsApp Bot (whatsapp-bot/)
+cd Apinlero_MVP/whatsapp-bot
+npm install
+npm run dev          # Start with hot reload
+npm start            # Production start
+npm test             # Run tests
 ```
 
 ---
 
-## Claude Code Skills
+## Environment Variables
 
-The project includes custom skills to automate common development tasks. Skills are located in `project/.claude/skills/`.
+### Frontend (project/.env)
 
-### Available Skills
-
-| Skill | Command | Description |
-|-------|---------|-------------|
-| **Skill Creator** | `/create-skill` | Master skill for creating new skills |
-| **Test Webhook** | `/test-webhook` | Test WhatsApp/n8n webhooks |
-| **Test Bot** | `/test-bot` | Test WhatsApp bot responses |
-| **Test Payment** | `/test-payment` | Test Stripe payment flows |
-| **Fix Deploy** ⭐ | `/fix-deploy` | Automated deployment with auto-fix (NEW!) |
-| **Deploy Vercel** | `/deploy-vercel` | Deploy frontend to Vercel |
-| **Deploy Railway** | `/deploy-railway` | Deploy bot/backend to Railway |
-| **Env Sync** | `/env-sync` | Sync environment variables across services |
-| **DB Migrate** | `/db-migrate` | Run Supabase migrations |
-| **DB Seed** | `/db-seed` | Seed test data |
-
-### Deployment Automation (NEW!)
-
-The `/fix-deploy` skill automates the entire deployment workflow:
-
-**Quick Deploy**: Just run `/fix-deploy` for stress-free deployment!
-
-**What it does**:
-- ✅ Pre-deployment health checks (build, typecheck, env vars)
-- ✅ Automatic fixes (TypeScript config, Node version, Vercel config)
-- ✅ Git commit and push automation
-- ✅ Deployment monitoring via GitHub API
-- ✅ Post-deployment verification
-
-**Additional Commands**:
-- `/fix-deploy check` - Run checks only (no changes)
-- `/fix-deploy fix` - Apply fixes without deploying
-- `/fix-deploy status` - Check current deployment status
-- `/fix-deploy logs` - View deployment logs
-- `/fix-deploy rollback` - Rollback to previous version
-- `/fix-deploy env` - Validate environment variables
-
-**Scope**: Global (works in any project, not just Apinlero)
-
-### n8n Workflow Skills
-
-| Workflow | Trigger | Description |
-|----------|---------|-------------|
-| **Daily Report** | 6 PM daily | Generate business summary report |
-| **Inventory Alert** | Every 4 hours | Low stock notifications |
-| **WhatsApp Router** | Webhook | Route WhatsApp messages |
-
-### Skill Files Location
-```
-project/.claude/
-├── skills/                    # Claude Code skills
-│   ├── skill-creator.md       # Master skill creator
-│   ├── test-webhook.md        # Webhook testing
-│   ├── test-bot.md            # Bot testing
-│   ├── test-payment.md        # Payment testing
-│   ├── deploy-vercel.md       # Vercel deployment
-│   ├── deploy-railway.md      # Railway deployment
-│   ├── env-sync.md            # Environment sync
-│   ├── db-migrate.md          # Database migrations
-│   └── db-seed.md             # Data seeding
-└── skill-templates/           # Templates for creating new skills
-    ├── claude-code-template.md
-    └── n8n-workflow-template.json
-
-project/n8n-workflows/
-├── daily-report-workflow.json
-├── inventory-alert-workflow.json
-└── whatsapp-webhook-router-simple.json
-```
-
----
-
-## Current Sprint
-
-**Focus**: WhatsApp Media Storage & Product Images
-
-### Completed
-- [x] Storage Diagnostics panel added to Inventory Manager
-- [x] Fixed Supabase project mismatch (was pointing to wrong project)
-- [x] Updated Vercel environment variables
-- [x] Redeployed to production
-- [x] Product image upload working (RLS disabled for testing)
-- [x] WhatsApp media storage integration implemented
-
-### In Progress
-- [ ] Deploy WhatsApp media changes to Railway (push completed, awaiting deployment)
-
-### Up Next
-- [ ] Test WhatsApp media storage end-to-end (send image to bot)
-- [ ] Re-enable RLS with proper policies
-- [ ] Add image compression before upload
-- [ ] Multiple images per product (gallery)
-
----
-
-## Architecture Decisions
-
-### Storage Architecture
-- **Supabase Storage** chosen over S3 for simplicity and Supabase integration
-- **Three buckets**: `apinlero-products` (public), `apinlero-media` (private), `apinlero-documents` (private)
-- **RLS Policies**: Public read for products, authenticated write for all buckets
-- **File tracking**: All uploads logged to `media_files` table for analytics
-
-### Environment Strategy
-- **Local dev**: Uses `.env` and `.env.local` (local overrides)
-- **Production**: Vercel environment variables (must be updated separately)
-- **Gotcha**: Local env changes don't affect production - always update Vercel env vars
-
-### Supabase Projects
-- **Production**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP)
-- **Note**: A second project `hxuzzhtjmpkhhmefajde.supabase.co` exists but is NOT used
-
----
-
-## Known Issues
-
-### Active Issues
-1. **RLS Disabled for Testing**: All Row Level Security disabled on tables/storage - need to re-enable with proper policies before production
-
-### Resolved Issues
-1. ~~Product images not uploading~~ - Fixed Jan 22 (wrong Supabase project)
-2. ~~Storage Diagnostics button missing~~ - Fixed Jan 22 (deployed to Vercel)
-
-### Potential Issues to Watch
-- Orphan files in storage (uploaded but form abandoned) - no cleanup yet
-- No image compression - large files could slow down pages
-- Single image per product only - no gallery support yet
-
----
-
-## Recent Changes Log
-
-### January 31, 2026 - Email Domain Verification & Code Push
-
-**Resend Domain Verification (apinlero.com)**:
-- Added domain `apinlero.com` to Resend for verified email sending
-- **DNS Records Added in Namecheap**:
-  | Record | Host | Status |
-  |--------|------|--------|
-  | DKIM (TXT) | `resend._domainkey` | ✅ Verified |
-  | SPF (TXT) | `send` | ⏳ Pending |
-  | DMARC (TXT) | `_dmarc` | ⏳ Pending |
-  | MX | `send` | ⏭️ Skipped (optional) |
-- **Note**: MX record is optional (for bounce handling). Namecheap Advanced DNS doesn't show MX in dropdown - would need to use Mail Settings section.
-- **Current Sender**: `onboarding@resend.dev` (Resend sandbox)
-- **Production Sender**: `noreply@apinlero.com` (once fully verified)
-
-**Code Committed & Pushed to GitHub**:
-- **Commit**: `ad70f7d` - feat: add email system, calendar, and multi-tenant improvements
-- **Files Changed**: 53 files, 12,821 insertions, 9,468 deletions
-- **Security**: Gitleaks scan passed - no secrets detected
-
-**New Features Added**:
-| Feature | Files |
-|---------|-------|
-| Email System | `src/lib/email.ts`, `src/pages/EmailSettings.tsx` |
-| Calendar System | `src/components/calendar/*` (10 files) |
-| Business Context | `src/contexts/BusinessContext.tsx` |
-| Business Resolver | `src/lib/business-resolver.ts` |
-| Calendar Utilities | `src/lib/calendar.ts`, `src/hooks/useCalendarEvents.ts` |
-| WhatsApp Humanization | `whatsapp-bot/src/smart-suggestions.js` |
-
-**Email Configuration**:
 ```bash
-VITE_RESEND_API_KEY=re_ZP6YnEgp_...
-VITE_FROM_EMAIL=onboarding@resend.dev  # Change to noreply@apinlero.com after verification
-VITE_BUSINESS_EMAIL=info@apinlero.com
+# Supabase
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+
+# Stripe
+VITE_STRIPE_PUBLISHABLE_KEY=pk_...
+
+# Email (Resend)
+VITE_RESEND_API_KEY=re_...
+VITE_FROM_EMAIL=noreply@apinlero.com
+
+# n8n (optional)
+VITE_N8N_WEBHOOK_URL=https://...
+
+# Sentry (optional)
+VITE_SENTRY_DSN=https://...
 ```
 
-**Next Steps**:
-- [ ] Wait for SPF/DMARC DNS records to verify in Resend
-- [ ] Update `VITE_FROM_EMAIL` to `noreply@apinlero.com`
-- [ ] Test email sending from verified domain
+### WhatsApp Bot (whatsapp-bot/.env)
 
----
+```bash
+# Twilio
+TWILIO_ACCOUNT_SID=ACxxxx
+TWILIO_AUTH_TOKEN=xxxx
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
-### January 28, 2026 - Email System Complete & Production Deployment
+# Supabase (Service Key - server-side only)
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_KEY=eyJ...
 
-**Email System Implementation**:
-- **Created**: `project/src/lib/email.ts` (650+ lines)
-  - Direct Resend API integration for fast, reliable email delivery
-  - All 5 email types fully implemented with beautiful HTML templates
-  - Automatic fallback to n8n if Resend not configured
-  - Functions: `sendOrderConfirmationEmail()`, `sendOrderStatusUpdateEmail()`, `sendLowStockAlertEmail()`, `sendDailySummaryEmail()`, `sendWelcomeEmail()`
-- **Created**: `project/src/pages/EmailSettings.tsx` (450+ lines)
-  - Email configuration status dashboard
-  - Live email testing interface
-  - Sample template preview and testing
-  - Setup instructions and troubleshooting
-- **Created**: `EMAIL_SETUP_GUIDE.md` (500+ lines)
-  - Complete setup guide for Resend and n8n
-  - API reference and examples
-  - Troubleshooting and best practices
-  - Cost estimates and production deployment guide
-- **Modified**: `project/src/components/OrdersTable.tsx`
-  - Integrated direct email service with n8n fallback
-  - Auto-send status update emails on order changes
-  - Manual email buttons for confirmations and updates
-- **Modified**: `project/src/components/InventoryManager.tsx`
-  - Integrated low stock alert emails with Resend
-  - Automatic fallback to n8n webhooks
-- **Modified**: `project/src/pages/SignupForm.tsx`
-  - Integrated welcome email for new signups
-  - Supports both Resend and n8n delivery
-- **Modified**: `project/.env.example`
-  - Added Resend environment variables
-  - Updated documentation for email configuration
+# Neo4j
+NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=xxxxx
 
-**Email Features Delivered**:
-- ✅ Order confirmation emails (beautiful receipts with item details)
-- ✅ Order status update emails (automatic on status change)
-- ✅ Low stock alert emails (manual trigger from inventory)
-- ✅ Daily summary report emails (business performance reports)
-- ✅ Welcome emails (new customer onboarding)
-- ✅ Responsive HTML templates (mobile + desktop optimized)
-- ✅ Professional Navy Blue theme matching Apinlero branding
-- ✅ Automatic service fallback (Resend → n8n)
-- ✅ Email testing interface at `/email-settings`
-
-### January 28, 2026 - Production Deployment Success & Automation Skills
-
-**Deployment Fixes & Configuration**:
-- **Fixed**: Vercel deployment failures (TypeScript build errors)
-- **Modified**: `project/tsconfig.app.json`
-  - Relaxed TypeScript strictness (`strict: false`)
-  - Disabled unused variable checks for production builds
-  - Excluded test files and WhatsAppSettings.tsx from build
-- **Modified**: `project/package.json`
-  - Added Node.js version engines field (`>=18.0.0`)
-- **Created**: `project/.nvmrc` - Node 18 specification
-- **Enhanced**: `project/vercel.json`
-  - Added explicit install command
-  - Added asset cache headers for performance
-
-**Multi-Tenant Features Deployed**:
-- ✅ Business ID isolation across all database queries
-- ✅ Row-level security policies enforced
-- ✅ Encrypted Stripe API keys per business
-- ✅ Multi-tenant WhatsApp bot support
-- ✅ Password reset and update password flows
-- ✅ Database-driven category system (32 categories)
-- ✅ Fixed StripeSettings.tsx with pure Tailwind CSS
-
-**Deployment Documentation**:
-- **Created**: `DEPLOYMENT_SESSION_2026-01-28.md` (874 lines)
-  - Complete timeline of deployment debugging session
-  - All problems, solutions, and configuration changes
-  - Git commits with SHA references
-  - Deployment statistics and bundle analysis
-  - Lessons learned and future improvements
-- **Created**: `project/DEPLOYMENT_FIXES_APPLIED.md`
-  - Quick reference for fixes applied
-  - Before/after configuration comparisons
-  - Rollback instructions
-- **Created**: `project/PRODUCTION_DEPLOYMENT_CHECKLIST.md`
-  - Reusable checklist for future deployments
-  - Pre/post-deployment verification steps
-  - Database migration checklist
-  - Troubleshooting guide
-- **Created**: `project/VERCEL_DEPLOYMENT.md`
-  - Environment variables setup guide
-  - Common deployment failures and solutions
-- **Created**: `project/check-env.js`
-  - Environment variable validation script
-
-**Global Skills Created**:
-- **Created**: `~/.claude/skills/fix-deploy.md` (617 lines, 18KB)
-  - **Commands**:
-    - `/fix-deploy` - Full automated deployment workflow
-    - `/fix-deploy check` - Pre-deployment health checks
-    - `/fix-deploy fix` - Apply fixes without deploying
-    - `/fix-deploy status` - Check deployment status
-    - `/fix-deploy logs` - View deployment logs
-    - `/fix-deploy rollback` - Rollback to previous version
-    - `/fix-deploy env` - Validate environment variables
-  - **Scope**: GLOBAL (works in any project)
-  - **Features**: Automatic TypeScript fixes, Node.js version management, Vercel configuration updates, Git automation, deployment monitoring
-- **Created**: `~/.claude/skills/DEPLOYMENT_SKILLS_README.md`
-  - Overview of all deployment skills
-  - Recommended workflows
-  - Quick troubleshooting reference
-- **Created**: `~/.claude/skills/.quick-deploy-help.txt`
-  - One-page quick reference card
-
-**Production Deployment**:
-- **Status**: ✅ Successfully deployed to production
-- **Production URL**: https://app.apinlero.com
-- **Vercel URL**: https://apinlero-nz7lyh4xp-apinlero.vercel.app
-- **Build Time**: ~25 seconds
-- **Bundle Size**: 705.73 kB (181.45 kB gzipped)
-- **Modules**: 1,856 modules transformed
-- **Deployment Method**: Manual (`npx vercel --prod --yes --force`)
-
-**Git Commits**:
-- `88571c3` - feat: add multi-tenant support (62 files, 18,334 insertions)
-- `20c9124` - fix: improve Vercel deployment configuration (4 files)
-- `be0c4c3` - fix: relax TypeScript config (1 file)
-- `4d23dcb` - feat: add fix-deploy skill (617 lines)
-- `b199994` - docs: add comprehensive deployment documentation (3 files, 874 insertions)
-
-**Skills System Enhanced**:
-- Total global skills: 21 (including new deployment skills)
-- All deployment knowledge captured and automated
-- Reusable across all projects
-
-**Key Lessons**:
-- TypeScript strict mode can block production deployments - use relaxed config for builds
-- Vercel environment variables must be set in dashboard, not just in repo
-- Manual Vercel deploy (`npx vercel --prod`) bypasses GitHub webhook issues
-- Document everything and create skills to eliminate future deployment stress
-
-### January 24, 2026 - Image Compression & GDPR Compliance
-
-**Image Compression Feature**:
-- **New File**: `project/src/lib/imageCompression.ts`
-  - `compressImage()` - Compresses images using Canvas API
-  - Resizes to max 1200x1200 while maintaining aspect ratio
-  - Compresses to 80% JPEG quality
-  - Skips files already under 500KB
-  - Includes `formatBytes()` and `getCompressionSummary()` helpers
-- **Modified**: `project/src/components/InventoryManager.tsx`
-  - Added import for compression utilities
-  - Updated `handleImageSelect()` to compress before upload
-  - Logs compression stats to metadata
-
-**GDPR Compliance - Privacy Policy**:
-- **New File**: `project/src/pages/PrivacyPolicy.tsx`
-  - UK GDPR compliant privacy policy
-  - Covers data collection, usage, sharing, retention
-  - Documents user rights (access, erasure, portability)
-  - Links to ICO for complaints
-- **Modified**: `project/src/App.tsx`
-  - Added `/privacy` route to all subdomain configs
-- **Modified**: `project/src/components/platform/PlatformFooter.tsx`
-  - Updated Privacy Policy link to `/privacy`
-- **Modified**: `project/src/components/StorefrontFooter.tsx`
-  - Added Privacy Policy link
-
-**GDPR Compliance - Consent Mechanism**:
-- **New File**: `project/src/components/ConsentBanner.tsx`
-  - Cookie consent banner with Essential/Analytics/Marketing options
-  - Persists preferences to localStorage
-  - Helper functions: `getConsentPreferences()`, `isAnalyticsAllowed()`, `isMarketingAllowed()`
-- **Modified**: `project/src/App.tsx`
-  - Added `<ConsentBanner />` to all router configurations
-
-**GDPR Compliance - Data Deletion Documentation**:
-- **New File**: `docs/DATA_DELETION_PROCESS.md`
-  - SQL scripts for customer data deletion
-  - Data retention exceptions (7 years for tax)
-  - Anonymization procedures for orders
-  - Audit logging schema
-  - Verification queries
-
-**CLAUDE.md Updates**:
-- Marked GDPR compliance items as complete
-- Marked image compression as complete
-- Updated Short Term tasks
-
-### January 23, 2026 - WhatsApp Media Storage Integration
-- **Feature**: WhatsApp media (images, audio, documents) now stored in Supabase
-- **Files Modified**:
-  - `whatsapp-bot/src/supabase-client.js` - Added `uploadMedia()`, `logMediaFile()`, `getCustomerMedia()`
-  - `whatsapp-bot/src/message-handler.js` - Added `handleMediaMessage()`, updated `handleIncomingMessage()`
-  - `whatsapp-bot/src/server.js` - Pass `accessToken` to message handler
-- **Storage Path**: `apinlero-media/whatsapp/{phone}/{timestamp}_{filename}`
-- **Database**: Media logged to `media_files` table
-- **Security**: RLS disabled for testing - needs re-enabling
-
-### January 22, 2026 - Product Image Upload Fix
-- **Issue**: Product images not uploading - "Storage issues detected" error
-- **Root Cause**: App was connected to wrong Supabase project
-  - Vercel env vars pointed to `hxuzzhtjmpkhhmefajde.supabase.co`
-  - Storage buckets were in `gafoezdpaotwvpfldyhc.supabase.co`
-- **Fix Applied**:
-  - Updated `.env.local` to use correct Supabase URL
-  - Updated Vercel environment variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
-  - Redeployed to Vercel
-- **Storage Diagnostics**: Added diagnostics panel (Database icon in Inventory Manager toolbar)
-- **Correct Supabase Project**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP)
-
-### January 20, 2026 - WhatsApp Multi-Tenant & Skill System
-- **n8n WhatsApp Router**: Workflow active at `https://main-production-668a.up.railway.app`
-- **Webhook URL**: `https://main-production-668a.up.railway.app/webhook/whatsapp/webhook`
-- **Skill Creator System**: Added 9 Claude Code skills + 2 n8n workflows
-- **Supabase Migration**: Created 6 multi-tenant tables (businesses, whatsapp_configs, etc.)
-- **WhatsApp Bot v3.0.0**: Multi-tenant support (pending Railway deployment fix)
-
-### January 19, 2026 - Production Deployment Session
-- **WhatsApp Bot Deployed to Railway**: `https://web-production-63e51.up.railway.app`
-- **Twilio Webhook Updated**: Points to Railway deployment
-- **Landing Page Theme**: Changed from teal to Navy Blue across all platform components
-- **Frontend Deployed to Vercel**: `https://project-apinlero.vercel.app`
-
-### January 2026 (Earlier)
-- **Storage System**: Implemented Supabase Storage integration with tracking
-- **n8n Workflows**: Created daily operations and storage orchestrator workflows
-- **Product Images**: Added image upload to Add/Edit Product forms
-- **Inventory Grid**: Products now display images with out-of-stock overlay
-- **Infrastructure Guide**: Created comprehensive documentation
+PORT=3000
+```
 
 ---
 
@@ -682,190 +219,152 @@ VITE_BUSINESS_EMAIL=info@apinlero.com
 | **WhatsApp Bot** | `https://web-production-63e51.up.railway.app` | Railway |
 | **n8n Workflows** | `https://main-production-668a.up.railway.app` | Railway |
 
-### n8n Webhook URLs
-| Webhook | URL |
-|---------|-----|
-| WhatsApp Router | `https://main-production-668a.up.railway.app/webhook/whatsapp/webhook` |
+---
 
-### Fallback URLs (Vercel subdomain)
-| Service | URL |
-|---------|-----|
-| Landing Page | `https://apinlero.vercel.app` |
-| Dashboard | `https://app.apinlero.com` |
-| Isha's Store | `https://ishas-treat.apinlero.com` |
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `project/src/App.tsx` | Main app with all routing logic |
+| `project/src/contexts/BusinessContext.tsx` | Multi-tenant business context |
+| `project/src/contexts/AuthContext.tsx` | Customer authentication |
+| `project/src/lib/supabase.ts` | Supabase client setup |
+| `project/src/lib/stripe.ts` | Stripe integration |
+| `project/src/lib/email.ts` | Resend email service |
+| `project/src/lib/storage.ts` | Supabase storage utilities |
+| `project/src/lib/business-resolver.ts` | Subdomain business lookup |
+| `project/src/pages/Dashboard.tsx` | Business owner dashboard |
+| `project/src/pages/Shop.tsx` | Customer storefront |
+| `project/src/pages/Checkout.tsx` | Checkout flow |
+| `project/src/components/InventoryManager.tsx` | Product management |
+| `project/api/notify.js` | Order notification API |
+| `whatsapp-bot/src/server.js` | WhatsApp bot entry point |
+| `whatsapp-bot/src/message-handler.js` | Message processing |
 
 ---
 
-## WhatsApp Bot Configuration
+## Deployment
 
-### Current Setup (Twilio Sandbox)
-- **Sandbox Number**: +1 415 523 8886
-- **Join Code**: `join material-during`
-- **Webhook URL**: `https://web-production-63e51.up.railway.app/webhook`
-- **Status**: Live and working
+### Quick Deploy (Recommended)
 
-### How Customers Join WhatsApp Bot
-1. **Direct Link**: `https://wa.me/14155238886?text=join%20material-during`
-2. **Manual**: Save +1 415 523 8886, send "join material-during"
-3. Sessions expire after 72 hours of inactivity
-
-### Moving to Production WhatsApp
-To remove the "join" requirement:
-1. Buy UK Twilio number (~$1/month)
-2. Register for WhatsApp Business API in Twilio Console
-3. Complete Meta Business Verification (1-2 weeks)
-4. Update `TWILIO_WHATSAPP_NUMBER` in Railway env vars
-
----
-
-## Railway Environment Variables
-
-> **Note**: Secrets are stored in Railway Dashboard, not in this file.
-> See Railway Dashboard → Variables for actual values.
-
-```bash
-TWILIO_ACCOUNT_SID=<your-twilio-sid>
-TWILIO_AUTH_TOKEN=<your-twilio-token>
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-SUPABASE_URL=<your-supabase-url>
-SUPABASE_SERVICE_KEY=<your-supabase-key>
-NEO4J_URI=<your-neo4j-uri>
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=<your-neo4j-password>
-PORT=3000
-```
-
----
-
-## Customer-Facing Links (For Isha to Share)
-
-### Option 1: Online Store (Recommended)
-```
-https://ishas-treat.apinlero.com
-```
-- No setup required
-- Browse products visually
-- Checkout with bank transfer
-
-### Option 2: WhatsApp Bot
-```
-https://wa.me/14155238886?text=join%20material-during
-```
-- Customer clicks link
-- Sends "join material-during" to join sandbox
-- Then can order via chat (e.g., "2x palm oil to SE15 4AA")
-
----
-
-## Landing Page Color Scheme
-
-**Theme**: Navy Blue (updated Jan 19, 2026)
-
-Files updated:
-- `project/src/components/platform/PlatformHero.tsx` - `from-blue-900 via-blue-800 to-indigo-900`
-- `project/src/components/platform/PlatformFeatures.tsx` - `bg-blue-100`, `text-blue-600`
-- `project/src/components/platform/PlatformTestimonial.tsx` - `from-blue-50 to-indigo-50`, `bg-blue-600`
-- `project/src/components/platform/PlatformPricing.tsx` - `ring-blue-600`, `bg-blue-600`
-- `project/src/components/platform/PlatformFooter.tsx` - `hover:text-blue-400`
-
----
-
-## Pilot Customer: Isha's Treat & Groceries
-
-- **Location**: UK
-- **Test Phones**: +44 7935 238972, +44 7733 743448
-- **Dashboard Login**:
-  - **URL**: `https://app.apinlero.com`
-  - **Email**: `Info@ishastreatandgroceriescom.uk`
-  - **Password**: `IshasTreat2026`
-  - Or click "Demo Login (Pilot Testing)" button (auto-logs in with above credentials)
-- **Store URL**: `https://ishas-treat.apinlero.com`
-
----
-
-## GitHub Repository
-
-- **Repo**: https://github.com/olawale190/Apinlero-MVP
-- **Auto-Deploy**: Connected to Vercel (pushes trigger deployments)
-
-### Deploy Workflow
-```bash
-git add -A
-git commit -m "Your message"
-git push
-```
-Vercel auto-deploys within ~30 seconds.
-
-### Manual Deploy (Backup)
-```bash
-cd project
-npx vercel --prod --yes
-```
-
----
-
-## Known Gotchas / Troubleshooting
-
-### Product Image Upload Not Working
-1. **Run Storage Diagnostics**: Click Database icon (🗄️) in Inventory Manager toolbar
-2. **Check buckets exist**: Should show `apinlero-products` as PUBLIC with 4 policies
-3. **If buckets missing**: Run `project/supabase_storage_policies.sql` in Supabase SQL Editor
-4. **If buckets exist but upload fails**: Check Vercel env vars match correct Supabase project
-
-### Multiple Supabase Projects
-- **Correct Project**: `gafoezdpaotwvpfldyhc.supabase.co` (ApinleroMVP on Lazrap org)
-- **Wrong Project**: `hxuzzhtjmpkhhmefajde.supabase.co` (do not use)
-- Always verify Vercel env vars point to correct project after any environment changes
-
-### Vercel Deployment
-- Local `.env.local` does NOT affect production
-- Must update Vercel env vars via CLI or dashboard:
-  ```bash
-  npx vercel env rm VITE_SUPABASE_URL production --yes
-  npx vercel env add VITE_SUPABASE_URL production
-  npx vercel --prod --yes
-  ```
-
----
-
----
-
-## Quick Deployment Guide
-
-### For Stress-Free Deployment
 ```bash
 /fix-deploy
 ```
-That's it! Everything else is automatic.
 
-### Manual Deployment (Alternative)
+### Manual Deployment
+
 ```bash
-# 1. Ensure build succeeds locally
+# 1. Build locally
+cd Apinlero_MVP/project
 npm run build
 
-# 2. Commit changes
+# 2. Commit and push
 git add .
 git commit -m "your message"
 git push origin main
 
-# 3. If auto-deploy fails, manual deploy:
+# 3. If auto-deploy fails
 npx vercel --prod --yes --force
 ```
 
-### Check Deployment Status
+### WhatsApp Bot (Railway)
+
 ```bash
-/fix-deploy status
+cd Apinlero_MVP/whatsapp-bot
+git push railway main
 ```
 
-### View Deployment Logs
+---
+
+## Testing
+
+### Frontend Tests
+
 ```bash
-/fix-deploy logs
+cd Apinlero_MVP/project
+npm run test        # Watch mode
+npm run test:run    # Single run
+npm run test:coverage
 ```
 
-### Rollback if Needed
+### WhatsApp Bot Tests
+
 ```bash
-/fix-deploy rollback
+cd Apinlero_MVP/whatsapp-bot
+npm test
 ```
+
+---
+
+## Claude Code Skills
+
+Available skills for common tasks:
+
+| Skill | Command | Description |
+|-------|---------|-------------|
+| **Fix Deploy** | `/fix-deploy` | Automated deployment with auto-fix |
+| **Test Webhook** | `/test-webhook` | Test WhatsApp/n8n webhooks |
+| **Test Bot** | `/test-bot` | Test WhatsApp bot responses |
+| **Test Payment** | `/test-payment` | Test Stripe payment flows |
+| **Deploy Vercel** | `/deploy-vercel` | Deploy frontend to Vercel |
+| **Deploy Railway** | `/deploy-railway` | Deploy bot/backend to Railway |
+| **Env Sync** | `/env-sync` | Sync environment variables |
+| **DB Migrate** | `/db-migrate` | Run Supabase migrations |
+| **DB Seed** | `/db-seed` | Seed test data |
+
+---
+
+## Pilot Customer
+
+**Isha's Treat & Groceries**
+- **Dashboard**: `https://app.apinlero.com`
+- **Store**: `https://ishas-treat.apinlero.com`
+- **Test Email**: `Info@ishastreatandgroceriescom.uk`
+
+---
+
+## GDPR Compliance
+
+- [x] Supabase in EU region (Ireland)
+- [x] Privacy Policy at `/privacy`
+- [x] Cookie consent banner
+- [x] Data deletion process documented
+- [x] Private storage buckets for customer data
+
+---
+
+## Known Issues
+
+1. **RLS Partially Disabled**: Some Row Level Security policies disabled for testing
+2. **Neo4j Password**: Cannot rotate on Aura free tier
+
+---
+
+## Security Notes
+
+- **Never commit .env files** - Use `.gitignore`
+- **Pre-commit hooks enabled** - Gitleaks secret detection
+- **Service keys server-side only** - Never expose in frontend
+- **Supabase anon key** is safe for frontend (RLS protects data)
+
+---
+
+## WhatsApp Bot Features
+
+The WhatsApp bot supports natural language ordering:
+
+**Commands**:
+- "Hi" / "Hello" - Greeting and menu
+- "2x palm oil to SE15 4AA" - Quick order
+- "Show my orders" - Order history
+- "Track order #ABC123" - Order status
+
+**Features**:
+- Natural language parsing with intent detection
+- Product matching via Neo4j knowledge graph
+- Multi-tenant (supports multiple businesses)
+- Media handling (images, voice notes)
+- Smart suggestions and humanized responses
 
 ---
 
@@ -873,69 +372,13 @@ npx vercel --prod --yes --force
 
 | Document | Purpose |
 |----------|---------|
-| `CLAUDE.md` | This file - project overview and development notes |
-| `DEPLOYMENT_SESSION_2026-01-28.md` | Complete deployment debugging session timeline |
-| `project/DEPLOYMENT_FIXES_APPLIED.md` | Quick reference for deployment fixes |
-| `project/PRODUCTION_DEPLOYMENT_CHECKLIST.md` | Reusable deployment checklist |
-| `project/VERCEL_DEPLOYMENT.md` | Environment variables and Vercel setup |
-| `INFRASTRUCTURE_GUIDE.md` | Infrastructure setup and configuration |
-| `SECURITY_GUIDE.md` | Security policies and best practices |
-| `TROUBLESHOOTING.md` | Common issues and solutions |
-| `docs/DATA_DELETION_PROCESS.md` | GDPR data deletion procedures |
-
----
-
-## Security Analysis (January 31, 2026)
-
-### Credential Security Status
-
-| Credential | Status | Notes |
-|------------|--------|-------|
-| Twilio Auth Token | ✅ Rotated | Secondary token promoted to primary |
-| Neo4j Password | ⚠️ Unable to rotate | Aura free tier doesn't support password reset |
-| Supabase Service Key | ⚠️ Review needed | Found in multiple .env files |
-| Resend API Key | ⚠️ Review needed | Found in project/.env.local |
-
-### .env Files Inventory
-
-| File | Contains |
-|------|----------|
-| `whatsapp-bot/.env` | Twilio, Neo4j, Supabase Service Key |
-| `project/.env` | Supabase Anon Key (safe for frontend) |
-| `project/.env.local` | Twilio (test), Vercel OIDC, Resend API Key |
-| `project/knowledge-graph/.env` | Neo4j, Supabase Service Key |
-
-### Security Tools Configured
-
-1. **Gitleaks** - Secret detection (`.gitleaks.toml`)
-2. **Pre-commit hooks** - Blocks commits with secrets (`.pre-commit-config.yaml`)
-3. **Global pre-commit hook** - Available for all projects (`~/.git-templates/hooks/pre-commit`)
-4. **.gitignore** - Already configured to exclude .env files
-
-### Global Pre-commit Hook (All Projects)
-
-The global hook is installed at `~/.git-templates/hooks/pre-commit` and automatically applies to:
-- All new `git init` or `git clone` operations
-- Detects: .env files, Twilio/Supabase/Neo4j/Resend credentials, JWT tokens, API keys
-
-For existing repos, run: `git init` (safe - won't affect your repo)
-
-### NPM Audit Results
-
-| Project | Vulnerabilities |
-|---------|-----------------|
-| `project/` | 26 (3 low, 7 moderate, 16 high) |
-| `whatsapp-bot/` | 0 |
-
-**Action**: Run `npm audit fix` in project/ to address non-breaking fixes.
-
-### Security Recommendations
-
-1. **Rotate Supabase Service Key** if exposed
-2. **Rotate Resend API Key** in Resend dashboard
-3. **Enable RLS** on all Supabase tables (currently disabled for testing)
-4. **Run `npm audit fix`** to patch dependency vulnerabilities
-5. **Activate pre-commit hooks** to prevent future credential exposure
+| `CLAUDE.md` | This file - project overview |
+| `INFRASTRUCTURE_GUIDE.md` | Infrastructure setup |
+| `SECURITY_GUIDE.md` | Security policies |
+| `TROUBLESHOOTING.md` | Common issues |
+| `docs/DATA_DELETION_PROCESS.md` | GDPR data deletion |
+| `project/DATABASE-SETUP.md` | Database setup guide |
+| `whatsapp-bot/ARCHITECTURE.md` | Bot architecture |
 
 ---
 

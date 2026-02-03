@@ -17,10 +17,13 @@
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
+/**
+ * SECURITY: Webhook endpoints should NOT use CORS
+ * Webhooks are server-to-server calls from Stripe, not browser requests
+ * Removing CORS headers prevents CSRF attacks
+ */
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, stripe-signature',
+  'Content-Type': 'application/json',
 };
 
 Deno.serve(async (req: Request) => {

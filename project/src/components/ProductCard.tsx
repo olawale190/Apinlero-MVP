@@ -4,6 +4,7 @@ import { Product } from '../types';
 import { shopConfig } from '../config/shop';
 import { useCart } from '../context/CartContext';
 import { colors } from '../config/colors';
+import WishlistButton from './WishlistButton';
 
 interface ProductCardProps {
   product: Product;
@@ -46,6 +47,8 @@ export default function ProductCard({ product }: ProductCardProps) {
         ) : (
           <Package className="w-16 h-16 text-gray-400" />
         )}
+        {/* Wishlist button */}
+        <WishlistButton productId={product.id} className="absolute top-2 left-2" size="sm" />
         {/* Stock badge */}
         <span className={`absolute top-2 right-2 px-2 py-1 text-xs font-medium rounded-full ${stockStatus.color}`}>
           {stockStatus.label}

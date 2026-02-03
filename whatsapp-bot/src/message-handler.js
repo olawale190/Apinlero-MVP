@@ -339,7 +339,10 @@ export async function handleIncomingMessage({
         return response;
       }
       // Re-prompt for confirmation (user said something unclear)
-      response = generateResponse('AWAITING_CONFIRM_REPROMPT', { pendingOrder: conversation.pendingOrder });
+      response = generateResponse('REPROMPT_CONFIRMATION', {
+        items: conversation.pendingOrder.items,
+        total: conversation.pendingOrder.total
+      });
       await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
       return response;
     }
@@ -357,7 +360,9 @@ export async function handleIncomingMessage({
         return response;
       }
       // Re-prompt for payment method
-      response = generateResponse('AWAITING_PAYMENT_REPROMPT');
+      response = generateResponse('REPROMPT_PAYMENT', {
+        orderId: conversation.lastOrderId?.substring(0, 8).toUpperCase() || 'your order'
+      });
       await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
       return response;
     }
@@ -376,7 +381,10 @@ export async function handleIncomingMessage({
         return response;
       }
       // Re-prompt for address
-      response = generateResponse('STILL_NEED_ADDRESS');
+      response = generateResponse('REPROMPT_ADDRESS', {
+        items: conversation.pendingOrder?.items || [],
+        subtotal: conversation.pendingOrder?.subtotal || 0
+      });
       await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
       return response;
     }

@@ -1,15 +1,18 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { ArrowLeft, CreditCard, Lock, Shield } from 'lucide-react';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
 import { useCart } from '../context/CartContext';
 import { shopConfig } from '../config/shop';
 import { supabase } from '../lib/supabase';
 import { Order, OrderItem } from '../types';
 import { colors } from '../config/colors';
 import { sendOrderNotifications } from '../lib/notifications';
+import { useBusinessContext } from '../contexts/BusinessContext';
+import StripePaymentForm from '../components/StripePaymentForm';
 
-// Initialize Stripe with publishable key (demo mode)
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_demo');
+// Initialize Stripe with publishable key
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 interface CheckoutProps {
   onBack: () => void;
@@ -18,10 +21,13 @@ interface CheckoutProps {
 
 export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
   const { cartItems, getCartTotal, clearCart } = useCart();
+  const { business } = useBusinessContext();
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'collection'>('delivery');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -36,11 +42,55 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
   const deliveryFee = deliveryMethod === 'delivery' ? shopConfig.deliveryFee : 0;
   const total = subtotal + deliveryFee;
 
+  const handlePaymentSuccess = async () => {
+    if (!currentOrderId) return;
+
+    try {
+      // Send order confirmation notifications
+      const orderItems: OrderItem[] = cartItems.map(item => ({
+        product_name: item.product.name,
+        quantity: item.quantity,
+        price: item.product.price,
+        unit: item.product.unit
+      }));
+
+      sendOrderNotifications({
+        orderId: currentOrderId,
+        customerName: formData.name,
+        customerPhone: formData.phone,
+        customerEmail: formData.email,
+        total: total,
+        items: orderItems,
+        deliveryMethod: deliveryMethod,
+        deliveryAddress: deliveryMethod === 'delivery' ? `${formData.address}, ${formData.postcode}` : undefined
+      }).catch(console.error);
+
+      clearCart();
+      setClientSecret(null);
+      onSuccess(currentOrderId);
+    } catch (err: any) {
+      console.error('Post-payment error:', err);
+      setError('Payment succeeded but there was an error. Please contact support.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePaymentError = (errorMessage: string) => {
+    setError(errorMessage);
+    setIsSubmitting(false);
+  };
+
   const handleStripePayment = async () => {
     setError('');
     setIsSubmitting(true);
 
     try {
+      // SECURITY: Validate business context exists
+      if (!business || !business.id) {
+        throw new Error('Business context not available. Please refresh the page.');
+      }
+
       // Validate form
       if (!formData.name || !formData.phone) {
         throw new Error('Please fill in all required fields');
@@ -49,7 +99,47 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
         throw new Error('Please provide delivery address and postcode');
       }
 
-      // Create order first
+      // SECURITY FIX: Verify prices server-side before creating payment
+      const { data: authData } = await supabase.auth.getSession();
+      const token = authData.session?.access_token;
+
+      if (!token) {
+        throw new Error('Authentication required to process payment');
+      }
+
+      const verifyResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-order-total`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            businessId: business.id,
+            items: cartItems.map(item => ({
+              product_name: item.product.name,
+              quantity: item.quantity,
+              price: item.product.price,
+            })),
+            deliveryFee: deliveryFee,
+            clientTotal: total,
+          }),
+        }
+      );
+
+      if (!verifyResponse.ok) {
+        const verifyError = await verifyResponse.json();
+        throw new Error(verifyError.error || 'Price verification failed');
+      }
+
+      const { valid, verifiedTotal } = await verifyResponse.json();
+
+      if (!valid) {
+        throw new Error('Price verification failed. Please refresh and try again.');
+      }
+
+      // Create order first with verified items
       const orderItems: OrderItem[] = cartItems.map(item => ({
         product_name: item.product.name,
         quantity: item.quantity,
@@ -58,6 +148,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
       }));
 
       const order: Order = {
+        business_id: business.id, // SECURITY FIX: Add business_id for multi-tenancy
         customer_name: formData.name,
         phone_number: formData.phone,
         email: formData.email,
@@ -83,48 +174,38 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
       if (insertError) throw insertError;
       if (!data) throw new Error('Failed to create order');
 
-      // For demo purposes, simulate Stripe checkout redirect
-      // In production, this would create a Stripe Checkout Session via backend API
-      const stripe = await stripePromise;
+      // SECURITY FIX: Create real Stripe Payment Intent via edge function
+      // Use verifiedTotal instead of client-side total
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-intent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            businessId: business.id,
+            amount: verifiedTotal, // SECURITY: Use server-verified total
+            currency: shopConfig.currency.toLowerCase(),
+            orderId: data.id,
+            customerEmail: formData.email,
+            customerName: formData.name,
+            description: `Order #${data.id} - ${cartItems.length} item(s)`,
+          }),
+        }
+      );
 
-      if (stripe) {
-        // Demo: Show success after simulating payment
-        // In production: stripe.redirectToCheckout({ sessionId: session.id })
-
-        // Simulate payment processing
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Send order confirmation notifications (email + WhatsApp)
-        sendOrderNotifications({
-          orderId: data.id,
-          customerName: formData.name,
-          customerPhone: formData.phone,
-          customerEmail: formData.email,
-          total: total,
-          items: orderItems,
-          deliveryMethod: deliveryMethod,
-          deliveryAddress: deliveryMethod === 'delivery' ? `${formData.address}, ${formData.postcode}` : undefined
-        }).catch(console.error); // Fire and forget - don't block checkout
-
-        clearCart();
-        onSuccess(data.id);
-      } else {
-        // Fallback for demo without Stripe key
-        // Send order confirmation notifications
-        sendOrderNotifications({
-          orderId: data.id,
-          customerName: formData.name,
-          customerPhone: formData.phone,
-          customerEmail: formData.email,
-          total: total,
-          items: orderItems,
-          deliveryMethod: deliveryMethod,
-          deliveryAddress: deliveryMethod === 'delivery' ? `${formData.address}, ${formData.postcode}` : undefined
-        }).catch(console.error);
-
-        clearCart();
-        onSuccess(data.id);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create payment intent');
       }
+
+      const { clientSecret: secret } = await response.json();
+
+      // Store client secret and order ID for payment form
+      setClientSecret(secret);
+      setCurrentOrderId(data.id);
     } catch (err: any) {
       console.error('Payment error:', err);
       setError(err?.message || 'Payment failed. Please try again.');
@@ -139,6 +220,11 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
     setIsSubmitting(true);
 
     try {
+      // SECURITY: Validate business context exists
+      if (!business || !business.id) {
+        throw new Error('Business context not available. Please refresh the page.');
+      }
+
       const orderItems: OrderItem[] = cartItems.map(item => ({
         product_name: item.product.name,
         quantity: item.quantity,
@@ -147,6 +233,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
       }));
 
       const order: Order = {
+        business_id: business.id, // SECURITY FIX: Add business_id for multi-tenancy
         customer_name: formData.name,
         phone_number: formData.phone,
         email: formData.email,
@@ -365,11 +452,35 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     </div>
                   </label>
 
-                  {paymentMethod === 'card' && (
+                  {paymentMethod === 'card' && clientSecret && (
+                    <div className="ml-7 mt-4">
+                      <Elements
+                        stripe={stripePromise}
+                        options={{
+                          clientSecret,
+                          appearance: {
+                            theme: 'stripe',
+                            variables: {
+                              colorPrimary: '#0f766e',
+                            },
+                          },
+                        }}
+                      >
+                        <StripePaymentForm
+                          amount={total}
+                          currency={shopConfig.currency}
+                          onSuccess={handlePaymentSuccess}
+                          onError={handlePaymentError}
+                        />
+                      </Elements>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'card' && !clientSecret && (
                     <div className="ml-7 p-3 bg-gray-50 rounded-lg border">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Lock size={14} />
-                        <span>You'll be redirected to Stripe's secure payment page</span>
+                        <span>Complete your details above to proceed with payment</span>
                       </div>
                     </div>
                   )}
@@ -429,25 +540,28 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full ${colors.tailwind.primaryMain} text-white py-4 rounded-lg font-semibold ${colors.tailwind.primaryHover} transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing...
-                  </>
-                ) : paymentMethod === 'card' ? (
-                  <>
-                    <Lock size={18} />
-                    Pay {shopConfig.currency}{total.toFixed(2)} Securely
-                  </>
-                ) : (
-                  'Place Order'
-                )}
-              </button>
+              {/* Only show submit button for bank transfer or card payment setup */}
+              {(paymentMethod === 'bank_transfer' || (paymentMethod === 'card' && !clientSecret)) && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full ${colors.tailwind.primaryMain} text-white py-4 rounded-lg font-semibold ${colors.tailwind.primaryHover} transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Processing...
+                    </>
+                  ) : paymentMethod === 'card' ? (
+                    <>
+                      <Lock size={18} />
+                      Continue to Payment
+                    </>
+                  ) : (
+                    'Place Order'
+                  )}
+                </button>
+              )}
 
               <p className="text-center text-xs text-gray-500">
                 <Lock size={12} className="inline mr-1" />

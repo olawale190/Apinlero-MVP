@@ -13,12 +13,35 @@
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
-// CORS headers for browser requests
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-};
+/**
+ * SECURITY: Validate origin and return appropriate CORS headers
+ * Only allows requests from apinlero.com subdomains
+ */
+function getCorsHeaders(req: Request): { headers: Record<string, string>; allowed: boolean } {
+  const origin = req.headers.get('origin') || '';
+
+  // Allow apinlero.com subdomains (e.g., ishas-treat.apinlero.com, app.apinlero.com)
+  // Also allow localhost for development
+  const isAllowed = /^https:\/\/[\w-]+\.apinlero\.com$/.test(origin) ||
+                    /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+                    /^https:\/\/apinlero\.com$/.test(origin);
+
+  if (!isAllowed) {
+    return {
+      headers: {},
+      allowed: false
+    };
+  }
+
+  return {
+    headers: {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    },
+    allowed: true
+  };
+}
 
 interface PaymentIntentRequest {
   businessId: string;  // NEW: Which business's Stripe account to use
@@ -31,9 +54,23 @@ interface PaymentIntentRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  // SECURITY: Validate CORS origin
+  const { headers: corsHeaders, allowed } = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Block requests from unauthorized origins
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Origin not allowed' }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   }
 
   try {
@@ -67,7 +104,7 @@ Deno.serve(async (req: Request) => {
     // Fetch business's Stripe secret key from database
     const { data: business, error: dbError } = await supabase
       .from('businesses')
-      .select('stripe_secret_key_encrypted')
+      .select('stripe_secret_key_encrypted, owner_email')
       .eq('id', businessId)
       .single();
 
@@ -77,6 +114,42 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: 'Business not found' }),
         {
           status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // SECURITY: Verify the authenticated user owns this business
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Check if user owns this business
+    if (user.email !== business.owner_email) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - You do not own this business' }),
+        {
+          status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
@@ -138,7 +211,20 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // SECURITY: Maximum charge validation to prevent abuse
+    const maximumCharge = 10000 * 100; // £10,000 in pence
+    if (amountInPence > maximumCharge) {
+      return new Response(
+        JSON.stringify({ error: 'Payment exceeds maximum allowed amount of £10,000' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // Create payment intent using business's Stripe account
+    // Use orderId as idempotency key to prevent duplicate charges
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInPence,
       currency: currency.toLowerCase(),
@@ -153,6 +239,8 @@ Deno.serve(async (req: Request) => {
       automatic_payment_methods: {
         enabled: true,
       },
+    }, {
+      idempotencyKey: `payment_intent_${orderId}`, // Prevent duplicate payment intents
     });
 
     console.log(`Payment intent created: ${paymentIntent.id} for business ${businessId}, order ${orderId}`);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { BusinessProvider, useBusinessContext } from './contexts/BusinessContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { getCurrentSubdomain } from './lib/business-resolver';
 import { supabase } from './lib/supabase';
 import { Landing } from './pages/Landing';
@@ -18,6 +19,12 @@ import DeliveryConfirm from './pages/DeliveryConfirm';
 import OrderTracking from './pages/OrderTracking';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ConsentBanner from './components/ConsentBanner';
+// Account pages
+import AccountPage from './pages/account/AccountPage';
+import OrderHistoryPage from './pages/account/OrderHistoryPage';
+import AddressesPage from './pages/account/AddressesPage';
+import WishlistPage from './pages/account/WishlistPage';
+import RecentlyViewedPage from './pages/account/RecentlyViewedPage';
 
 type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | 'dashboard' | 'delivery' | 'password-reset';
 
@@ -139,20 +146,22 @@ function IshasTreatStore() {
 
   // Render Storefront (customer view) - no auth required
   return (
-    <CartProvider>
-      {currentView === 'storefront' && (
-        <Shop
-          onCheckout={handleCheckout}
-          onViewDashboard={handleViewDashboard}
-        />
-      )}
-      {currentView === 'checkout' && (
-        <Checkout onBack={handleBackToShop} onSuccess={handleOrderSuccess} />
-      )}
-      {currentView === 'confirmation' && (
-        <Confirmation orderId={orderId} onContinueShopping={handleContinueShopping} />
-      )}
-    </CartProvider>
+    <AuthProvider>
+      <CartProvider>
+        {currentView === 'storefront' && (
+          <Shop
+            onCheckout={handleCheckout}
+            onViewDashboard={handleViewDashboard}
+          />
+        )}
+        {currentView === 'checkout' && (
+          <Checkout onBack={handleBackToShop} onSuccess={handleOrderSuccess} />
+        )}
+        {currentView === 'confirmation' && (
+          <Confirmation orderId={orderId} onContinueShopping={handleContinueShopping} />
+        )}
+      </CartProvider>
+    </AuthProvider>
   );
 }
 
@@ -200,19 +209,29 @@ function AppRoutes() {
     // Valid business subdomain → show their store
     return (
       <BrowserRouter>
-        <Routes>
-          {/* Store routes */}
-          <Route path="/" element={<IshasTreatStore />} />
-          <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
-          <Route path="/checkout" element={<IshasTreatStore />} />
-          <Route path="/track" element={<OrderTracking />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
-          <Route path="/reset-password" element={<UpdatePassword />} />
-          {/* Catch all for store subdomain */}
-          <Route path="*" element={<IshasTreatStore />} />
-        </Routes>
-        <ConsentBanner />
+        <AuthProvider>
+          <CartProvider>
+            <Routes>
+              {/* Store routes */}
+              <Route path="/" element={<IshasTreatStore />} />
+              <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
+              <Route path="/checkout" element={<IshasTreatStore />} />
+              <Route path="/track" element={<OrderTracking />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
+              <Route path="/reset-password" element={<UpdatePassword />} />
+              {/* Account routes */}
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/account/orders" element={<OrderHistoryPage />} />
+              <Route path="/account/addresses" element={<AddressesPage />} />
+              <Route path="/account/wishlist" element={<WishlistPage />} />
+              <Route path="/account/recently-viewed" element={<RecentlyViewedPage />} />
+              {/* Catch all for store subdomain */}
+              <Route path="*" element={<IshasTreatStore />} />
+            </Routes>
+            <ConsentBanner />
+          </CartProvider>
+        </AuthProvider>
       </BrowserRouter>
     );
   }
@@ -280,6 +299,13 @@ function AppRoutes() {
         {/* Legacy path-based store route (for localhost development) */}
         <Route path="/store/ishas-treat" element={<IshasTreatStore />} />
         <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
+
+        {/* Account routes (for localhost development) */}
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="/account/orders" element={<OrderHistoryPage />} />
+        <Route path="/account/addresses" element={<AddressesPage />} />
+        <Route path="/account/wishlist" element={<WishlistPage />} />
+        <Route path="/account/recently-viewed" element={<RecentlyViewedPage />} />
 
         {/* Delivery confirmation (driver view) */}
         <Route
