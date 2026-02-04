@@ -26,6 +26,16 @@ import {
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';
+import {
+  sanitizeMessage,
+  sanitizeName,
+  sanitizeAddress,
+  sanitizePostcode,
+  sanitizePhone,
+  sanitizeNotes,
+  sanitizeQuantity,
+  escapeHtml
+} from './input-sanitizer.js';
 
 // Auto-confirm threshold for returning customers
 const AUTO_CONFIRM_THRESHOLD = 30; // £30 for orders below this amount
@@ -254,8 +264,15 @@ export async function handleIncomingMessage({
   messageType = 'text',
   accessToken = null
 }) {
+  // SECURITY: Sanitize all user inputs
+  const sanitizedFrom = sanitizePhone(from);
+  const sanitizedName = sanitizeName(customerName);
+  const sanitizedText = sanitizeMessage(text || '');
+  const sanitizedButtonId = buttonId ? sanitizeMessage(buttonId) : null;
+  const sanitizedListId = listId ? sanitizeMessage(listId) : null;
+
   // Get conversation with business context
-  const conversation = await getConversation(from, customerName, businessId);
+  const conversation = await getConversation(sanitizedFrom, sanitizedName, businessId);
 
   // Handle media messages (images, audio, video, documents)
   let mediaResult = null;
@@ -279,7 +296,8 @@ export async function handleIncomingMessage({
   }
 
   // If this is a button/list reply, use the ID as the text for intent parsing
-  const messageText = buttonId || listId || text || '';
+  // SECURITY: Use sanitized versions of all inputs
+  const messageText = sanitizedButtonId || sanitizedListId || sanitizedText || '';
 
   const parsed = await parseMessage(messageText, conversation.state);
 
@@ -287,7 +305,7 @@ export async function handleIncomingMessage({
     intent: parsed.intent,
     items: parsed.items.length,
     state: conversation.state,
-    customer: conversation.customerName || customerName,
+    customer: conversation.customerName || sanitizedName,
     businessId: businessId || 'default',
     provider,
     messageType,
@@ -296,7 +314,8 @@ export async function handleIncomingMessage({
   });
 
   // Log inbound message (with business context)
-  await logMessage(from, 'inbound', messageText || `[${messageType}]`, parsed.intent, null, businessId);
+  // SECURITY: Use sanitized values for logging
+  await logMessage(sanitizedFrom, 'inbound', messageText || `[${messageType}]`, parsed.intent, null, businessId);
 
   // If only media was sent (no text), acknowledge it
   if (mediaResult?.success && !messageText.trim()) {

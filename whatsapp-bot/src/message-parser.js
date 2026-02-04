@@ -8,6 +8,8 @@
  * - Customer preferences
  *
  * Now powered by Neo4j Knowledge Graph for Yoruba + English matching!
+ *
+ * SECURITY: All inputs should be pre-sanitized before reaching this module
  */
 
 import { matchProductFromGraph, isNeo4jAvailable } from './neo4j-matcher.js';
