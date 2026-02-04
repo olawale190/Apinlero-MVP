@@ -17,7 +17,9 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check-env": "node scripts/check-env.js",
+    "validate-stripe": "node scripts/validate-stripe-keys.js"
   },
   "dependencies": {
     "@react-email/components": "^1.0.4",
@@ -33,6 +35,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.12.0",
+    "recharts": "^3.7.0",
     "resend": "^6.7.0",
     "serve": "^14.2.1",
     "twilio": "^5.11.2",

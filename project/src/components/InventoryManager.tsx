@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useBusinessContext } from '../contexts/BusinessContext';
 import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw } from 'lucide-react';
 import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
@@ -86,6 +87,7 @@ const defaultBulkTiers: BulkPriceTier[] = [
 ];
 
 export default function InventoryManager({ products: initialProducts, onProductUpdate }: InventoryManagerProps) {
+  const { business } = useBusinessContext();
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -363,11 +365,17 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Update product price
   const updatePrice = async (productId: string, price: number) => {
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setSavingPrice(true);
     const { error } = await supabase
       .from('products')
       .update({ price })
-      .eq('id', productId);
+      .eq('id', productId)
+      .eq('business_id', business.id);
 
     if (!error) {
       setProducts(products.map(p =>
@@ -385,11 +393,17 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Save bulk pricing tiers
   const saveBulkPricing = async (productId: string) => {
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setSavingPrice(true);
     const { error } = await supabase
       .from('products')
       .update({ bulk_pricing: bulkTiers })
-      .eq('id', productId);
+      .eq('id', productId)
+      .eq('business_id', business.id);
 
     if (!error) {
       setProducts(products.map(p =>
@@ -417,6 +431,11 @@ export default function InventoryManager({ products: initialProducts, onProductU
   };
 
   const updateStock = async (productId: string, change: number) => {
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setUpdatingStock(productId);
     const product = products.find(p => p.id === productId);
     if (!product) return;
@@ -427,7 +446,8 @@ export default function InventoryManager({ products: initialProducts, onProductU
     const { error } = await supabase
       .from('products')
       .update({ stock_quantity: newQuantity })
-      .eq('id', productId);
+      .eq('id', productId)
+      .eq('business_id', business.id);
 
     if (!error) {
       setProducts(products.map(p =>
@@ -507,11 +527,17 @@ export default function InventoryManager({ products: initialProducts, onProductU
       return;
     }
 
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setSavingProduct(true);
 
     const { data, error } = await supabase
       .from('products')
       .insert([{
+        business_id: business.id,
         name: newProductForm.name,
         price: parseFloat(newProductForm.price),
         category: newProductForm.category || 'General',
@@ -613,6 +639,11 @@ export default function InventoryManager({ products: initialProducts, onProductU
       return;
     }
 
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setSavingProduct(true);
 
     const { error } = await supabase
@@ -628,7 +659,8 @@ export default function InventoryManager({ products: initialProducts, onProductU
         batch_number: editForm.batch_number || null,
         image_url: editForm.image_url || null
       })
-      .eq('id', editingProduct.id);
+      .eq('id', editingProduct.id)
+      .eq('business_id', business.id);
 
     if (!error) {
       setProducts(products.map(p =>
@@ -662,12 +694,18 @@ export default function InventoryManager({ products: initialProducts, onProductU
   const deleteProduct = async () => {
     if (!deletingProduct) return;
 
+    if (!business?.id) {
+      alert('Error: No business context available');
+      return;
+    }
+
     setIsDeleting(true);
 
     const { error } = await supabase
       .from('products')
       .update({ is_active: false })
-      .eq('id', deletingProduct.id);
+      .eq('id', deletingProduct.id)
+      .eq('business_id', business.id);
 
     if (!error) {
       setProducts(products.filter(p => p.id !== deletingProduct.id));

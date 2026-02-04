@@ -17,10 +17,13 @@ import {
   ChevronDown,
   Mail,
   Check,
-  Settings
+  Settings,
+  TrendingUp,
+  ShoppingCart
 } from 'lucide-react';
 import { supabase, type Order, type Product } from '../lib/supabase';
 import { triggerDailySummary, isN8nConfigured } from '../lib/n8n';
+import { useBusinessContext } from '../contexts/BusinessContext';
 import AISummary from '../components/AISummary';
 import StatsCards from '../components/StatsCards';
 import OrdersTable from '../components/OrdersTable';
@@ -35,7 +38,9 @@ import ExpiryWastePredictor from '../components/ExpiryWastePredictor';
 import ChannelVisualization from '../components/ChannelVisualization';
 import DeliveryOptimizer from '../components/DeliveryOptimizer';
 import InventoryManager from '../components/InventoryManager';
+import PurchaseOrders from '../components/PurchaseOrders';
 import StripeSettings from './StripeSettings';
+import SalesInventoryAnalytics from '../components/SalesInventoryAnalytics';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -43,7 +48,7 @@ interface DashboardProps {
   businessName?: string;
 }
 
-type TabType = 'overview' | 'insights' | 'promotions' | 'customers' | 'calendar' | 'bundles' | 'expiry' | 'channels' | 'delivery' | 'inventory' | 'settings';
+type TabType = 'overview' | 'insights' | 'promotions' | 'customers' | 'calendar' | 'bundles' | 'expiry' | 'channels' | 'delivery' | 'inventory' | 'purchase' | 'analytics' | 'settings';
 
 const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: string }[] = [
   { id: 'overview', label: 'Overview', mobileLabel: 'Home', icon: <LayoutDashboard size={16} /> },
@@ -56,10 +61,13 @@ const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: st
   { id: 'channels', label: 'Channels', mobileLabel: 'Stats', icon: <BarChart3 size={16} /> },
   { id: 'delivery', label: 'Delivery', mobileLabel: 'Delivery', icon: <Truck size={16} /> },
   { id: 'inventory', label: 'Inventory', mobileLabel: 'Stock', icon: <Package size={16} /> },
+  { id: 'purchase', label: 'Purchase Orders', mobileLabel: 'Purchase', icon: <ShoppingCart size={16} /> },
+  { id: 'analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <TrendingUp size={16} /> },
   { id: 'settings', label: 'Settings', mobileLabel: 'Settings', icon: <Settings size={16} /> },
 ];
 
 export default function Dashboard({ onLogout, onViewStorefront, businessName = "Isha's Treat & Groceries" }: DashboardProps) {
+  const { business } = useBusinessContext();
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [showAISummary, setShowAISummary] = useState(true);
@@ -90,10 +98,12 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
   });
 
   useEffect(() => {
+    if (!business?.id) return;
+
     loadOrders();
     loadProducts();
 
-    // Set up real-time subscription
+    // Set up real-time subscription with business_id filter
     const channel = supabase
       .channel('orders-changes')
       .on(
@@ -102,6 +112,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           event: '*',
           schema: 'public',
           table: 'orders',
+          filter: `business_id=eq.${business.id}`,
         },
         () => {
           loadOrders();
@@ -112,25 +123,40 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [business?.id]);
 
   const loadOrders = async () => {
+    if (!business?.id) {
+      console.warn('⚠️ No business_id available, skipping orders load');
+      setIsLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .select('*')
+      .eq('business_id', business.id)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
       setOrders(data);
+    } else if (error) {
+      console.error('❌ Error loading orders:', error);
     }
     setIsLoading(false);
   };
 
   const loadProducts = async () => {
-    console.log('📦 Loading products from database...');
+    if (!business?.id) {
+      console.warn('⚠️ No business_id available, skipping products load');
+      return;
+    }
+
+    console.log('📦 Loading products from database for business:', business.id);
     const { data, error } = await supabase
       .from('products')
       .select('*')
+      .eq('business_id', business.id)
       .order('name', { ascending: true });
 
     if (!error && data) {
@@ -372,6 +398,20 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         {activeTab === 'inventory' && (
           <div className="space-y-6">
             <InventoryManager products={products} onProductUpdate={loadProducts} />
+          </div>
+        )}
+
+        {/* Purchase Orders Tab */}
+        {activeTab === 'purchase' && (
+          <div className="space-y-6">
+            <PurchaseOrders products={products} onProductUpdate={loadProducts} />
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <SalesInventoryAnalytics orders={orders} products={products} />
           </div>
         )}
 
