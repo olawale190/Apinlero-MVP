@@ -9,6 +9,7 @@ import { sendLowStockAlertEmail, isEmailConfigured } from '../lib/email';
 import { uploadAndTrack, BUCKETS, getPublicUrl } from '../lib/storage';
 import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
+import ProductImagePlaceholder from './ProductImagePlaceholder';
 
 interface BulkPriceTier {
   minQty: number;
@@ -890,20 +891,22 @@ export default function InventoryManager({ products: initialProducts, onProductU
                 }`}
               >
                 {/* Product Image */}
-                {product.image_url && (
-                  <div className="relative h-32 bg-gray-100">
+                <div className="relative h-32 bg-gray-100">
+                  {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name}
                       className="w-full h-full object-cover"
                     />
-                    {isOutOfStock && (
-                      <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                        <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">OUT OF STOCK</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  ) : (
+                    <ProductImagePlaceholder productName={product.name} className="w-full h-full" />
+                  )}
+                  {isOutOfStock && (
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                      <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">OUT OF STOCK</span>
+                    </div>
+                  )}
+                </div>
 
                 <div className="p-4">
                   <div className="flex justify-between items-start mb-3">
@@ -939,7 +942,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                   <div className="flex items-center justify-between">
                   <div>
                     <p className="text-lg font-bold" style={{ color: '#0d9488' }}>
-                      £{product.price.toFixed(2)}
+                      £{(product.price / 100).toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500">per {product.unit}</p>
                   </div>
@@ -1041,7 +1044,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                         onClick={() => {
                           const price = parseFloat(newPrice);
                           if (!isNaN(price) && price > 0) {
-                            updatePrice(scanResult.id, price);
+                            updatePrice(scanResult.id, Math.round(price * 100));
                           }
                         }}
                         disabled={savingPrice}
@@ -1062,12 +1065,12 @@ export default function InventoryManager({ products: initialProducts, onProductU
                   ) : (
                     <div className="flex items-center gap-2">
                       <p className="text-2xl font-bold" style={{ color: '#0d9488' }}>
-                        £{scanResult.price.toFixed(2)}
+                        £{(scanResult.price / 100).toFixed(2)}
                       </p>
                       <button
                         onClick={() => {
                           setEditingPrice(scanResult.id);
-                          setNewPrice(scanResult.price.toString());
+                          setNewPrice((scanResult.price / 100).toFixed(2));
                         }}
                         className="p-1 bg-gray-100 hover:bg-gray-200 rounded transition"
                         title="Edit Price"
@@ -1102,7 +1105,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                         <span className="text-gray-600">
                           {tier.maxQty ? `${tier.minQty}-${tier.maxQty} units` : `${tier.minQty}+ units`}
                         </span>
-                        <span className="font-semibold text-purple-700">£{tier.price.toFixed(2)}</span>
+                        <span className="font-semibold text-purple-700">£{(tier.price / 100).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -1757,7 +1760,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
               </p>
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
                 <p className="font-semibold text-gray-800">{deletingProduct.name}</p>
-                <p className="text-sm text-gray-500">{deletingProduct.category} • £{deletingProduct.price.toFixed(2)}</p>
+                <p className="text-sm text-gray-500">{deletingProduct.category} • £{(deletingProduct.price / 100).toFixed(2)}</p>
               </div>
               <p className="text-sm text-gray-500">
                 This will hide the product from your storefront. You can restore it later if needed.

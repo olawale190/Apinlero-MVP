@@ -581,7 +581,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                       {item.product.name} x {item.quantity}
                     </span>
                     <span className="font-medium">
-                      {shopConfig.currency}{(item.product.price * item.quantity).toFixed(2)}
+                      {shopConfig.currency}{((item.product.price / 100) * item.quantity).toFixed(2)}
                     </span>
                   </div>
                 ))}

@@ -48,7 +48,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                     <h3 className="font-semibold text-gray-900">{item.product.name}</h3>
                     <p className="text-sm text-gray-600">{item.product.unit}</p>
                     <p className="text-lg font-bold ${colors.tailwind.primaryMainText} mt-1">
-                      {shopConfig.currency}{item.product.price.toFixed(2)}
+                      {shopConfig.currency}{(item.product.price / 100).toFixed(2)}
                     </p>
                   </div>
 
@@ -82,7 +82,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                     </div>
 
                     <p className="text-sm font-medium text-gray-900">
-                      {shopConfig.currency}{(item.product.price * item.quantity).toFixed(2)}
+                      {shopConfig.currency}{((item.product.price / 100) * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 </div>

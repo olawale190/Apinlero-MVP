@@ -5,6 +5,7 @@ import { shopConfig } from '../config/shop';
 import { useCart } from '../context/CartContext';
 import { colors } from '../config/colors';
 import WishlistButton from './WishlistButton';
+import ProductImagePlaceholder from './ProductImagePlaceholder';
 
 interface ProductCardProps {
   product: Product;
@@ -45,7 +46,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             className="w-full h-full object-cover"
           />
         ) : (
-          <Package className="w-16 h-16 text-gray-400" />
+          <ProductImagePlaceholder productName={product.name} className="w-full h-full" />
         )}
         {/* Wishlist button */}
         <WishlistButton productId={product.id} className="absolute top-2 left-2" size="sm" />
@@ -61,7 +62,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="flex items-center justify-between mb-3">
           <span className={`text-xl font-bold ${colors.tailwind.primaryMainText}`}>
-            {shopConfig.currency}{product.price.toFixed(2)}
+            {shopConfig.currency}{(product.price / 100).toFixed(2)}
           </span>
         </div>
 
