@@ -99,13 +99,9 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
         throw new Error('Please provide delivery address and postcode');
       }
 
-      // SECURITY FIX: Verify prices server-side before creating payment
+      // Get auth token (use anon key for guest checkout if no session)
       const { data: authData } = await supabase.auth.getSession();
-      const token = authData.session?.access_token;
-
-      if (!token) {
-        throw new Error('Authentication required to process payment');
-      }
+      const token = authData.session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const verifyResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-order-total`,
@@ -322,7 +318,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   />
                 </div>
 
@@ -335,7 +331,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   />
                 </div>
 
@@ -348,7 +344,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -362,7 +358,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     onClick={() => setDeliveryMethod('delivery')}
                     className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
                       deliveryMethod === 'delivery'
-                        ? '${colors.tailwind.primaryBorder} bg-teal-50 ${colors.tailwind.primaryMainText}'
+                        ? 'border-teal-600 bg-teal-50 text-teal-600'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
@@ -373,7 +369,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     onClick={() => setDeliveryMethod('collection')}
                     className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-colors ${
                       deliveryMethod === 'collection'
-                        ? '${colors.tailwind.primaryBorder} bg-teal-50 ${colors.tailwind.primaryMainText}'
+                        ? 'border-teal-600 bg-teal-50 text-teal-600'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
@@ -392,7 +388,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                         value={formData.address}
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         rows={3}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                       />
                     </div>
 
@@ -405,7 +401,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                         required
                         value={formData.postcode}
                         onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                       />
                     </div>
                   </>
@@ -426,7 +422,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                   <label
                     className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
                       paymentMethod === 'card'
-                        ? '${colors.tailwind.primaryBorder} bg-teal-50'
+                        ? 'border-teal-600 bg-teal-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -435,11 +431,11 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                       name="payment"
                       checked={paymentMethod === 'card'}
                       onChange={() => setPaymentMethod('card')}
-                      className="w-4 h-4 ${colors.tailwind.primaryMainText}"
+                      className="w-4 h-4 text-teal-600"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <CreditCard className="${colors.tailwind.primaryMainText}" size={20} />
+                        <CreditCard className="text-teal-600" size={20} />
                         <span className="font-semibold">Pay with Card</span>
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Recommended</span>
                       </div>
@@ -489,7 +485,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                   <label
                     className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
                       paymentMethod === 'bank_transfer'
-                        ? '${colors.tailwind.primaryBorder} bg-teal-50'
+                        ? 'border-teal-600 bg-teal-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -498,7 +494,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                       name="payment"
                       checked={paymentMethod === 'bank_transfer'}
                       onChange={() => setPaymentMethod('bank_transfer')}
-                      className="w-4 h-4 ${colors.tailwind.primaryMainText}"
+                      className="w-4 h-4 text-teal-600"
                     />
                     <div className="flex-1">
                       <span className="font-semibold">Bank Transfer</span>
@@ -530,7 +526,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   rows={3}
                   placeholder="Any special instructions..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:${colors.tailwind.primaryRing} focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
 
@@ -545,7 +541,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full ${colors.tailwind.primaryMain} text-white py-4 rounded-lg font-semibold ${colors.tailwind.primaryHover} transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-teal-600 text-white py-4 rounded-lg font-semibold hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -598,7 +594,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>Total</span>
-                  <span className="${colors.tailwind.primaryMainText}">{shopConfig.currency}{total.toFixed(2)}</span>
+                  <span className="text-teal-600">{shopConfig.currency}{total.toFixed(2)}</span>
                 </div>
               </div>
 
