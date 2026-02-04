@@ -62,6 +62,16 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
           } else {
             setError(`No active business found for subdomain: ${currentSubdomain}`);
           }
+        } else {
+          // LOCALHOST/ROOT DOMAIN: Load default business (ishas-treat)
+          // This handles path-based routing (e.g., localhost:5174/store/ishas-treat)
+          const defaultBusinessData = await getBusinessBySlug('ishas-treat');
+
+          if (defaultBusinessData) {
+            setBusiness(defaultBusinessData);
+          } else {
+            setError('No default business found. Please ensure database is seeded.');
+          }
         }
 
         setIsLoading(false);
