@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBusinessContext } from '../contexts/BusinessContext';
-import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw } from 'lucide-react';
+import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
 import CategoryManager from './CategoryManager';
@@ -11,6 +11,7 @@ import { uploadAndTrack, BUCKETS, getPublicUrl } from '../lib/storage';
 import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
+import InventoryImport from './InventoryImport';
 
 interface BulkPriceTier {
   minQty: number;
@@ -160,6 +161,9 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Refresh state
   const [refreshing, setRefreshing] = useState(false);
+
+  // Bulk import state
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Handle sending low stock alert
   const handleSendLowStockAlert = async (product: Product) => {
@@ -881,6 +885,14 @@ export default function InventoryManager({ products: initialProducts, onProductU
             >
               <Barcode size={18} />
               <span className="hidden sm:inline">Scan</span>
+            </button>
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium"
+              title="Bulk Import from CSV"
+            >
+              <FileSpreadsheet size={18} />
+              <span className="hidden sm:inline">Import</span>
             </button>
             <button
               onClick={() => setShowDiagnostics(true)}
@@ -1839,6 +1851,14 @@ export default function InventoryManager({ products: initialProducts, onProductU
       {/* Storage Diagnostics Modal */}
       {showDiagnostics && (
         <StorageDiagnosticsPanel onClose={() => setShowDiagnostics(false)} />
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <InventoryImport
+          onImportComplete={onProductUpdate}
+          onClose={() => setShowBulkImport(false)}
+        />
       )}
     </div>
   );
