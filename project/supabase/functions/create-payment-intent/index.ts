@@ -12,6 +12,8 @@
 
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { decryptStripeKey } from '../_shared/crypto.ts';
+import { rateLimitMiddleware } from '../_shared/rate-limiter.ts';
 
 /**
  * SECURITY: Validate origin and return appropriate CORS headers
@@ -71,6 +73,12 @@ Deno.serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       }
     );
+  }
+
+  // SECURITY: Apply rate limiting
+  const rateLimitResponse = rateLimitMiddleware(req, 'create-payment-intent', corsHeaders);
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   try {
@@ -165,9 +173,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // TODO: Decrypt the secret key if you implement encryption
-    // For now, we're storing it directly (INSECURE - implement encryption!)
-    const stripeSecretKey = business.stripe_secret_key_encrypted;
+    // SECURITY: Decrypt the Stripe secret key
+    // Keys are stored encrypted with AES-256-GCM
+    let stripeSecretKey: string;
+    try {
+      stripeSecretKey = await decryptStripeKey(business.stripe_secret_key_encrypted);
+    } catch (decryptError) {
+      console.error('Failed to decrypt Stripe key:', decryptError);
+      return new Response(
+        JSON.stringify({ error: 'Stripe key decryption failed. Please reconfigure Stripe.' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     // Validate Stripe key format
     if (!stripeSecretKey.startsWith('sk_')) {

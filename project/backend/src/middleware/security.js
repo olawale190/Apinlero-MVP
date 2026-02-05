@@ -93,7 +93,8 @@ export const authRateLimiter = rateLimiter(RATE_LIMIT_AUTH_MAX);
 // ==============================================================================
 
 /**
- * Verify Supabase JWT token and attach user to request
+ * Verify Supabase JWT token and attach user + business_id to request
+ * Extracts business_id from JWT custom claims for multi-tenant security
  */
 export function authenticateToken(supabase) {
   return async (req, res, next) => {
@@ -118,9 +119,29 @@ export function authenticateToken(supabase) {
         });
       }
 
-      // Attach user to request for use in route handlers
+      // Decode JWT to extract custom claims (business_id)
+      // JWT structure: header.payload.signature
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+
+      // Extract business_id from custom claims
+      const businessId = payload.business_id || payload.app_metadata?.business_id;
+      const businessIds = payload.business_ids || payload.app_metadata?.business_ids || [];
+      const businessRole = payload.business_role || payload.app_metadata?.business_role;
+
+      // Attach user and business context to request
       req.user = user;
       req.token = token;
+      req.businessId = businessId;
+      req.businessIds = businessIds;
+      req.businessRole = businessRole;
+
+      // Log for debugging (remove in production if too verbose)
+      if (businessId) {
+        console.log(`✅ Authenticated user: ${user.email} | Business: ${businessId} | Role: ${businessRole || 'N/A'}`);
+      } else {
+        console.warn(`⚠️ User ${user.email} has no business_id in JWT claims`);
+      }
+
       next();
     } catch (error) {
       console.error('Auth error:', error.message);
@@ -133,7 +154,7 @@ export function authenticateToken(supabase) {
 }
 
 /**
- * Optional authentication - doesn't fail if no token, but attaches user if present
+ * Optional authentication - doesn't fail if no token, but attaches user + business_id if present
  */
 export function optionalAuth(supabase) {
   return async (req, res, next) => {
@@ -146,6 +167,16 @@ export function optionalAuth(supabase) {
         if (user) {
           req.user = user;
           req.token = token;
+
+          // Extract business_id from JWT claims
+          try {
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            req.businessId = payload.business_id || payload.app_metadata?.business_id;
+            req.businessIds = payload.business_ids || payload.app_metadata?.business_ids || [];
+            req.businessRole = payload.business_role || payload.app_metadata?.business_role;
+          } catch (err) {
+            // Ignore JWT decode errors for optional auth
+          }
         }
       } catch (error) {
         // Ignore errors for optional auth
@@ -154,6 +185,93 @@ export function optionalAuth(supabase) {
 
     next();
   };
+}
+
+// ==============================================================================
+// BUSINESS CONTEXT MIDDLEWARE
+// ==============================================================================
+
+/**
+ * Extract business_id from request context (subdomain, header, or query param)
+ * For public endpoints (storefront) where JWT is not available
+ */
+export function extractBusinessContext(supabase) {
+  return async (req, res, next) => {
+    // If businessId already set by auth middleware, skip
+    if (req.businessId) {
+      return next();
+    }
+
+    try {
+      // Method 1: X-Business-ID header (preferred for API calls)
+      let businessId = req.headers['x-business-id'];
+
+      // Method 2: business_id query parameter
+      if (!businessId) {
+        businessId = req.query.business_id;
+      }
+
+      // Method 3: Resolve from subdomain (e.g., ishas-treat.apinlero.com)
+      if (!businessId) {
+        const host = req.headers.host || '';
+        const subdomain = host.split('.')[0];
+
+        // Skip if it's app subdomain or localhost
+        if (subdomain && subdomain !== 'app' && subdomain !== 'localhost' && !host.startsWith('localhost')) {
+          // Look up business by slug
+          const { data, error } = await supabase
+            .from('businesses')
+            .select('id')
+            .eq('slug', subdomain)
+            .eq('is_active', true)
+            .single();
+
+          if (!error && data) {
+            businessId = data.id;
+            console.log(`✅ Resolved business from subdomain: ${subdomain} -> ${businessId}`);
+          }
+        }
+      }
+
+      // Method 4: business_slug query parameter
+      if (!businessId && req.query.business_slug) {
+        const { data, error } = await supabase
+          .from('businesses')
+          .select('id')
+          .eq('slug', req.query.business_slug)
+          .eq('is_active', true)
+          .single();
+
+        if (!error && data) {
+          businessId = data.id;
+        }
+      }
+
+      // Attach to request
+      if (businessId) {
+        req.businessId = businessId;
+      }
+    } catch (error) {
+      console.error('Error extracting business context:', error.message);
+      // Don't fail the request, just continue without business_id
+    }
+
+    next();
+  };
+}
+
+/**
+ * Require business_id middleware
+ * Fails request if no business_id is available
+ */
+export function requireBusinessContext(req, res, next) {
+  if (!req.businessId) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'business_id is required. Provide via JWT claims, X-Business-ID header, or business_id query parameter.',
+    });
+  }
+  next();
 }
 
 // ==============================================================================

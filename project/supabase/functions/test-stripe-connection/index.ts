@@ -8,6 +8,7 @@
  */
 
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno';
+import { rateLimitMiddleware } from '../_shared/rate-limiter.ts';
 
 /**
  * SECURITY: Validate origin and return appropriate CORS headers
@@ -62,6 +63,12 @@ Deno.serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       }
     );
+  }
+
+  // SECURITY: Apply rate limiting
+  const rateLimitResponse = rateLimitMiddleware(req, 'test-stripe-connection', corsHeaders);
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   try {

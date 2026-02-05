@@ -336,16 +336,43 @@ Available skills for common tasks:
 ## Known Issues
 
 1. **RLS Partially Disabled**: Some Row Level Security policies disabled for testing
-2. **Neo4j Password**: Cannot rotate on Aura free tier
+2. **NPM Audit Vulnerabilities**: 26 in project/ (run `npm audit fix`)
+3. **Neo4j Password**: Cannot rotate on Aura free tier
 
 ---
 
-## Security Notes
+## Security Status
 
-- **Never commit .env files** - Use `.gitignore`
-- **Pre-commit hooks enabled** - Gitleaks secret detection
-- **Service keys server-side only** - Never expose in frontend
+### Active Protection ✅
+- **Pre-commit hooks enabled** - Blocks secrets before commit
+- **Gitleaks configured** - Industry-standard secret detection
+- **Git hooks tested** - Verified working (see test results above)
+- **.gitignore configured** - All `.env` files excluded
+
+### Credential Security
+- **Service keys server-side only** - Never exposed in frontend
 - **Supabase anon key** is safe for frontend (RLS protects data)
+- **Rotation guides available** - See [CREDENTIAL_ROTATION_GUIDE.md](CREDENTIAL_ROTATION_GUIDE.md)
+
+### Quick Security Actions
+
+**To rotate exposed credentials:**
+```bash
+# See detailed guide
+open CREDENTIAL_ROTATION_GUIDE.md
+
+# Or quick start
+open SECURITY_QUICK_START.md
+```
+
+**Test pre-commit hook:**
+```bash
+cd Apinlero_MVP
+echo "SECRET_KEY=test123" > test.txt
+git add test.txt && git commit -m "test"
+# Should be blocked by pre-commit hook
+rm test.txt && git reset HEAD test.txt
+```
 
 ---
 
@@ -373,6 +400,8 @@ The WhatsApp bot supports natural language ordering:
 | Document | Purpose |
 |----------|---------|
 | `CLAUDE.md` | This file - project overview |
+| `CREDENTIAL_ROTATION_GUIDE.md` | **Step-by-step credential rotation** |
+| `SECURITY_QUICK_START.md` | **Quick security reference** |
 | `INFRASTRUCTURE_GUIDE.md` | Infrastructure setup |
 | `SECURITY_GUIDE.md` | Security policies |
 | `TROUBLESHOOTING.md` | Common issues |
@@ -382,4 +411,4 @@ The WhatsApp bot supports natural language ordering:
 
 ---
 
-*Last Updated: January 31, 2026*
+*Last Updated: February 4, 2026*

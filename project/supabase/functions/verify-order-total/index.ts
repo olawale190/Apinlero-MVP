@@ -138,7 +138,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // Calculate server-side total
-    const serverTotal = calculatedSubtotal + deliveryFee;
+    // calculatedSubtotal is in pence (from database), deliveryFee is in pounds (from client)
+    // Convert deliveryFee to pence, add to subtotal, then convert total to pounds
+    const serverTotal = (calculatedSubtotal + (deliveryFee * 100)) / 100;
 
     // SECURITY: Verify totals match (allow 0.01 difference for rounding)
     const totalDifference = Math.abs(serverTotal - clientTotal);
@@ -163,7 +165,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         valid: true,
         verifiedTotal: serverTotal,
-        subtotal: calculatedSubtotal,
+        subtotal: calculatedSubtotal / 100, // Convert to pounds for consistency
         deliveryFee,
         items: verifiedItems,
       }),

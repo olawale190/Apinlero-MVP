@@ -89,6 +89,17 @@ Deno.serve(async (req: Request) => {
         console.log(`Payment succeeded for order ${orderId}`);
 
         if (orderId) {
+          // Fetch order details before updating (needed for WhatsApp notification)
+          const { data: order, error: fetchError } = await supabase
+            .from('orders')
+            .select('phone_number, customer_name, total, business_id')
+            .eq('id', orderId)
+            .single();
+
+          if (fetchError) {
+            console.error('Error fetching order:', fetchError);
+          }
+
           // Update order status
           const { error: orderError } = await supabase
             .from('orders')
@@ -122,6 +133,36 @@ Deno.serve(async (req: Request) => {
           }
 
           console.log(`Order ${orderId} marked as paid`);
+
+          // Send WhatsApp confirmation (non-blocking)
+          if (order && order.phone_number && order.business_id) {
+            try {
+              // Fetch WhatsApp config for this business
+              const { data: whatsappConfig, error: configError } = await supabase
+                .from('whatsapp_configs')
+                .select('phone_number_id, access_token')
+                .eq('business_id', order.business_id)
+                .single();
+
+              if (configError || !whatsappConfig) {
+                console.warn(`WhatsApp not configured for business ${order.business_id}`);
+              } else if (whatsappConfig.phone_number_id && whatsappConfig.access_token) {
+                await sendWhatsAppPaymentConfirmation(
+                  whatsappConfig.phone_number_id,
+                  whatsappConfig.access_token,
+                  order.phone_number,
+                  orderId,
+                  order.total,
+                  order.customer_name || 'Customer'
+                );
+              } else {
+                console.warn(`WhatsApp credentials incomplete for business ${order.business_id}`);
+              }
+            } catch (error) {
+              console.error('WhatsApp notification failed:', error);
+              // Don't fail the webhook - payment already succeeded
+            }
+          }
         }
         break;
       }
@@ -239,3 +280,56 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+/**
+ * Send WhatsApp payment confirmation to customer
+ */
+async function sendWhatsAppPaymentConfirmation(
+  phoneNumberId: string,
+  accessToken: string,
+  customerPhone: string,
+  orderId: string,
+  total: number,
+  customerName: string
+): Promise<void> {
+  const GRAPH_API_BASE = 'https://graph.facebook.com/v18.0';
+
+  // Clean phone number (remove +, spaces, whatsapp: prefix, etc.)
+  const cleanPhone = customerPhone.replace(/\D/g, '');
+
+  // Format message
+  const message = `✅ Payment Confirmed!\n\nOrder #: ${orderId.substring(0, 8).toUpperCase()}\nAmount: £${total.toFixed(2)} paid by card\nStatus: Confirmed\n\nWe're preparing your order now!\n\nQuestions? Just reply to this message.`;
+
+  try {
+    const response = await fetch(`${GRAPH_API_BASE}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanPhone,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: message
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('WhatsApp API error:', data.error);
+      throw new Error(data.error?.message || 'WhatsApp API failed');
+    }
+
+    console.log(`✅ WhatsApp confirmation sent to ${customerName} (${cleanPhone}): ${data.messages?.[0]?.id}`);
+
+  } catch (error) {
+    console.error('Failed to send WhatsApp confirmation:', error);
+    // Don't throw - we don't want to fail the webhook
+  }
+}

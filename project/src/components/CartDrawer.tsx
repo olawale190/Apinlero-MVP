@@ -47,7 +47,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{item.product.name}</h3>
                     <p className="text-sm text-gray-600">{item.product.unit}</p>
-                    <p className="text-lg font-bold ${colors.tailwind.primaryMainText} mt-1">
+                    <p className="text-lg font-bold text-teal-600 mt-1">
                       {shopConfig.currency}{(item.product.price / 100).toFixed(2)}
                     </p>
                   </div>
@@ -103,12 +103,12 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
             </div>
             <div className="flex justify-between text-lg font-bold border-t pt-3">
               <span>Total</span>
-              <span className="${colors.tailwind.primaryMainText}">{shopConfig.currency}{total.toFixed(2)}</span>
+              <span className="text-teal-600">{shopConfig.currency}{total.toFixed(2)}</span>
             </div>
 
             <button
               onClick={onCheckout}
-              className="w-full ${colors.tailwind.primaryMain} text-white py-3 rounded-lg font-semibold ${colors.tailwind.primaryHover} transition-colors"
+              className="w-full bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
             >
               Checkout
             </button>

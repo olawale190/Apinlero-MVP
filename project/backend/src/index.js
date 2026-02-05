@@ -30,6 +30,8 @@ import {
   verifyDeliveryToken,
   requestLogger,
   errorHandler,
+  extractBusinessContext,
+  requireBusinessContext,
 } from './middleware/security.js';
 
 dotenv.config();
@@ -98,16 +100,18 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Get all active products (public)
-app.get('/api/products', rateLimiter(200), async (req, res) => {
+// Get all active products (public - requires business context)
+app.get('/api/products', rateLimiter(200), extractBusinessContext(supabase), requireBusinessContext, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('products')
       .select('id, name, price, category, unit, image_url, stock_quantity, is_active, bulk_pricing')
+      .eq('business_id', req.businessId)
       .eq('is_active', true)
       .order('name');
 
     if (error) throw error;
+    console.log(`✅ [GET /api/products] Returned ${data?.length || 0} products for business: ${req.businessId}`);
     res.json(data || []);
   } catch (error) {
     console.error('Error fetching products:', error.message);
@@ -115,8 +119,8 @@ app.get('/api/products', rateLimiter(200), async (req, res) => {
   }
 });
 
-// Get product by ID (public)
-app.get('/api/products/:id', rateLimiter(200), async (req, res) => {
+// Get product by ID (public - requires business context)
+app.get('/api/products/:id', rateLimiter(200), extractBusinessContext(supabase), requireBusinessContext, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -129,6 +133,7 @@ app.get('/api/products/:id', rateLimiter(200), async (req, res) => {
       .from('products')
       .select('id, name, price, category, unit, image_url, stock_quantity, is_active, bulk_pricing')
       .eq('id', id)
+      .eq('business_id', req.businessId)
       .eq('is_active', true)
       .single();
 
@@ -139,6 +144,7 @@ app.get('/api/products/:id', rateLimiter(200), async (req, res) => {
       throw error;
     }
 
+    console.log(`✅ [GET /api/products/:id] Returned product ${id} for business: ${req.businessId}`);
     res.json(data);
   } catch (error) {
     console.error('Error fetching product:', error.message);
@@ -147,13 +153,14 @@ app.get('/api/products/:id', rateLimiter(200), async (req, res) => {
 });
 
 // Create order (public - customers can create orders, with validation)
-app.post('/api/orders', rateLimiter(20), validateOrderInput, async (req, res) => {
+app.post('/api/orders', rateLimiter(20), extractBusinessContext(supabase), requireBusinessContext, validateOrderInput, async (req, res) => {
   try {
     const orderData = req.body;
 
     const { data, error } = await supabase
       .from('orders')
       .insert([{
+        business_id: req.businessId,
         customer_name: orderData.customer_name,
         phone_number: orderData.phone_number || '',
         email: orderData.email || '',
@@ -176,6 +183,7 @@ app.post('/api/orders', rateLimiter(20), validateOrderInput, async (req, res) =>
     // Generate secure delivery token with order ID (72 hour validity)
     const secureDeliveryToken = generateSecureToken(data.id, 72);
 
+    console.log(`✅ [POST /api/orders] Created order ${data.id} for business: ${req.businessId}`);
     res.json({
       ...data,
       delivery_token: secureDeliveryToken,
@@ -277,12 +285,18 @@ app.post('/api/delivery/confirm', rateLimiter(20), async (req, res) => {
 // Get all orders (dashboard - requires authentication)
 app.get('/api/orders', authenticateToken(supabaseAuth), async (req, res) => {
   try {
+    if (!req.businessId) {
+      return res.status(400).json({ error: 'No business_id found in JWT claims' });
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .select('*')
+      .eq('business_id', req.businessId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    console.log(`✅ [GET /api/orders] Returned ${data?.length || 0} orders for business: ${req.businessId}`);
     res.json(data || []);
   } catch (error) {
     console.error('Error fetching orders:', error.message);
@@ -295,6 +309,10 @@ app.patch('/api/orders/:id', authenticateToken(supabaseAuth), async (req, res) =
   try {
     const { id } = req.params;
     const { status } = req.body;
+
+    if (!req.businessId) {
+      return res.status(400).json({ error: 'No business_id found in JWT claims' });
+    }
 
     // Validate UUID to prevent injection
     if (!isValidUUID(id)) {
@@ -314,10 +332,12 @@ app.patch('/api/orders/:id', authenticateToken(supabaseAuth), async (req, res) =
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
+      .eq('business_id', req.businessId)
       .select()
       .single();
 
     if (error) throw error;
+    console.log(`✅ [PATCH /api/orders/:id] Updated order ${id} for business: ${req.businessId}`);
     res.json(data);
   } catch (error) {
     console.error('Error updating order:', error.message);
@@ -456,9 +476,14 @@ app.post('/api/webhook/stripe',
 // AI Insights endpoint (requires authentication)
 app.get('/api/insights', authenticateToken(supabaseAuth), async (req, res) => {
   try {
+    if (!req.businessId) {
+      return res.status(400).json({ error: 'No business_id found in JWT claims' });
+    }
+
     const { data: orders, error } = await supabase
       .from('orders')
       .select('*')
+      .eq('business_id', req.businessId)
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -473,6 +498,7 @@ app.get('/api/insights', authenticateToken(supabaseAuth), async (req, res) => {
       return acc;
     }, {}) || {};
 
+    console.log(`✅ [GET /api/insights] Generated insights for business: ${req.businessId}`);
     res.json({
       totalOrders,
       totalRevenue: Number(totalRevenue.toFixed(2)),

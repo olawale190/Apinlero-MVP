@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useBusinessContext } from '../contexts/BusinessContext';
 import { Product } from '../types';
 import { MessageCircle } from 'lucide-react';
 import StorefrontHeader from '../components/StorefrontHeader';
@@ -20,6 +21,7 @@ interface ShopProps {
 }
 
 export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
+  const { business } = useBusinessContext();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -27,18 +29,29 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (business?.id) {
+      fetchProducts();
+    }
+  }, [business?.id]);
 
   const fetchProducts = async () => {
+    if (!business?.id) {
+      console.warn('⚠️ No business_id available, skipping products load');
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('🛍️ Loading products for business:', business.id);
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('business_id', business.id)
         .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
+      console.log(`✅ Loaded ${data?.length || 0} products for storefront`);
       setProducts(data || []);
     } catch (error) {
       console.error('Error fetching products:', error);

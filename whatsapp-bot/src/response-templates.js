@@ -504,6 +504,31 @@ Subtotal: £${subtotal.toFixed(2)}
 Please send your full address with postcode, like:
 "45 High Street, London E1 4AA"`,
     buttons: []
+  }),
+
+  // NEW: State-first routing re-prompts
+  AWAITING_CONFIRM_REPROMPT: ({ pendingOrder }) => {
+    const items = pendingOrder?.items || [];
+    const itemList = items.map(i => `• ${i.quantity}x ${i.product_name}`).join('\n');
+    return {
+      text: `Just checking - did you want to confirm this order? 😊
+
+${itemList}
+Total: £${pendingOrder?.total?.toFixed(2) || '0.00'}
+
+Just say "yes" to confirm or "no" to cancel!`,
+      buttons: ['✅ Yes', '❌ No', '✏️ Change']
+    };
+  },
+
+  AWAITING_PAYMENT_REPROMPT: () => ({
+    text: `How would you like to pay for your order? 💰
+
+• 💳 Pay online (card/bank transfer)
+• 💵 Cash on delivery
+
+Just say "cash" or "card"!`,
+    buttons: ['💳 Pay Online', '💵 Cash on Delivery']
   })
 };
 

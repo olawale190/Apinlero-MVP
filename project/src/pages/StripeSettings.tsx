@@ -11,9 +11,8 @@ import {
   Info
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-
-// Placeholder business ID - in production, get from auth context
-const BUSINESS_ID = 'demo-business-id';
+import { useBusinessContext } from '../contexts/BusinessContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StripeConfig {
   id?: string;
@@ -25,10 +24,14 @@ interface StripeConfig {
 }
 
 export default function StripeSettings() {
+  const { business } = useBusinessContext();
+  const { user, isAuthenticated } = useAuth();
+
   const [config, setConfig] = useState<StripeConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Form state
   const [publishableKey, setPublishableKey] = useState('');
@@ -37,20 +40,41 @@ export default function StripeSettings() {
   const [accountId, setAccountId] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
 
+  // SECURITY: Get business ID from context, not hardcoded
+  const businessId = business?.id;
+
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    loadStripeConfig();
-  }, []);
+    if (businessId && isAuthenticated) {
+      loadStripeConfig();
+    } else if (!isAuthenticated) {
+      setAuthError('Please sign in to access Stripe settings.');
+      setLoading(false);
+    } else if (!businessId) {
+      setAuthError('No business selected. Please select a business first.');
+      setLoading(false);
+    }
+  }, [businessId, isAuthenticated]);
 
   async function loadStripeConfig() {
+    if (!businessId) {
+      setAuthError('No business ID available');
+      return;
+    }
+
     setLoading(true);
+    setAuthError(null);
+
     try {
+      // SECURITY: Only fetch config for the authenticated user's business
       const { data, error } = await supabase
         .from('businesses')
-        .select('stripe_publishable_key, stripe_secret_key_encrypted, stripe_account_id, stripe_webhook_secret, stripe_connected_at')
-        .eq('id', BUSINESS_ID)
+        .select('stripe_publishable_key, stripe_account_id, stripe_webhook_secret, stripe_connected_at')
+        .eq('id', businessId)
         .single();
+
+      // NOTE: We intentionally do NOT fetch stripe_secret_key_encrypted to the frontend
 
       if (error) throw error;
 
@@ -59,7 +83,7 @@ export default function StripeSettings() {
         setPublishableKey(data.stripe_publishable_key || '');
         setAccountId(data.stripe_account_id || '');
         setWebhookSecret(data.stripe_webhook_secret || '');
-        // Don't populate secret key for security
+        // SECURITY: Never populate secret key in frontend - it stays server-side only
       }
     } catch (error) {
       console.error('Failed to load Stripe configuration:', error);
@@ -70,6 +94,11 @@ export default function StripeSettings() {
   }
 
   async function handleTestConnection() {
+    if (!businessId) {
+      setTestResult({ success: false, message: 'No business selected' });
+      return;
+    }
+
     if (!publishableKey.startsWith('pk_')) {
       setTestResult({ success: false, message: 'Invalid publishable key format. Must start with pk_test_ or pk_live_' });
       return;
@@ -84,11 +113,18 @@ export default function StripeSettings() {
     setTestResult(null);
 
     try {
-      // Call Edge Function to test Stripe connection
+      // SECURITY: Call Edge Function to test Stripe connection
+      // The Edge Function encrypts and validates the key server-side
+      const { data: { session } } = await supabase.auth.getSession();
+
       const { data, error } = await supabase.functions.invoke('test-stripe-connection', {
         body: {
+          businessId,
           publishableKey,
           secretKey,
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
         },
       });
 
@@ -113,6 +149,11 @@ export default function StripeSettings() {
   }
 
   async function handleSaveConfiguration() {
+    if (!businessId) {
+      setTestResult({ success: false, message: 'No business selected' });
+      return;
+    }
+
     // Validation
     if (!publishableKey.startsWith('pk_')) {
       setTestResult({ success: false, message: 'Invalid publishable key format' });
@@ -128,27 +169,29 @@ export default function StripeSettings() {
     setTestResult(null);
 
     try {
-      const updateData: any = {
-        stripe_publishable_key: publishableKey,
-        stripe_account_id: accountId || null,
-        stripe_webhook_secret: webhookSecret || null,
-        stripe_connected_at: new Date().toISOString(),
-      };
+      // SECURITY: Call Edge Function to save Stripe config
+      // The Edge Function handles encryption of the secret key server-side
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (secretKey) {
-        updateData.stripe_secret_key_encrypted = secretKey;
-      }
-
-      const { error } = await supabase
-        .from('businesses')
-        .update(updateData)
-        .eq('id', BUSINESS_ID);
+      const { data, error } = await supabase.functions.invoke('save-stripe-config', {
+        body: {
+          businessId,
+          publishableKey,
+          secretKey: secretKey || undefined, // Only send if provided
+          accountId: accountId || null,
+          webhookSecret: webhookSecret || null,
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to save');
 
-      setTestResult({ success: true, message: 'Stripe configuration saved successfully!' });
+      setTestResult({ success: true, message: 'Stripe configuration saved securely!' });
       await loadStripeConfig();
-      setSecretKey('');
+      setSecretKey(''); // Clear secret key from memory
     } catch (error) {
       console.error('Failed to save configuration:', error);
       setTestResult({ success: false, message: 'Failed to save configuration' });
@@ -158,22 +201,29 @@ export default function StripeSettings() {
   }
 
   async function handleDisconnect() {
+    if (!businessId) {
+      setTestResult({ success: false, message: 'No business selected' });
+      return;
+    }
+
     if (!confirm('Are you sure you want to disconnect Stripe? This will disable card payments.')) {
       return;
     }
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('businesses')
-        .update({
-          stripe_publishable_key: null,
-          stripe_secret_key_encrypted: null,
-          stripe_account_id: null,
-          stripe_webhook_secret: null,
-          stripe_connected_at: null,
-        })
-        .eq('id', BUSINESS_ID);
+      // SECURITY: Use Edge Function to disconnect (handles secure deletion)
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const { data, error } = await supabase.functions.invoke('save-stripe-config', {
+        body: {
+          businessId,
+          disconnect: true,
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
 
       if (error) throw error;
 
@@ -197,6 +247,24 @@ export default function StripeSettings() {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  // SECURITY: Show auth error if not authenticated or no business
+  if (authError) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-start gap-4">
+          <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5" />
+          <div>
+            <h2 className="text-lg font-semibold text-red-900">Access Denied</h2>
+            <p className="text-red-700 mt-1">{authError}</p>
+            <p className="text-sm text-red-600 mt-2">
+              You must be signed in as a business owner to configure Stripe payments.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
