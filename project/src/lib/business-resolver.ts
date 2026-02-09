@@ -2,6 +2,7 @@
 // Enables multi-tenant routing without hard-coded business subdomains
 
 import { supabase } from './supabase';
+import { performanceMonitor } from './performance-monitor';
 
 export interface Business {
   id: string;
@@ -41,25 +42,31 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
   }
 
   console.log(`[business-resolver] Fetching business for slug: ${slug}`);
-  const startTime = Date.now();
 
   try {
-    // Query database with timeout
-    const queryPromise = supabase
-      .from('businesses')
-      .select('id, slug, name, owner_email, phone, is_active')
-      .eq('slug', slug)
-      .eq('is_active', true) // Only active businesses
-      .single();
+    // Track query performance
+    const result = await performanceMonitor.trackAsync(
+      `db_query_business_by_slug`,
+      async () => {
+        // Query database with timeout
+        const queryPromise = supabase
+          .from('businesses')
+          .select('id, slug, name, owner_email, phone, is_active')
+          .eq('slug', slug)
+          .eq('is_active', true) // Only active businesses
+          .single();
 
-    // Add 2 second timeout (fail fast, then use fallback)
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Database query timeout after 2s')), 2000)
+        // Add 2 second timeout (fail fast, then use fallback)
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Database query timeout after 2s')), 2000)
+        );
+
+        return await Promise.race([queryPromise, timeoutPromise]) as any;
+      },
+      { slug }
     );
 
-    const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-    const duration = Date.now() - startTime;
-    console.log(`[business-resolver] Query completed in ${duration}ms`);
+    const { data, error } = result;
 
     if (error) {
       console.error(`[business-resolver] Supabase error:`, error);
@@ -103,8 +110,7 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     console.log(`[business-resolver] ✅ Business loaded and cached: ${business.name}`);
     return business;
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`[business-resolver] ❌ Error after ${duration}ms:`, error);
+    console.error(`[business-resolver] ❌ Error:`, error);
 
     // Use fallback for known businesses on any error
     if (KNOWN_BUSINESSES[slug]) {

@@ -19,7 +19,20 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check-env": "node scripts/check-env.js",
-    "validate-stripe": "node scripts/validate-stripe-keys.js"
+    "validate-stripe": "node scripts/validate-stripe-keys.js",
+    "pre-deploy-check": "node scripts/pre-deploy-check.js",
+    "deploy": "npm run pre-deploy-check && vercel --prod",
+    "deploy:force": "vercel --prod",
+    "security:setup": "bash scripts/security/setup-all.sh",
+    "security:layer1": "bash scripts/security/setup-layer1.sh",
+    "security:layer2": "bash scripts/security/setup-layer2.sh",
+    "security:layer3": "bash scripts/security/setup-layer3.sh",
+    "security:layer4": "bash scripts/security/setup-layer4.sh",
+    "security:sbom": "syft dir:. -o json > sbom.json",
+    "security:scan": "grype dir:. --fail-on high -o table",
+    "security:scan:sbom": "grype sbom:sbom.json --only-fixed --fail-on high -o table",
+    "security:snyk": "snyk test && snyk code test",
+    "security:monitor": "snyk monitor"
   },
   "dependencies": {
     "@react-email/components": "^1.0.4",
