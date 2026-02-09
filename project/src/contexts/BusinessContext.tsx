@@ -44,24 +44,32 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
   useEffect(() => {
     let mounted = true;
 
-    // Timeout fallback: if business loading takes more than 15 seconds, stop loading
+    // Check Supabase configuration immediately
+    console.log('[BusinessContext] Initializing...');
+    console.log(`[BusinessContext] Supabase URL: ${import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING'}`);
+    console.log(`[BusinessContext] Supabase Key: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
+
+    // Timeout fallback: if business loading takes more than 5 seconds, stop loading
     const timeoutId = setTimeout(() => {
       if (mounted) {
-        console.warn('Business context loading timed out after 15s');
+        console.warn('[BusinessContext] ⚠️ Loading timed out after 5s');
         setError('Failed to load business information (timeout)');
         setIsLoading(false);
       }
-    }, 15000);
+    }, 5000);
 
     async function loadBusiness() {
       try {
         const currentSubdomain = getCurrentSubdomain();
+        console.log(`[BusinessContext] Current subdomain: ${currentSubdomain || 'null (root domain)'}`);
+
         if (mounted) {
           setSubdomain(currentSubdomain);
         }
 
         // Special case: app.apinlero.com (dashboard, not a business store)
         if (currentSubdomain === 'app') {
+          console.log('[BusinessContext] Detected app subdomain, skipping business load');
           clearTimeout(timeoutId);
           if (mounted) {
             setIsLoading(false);
@@ -71,33 +79,41 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
 
         // Load business for store subdomains (e.g., ishas-treat)
         if (currentSubdomain) {
+          console.log(`[BusinessContext] Loading business for subdomain: ${currentSubdomain}`);
           const businessData = await getBusinessBySlug(currentSubdomain);
 
           if (mounted) {
             if (businessData) {
+              console.log(`[BusinessContext] ✅ Business loaded: ${businessData.name}`);
               setBusiness(businessData);
             } else {
+              console.warn(`[BusinessContext] ❌ No business found for: ${currentSubdomain}`);
               setError(`No active business found for subdomain: ${currentSubdomain}`);
             }
           }
         } else {
           // ROOT DOMAIN (apinlero.com) or LOCALHOST
           const pathname = window.location.pathname;
+          console.log(`[BusinessContext] Root domain, pathname: ${pathname}`);
 
           // Only load business data if we're on a store route (e.g., /store/ishas-treat)
           // This prevents unnecessary DB queries on the landing page
           if (pathname.startsWith('/store/')) {
+            console.log('[BusinessContext] Loading default business (ishas-treat)');
             const defaultBusinessData = await getBusinessBySlug('ishas-treat');
 
             if (mounted) {
               if (defaultBusinessData) {
+                console.log(`[BusinessContext] ✅ Default business loaded: ${defaultBusinessData.name}`);
                 setBusiness(defaultBusinessData);
               } else {
+                console.error('[BusinessContext] ❌ No default business found');
                 setError('No default business found. Please ensure database is seeded.');
               }
             }
           } else {
             // Landing page or other routes - no business needed
+            console.log('[BusinessContext] Landing page, no business needed');
             if (mounted) {
               setBusiness(null);
             }
@@ -106,10 +122,11 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
 
         clearTimeout(timeoutId);
         if (mounted) {
+          console.log('[BusinessContext] 🏁 Loading complete');
           setIsLoading(false);
         }
       } catch (err) {
-        console.error('[BusinessContext] Error loading business context:', err);
+        console.error('[BusinessContext] ❌ Error loading business context:', err);
         clearTimeout(timeoutId);
         if (mounted) {
           setError('Failed to load business information');

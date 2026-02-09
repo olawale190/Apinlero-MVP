@@ -25,20 +25,38 @@ const businessCache = new Map<string, Business>();
 export async function getBusinessBySlug(slug: string): Promise<Business | null> {
   // Check cache first
   if (businessCache.has(slug)) {
+    console.log(`[business-resolver] Cache hit for slug: ${slug}`);
     return businessCache.get(slug)!;
   }
 
+  console.log(`[business-resolver] Fetching business for slug: ${slug}`);
+  const startTime = Date.now();
+
   try {
-    // Query database
-    const { data, error } = await supabase
+    // Query database with timeout
+    const queryPromise = supabase
       .from('businesses')
       .select('id, slug, name, owner_email, phone, is_active')
       .eq('slug', slug)
       .eq('is_active', true) // Only active businesses
       .single();
 
-    if (error || !data) {
-      console.warn(`No active business found for slug: ${slug}`, error);
+    // Add 3 second timeout (fail fast for better UX)
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Database query timeout after 3s')), 3000)
+    );
+
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+    const duration = Date.now() - startTime;
+    console.log(`[business-resolver] Query completed in ${duration}ms`);
+
+    if (error) {
+      console.error(`[business-resolver] Supabase error:`, error);
+      return null;
+    }
+
+    if (!data) {
+      console.warn(`[business-resolver] No business found for slug: ${slug}`);
       return null;
     }
 
@@ -53,9 +71,11 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     };
 
     businessCache.set(slug, business);
+    console.log(`[business-resolver] ✅ Business loaded and cached: ${business.name}`);
     return business;
   } catch (error) {
-    console.error('Error fetching business by slug:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[business-resolver] ❌ Error after ${duration}ms:`, error);
     return null;
   }
 }
@@ -84,7 +104,14 @@ export function getCurrentSubdomain(): string | null {
 
   // Need at least 3 parts for subdomain (e.g., subdomain.domain.com)
   if (parts.length >= 3) {
-    return parts[0]; // e.g., 'ishas-treat' from 'ishas-treat.apinlero.com'
+    const subdomain = parts[0];
+
+    // Ignore 'www' as it's not a real subdomain
+    if (subdomain === 'www') {
+      return null;
+    }
+
+    return subdomain; // e.g., 'ishas-treat' from 'ishas-treat.apinlero.com'
   }
 
   // Root domain (apinlero.com) or similar
