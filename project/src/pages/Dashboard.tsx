@@ -100,7 +100,12 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
   });
 
   useEffect(() => {
-    if (!business?.id) return;
+    if (!business?.id) {
+      // No business context (app.apinlero.com) - skip data loading but stop loading state
+      console.log('[Dashboard] No business ID available, skipping data load');
+      setIsLoading(false);
+      return;
+    }
 
     loadOrders();
     loadProducts();
