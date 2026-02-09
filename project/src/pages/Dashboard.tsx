@@ -67,7 +67,9 @@ const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: st
 ];
 
 export default function Dashboard({ onLogout, onViewStorefront, businessName = "Isha's Treat & Groceries" }: DashboardProps) {
-  const { business } = useBusinessContext();
+  // Get business from context - will be undefined for app.apinlero.com
+  const businessContext = useBusinessContext();
+  const business = businessContext?.business || null;
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [showAISummary, setShowAISummary] = useState(true);

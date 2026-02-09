@@ -229,11 +229,13 @@ export default function App() {
   if (hostname === 'app.apinlero.com' || hostname.startsWith('app.')) {
     return (
       <BrowserRouter>
-        <Routes>
-          <Route path="/*" element={<SaaSDashboard />} />
-          <Route path="/reset-password" element={<UpdatePassword />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/*" element={<SaaSDashboard />} />
+            <Route path="/reset-password" element={<UpdatePassword />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     );
   }

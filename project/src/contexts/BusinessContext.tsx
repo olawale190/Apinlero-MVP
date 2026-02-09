@@ -1,7 +1,7 @@
 // Business Context Provider
 // Provides global access to current business/client context for multi-tenant routing
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   getCurrentSubdomain,
   getBusinessBySlug,
@@ -42,14 +42,30 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Timeout fallback: if business loading takes more than 15 seconds, stop loading
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.warn('Business context loading timed out after 15s');
+        setError('Failed to load business information (timeout)');
+        setIsLoading(false);
+      }
+    }, 15000);
+
     async function loadBusiness() {
       try {
         const currentSubdomain = getCurrentSubdomain();
-        setSubdomain(currentSubdomain);
+        if (mounted) {
+          setSubdomain(currentSubdomain);
+        }
 
         // Special case: app.apinlero.com (dashboard, not a business store)
         if (currentSubdomain === 'app') {
-          setIsLoading(false);
+          clearTimeout(timeoutId);
+          if (mounted) {
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -57,32 +73,57 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
         if (currentSubdomain) {
           const businessData = await getBusinessBySlug(currentSubdomain);
 
-          if (businessData) {
-            setBusiness(businessData);
-          } else {
-            setError(`No active business found for subdomain: ${currentSubdomain}`);
+          if (mounted) {
+            if (businessData) {
+              setBusiness(businessData);
+            } else {
+              setError(`No active business found for subdomain: ${currentSubdomain}`);
+            }
           }
         } else {
-          // LOCALHOST/ROOT DOMAIN: Load default business (ishas-treat)
-          // This handles path-based routing (e.g., localhost:5174/store/ishas-treat)
-          const defaultBusinessData = await getBusinessBySlug('ishas-treat');
+          // ROOT DOMAIN (apinlero.com) or LOCALHOST
+          const pathname = window.location.pathname;
 
-          if (defaultBusinessData) {
-            setBusiness(defaultBusinessData);
+          // Only load business data if we're on a store route (e.g., /store/ishas-treat)
+          // This prevents unnecessary DB queries on the landing page
+          if (pathname.startsWith('/store/')) {
+            const defaultBusinessData = await getBusinessBySlug('ishas-treat');
+
+            if (mounted) {
+              if (defaultBusinessData) {
+                setBusiness(defaultBusinessData);
+              } else {
+                setError('No default business found. Please ensure database is seeded.');
+              }
+            }
           } else {
-            setError('No default business found. Please ensure database is seeded.');
+            // Landing page or other routes - no business needed
+            if (mounted) {
+              setBusiness(null);
+            }
           }
         }
 
-        setIsLoading(false);
+        clearTimeout(timeoutId);
+        if (mounted) {
+          setIsLoading(false);
+        }
       } catch (err) {
-        console.error('Error loading business context:', err);
-        setError('Failed to load business information');
-        setIsLoading(false);
+        console.error('[BusinessContext] Error loading business context:', err);
+        clearTimeout(timeoutId);
+        if (mounted) {
+          setError('Failed to load business information');
+          setIsLoading(false);
+        }
       }
     }
 
     loadBusiness();
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const isAppDashboard = checkIsAppDashboard();
@@ -115,13 +156,21 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
  *   - isBusinessStore: true if on a business store subdomain
  *   - error: Error message if business lookup failed
  *
- * @throws Error if used outside of BusinessProvider
+ * Returns default values if used outside of BusinessProvider (for app.apinlero.com)
  */
 export function useBusinessContext(): BusinessContextType {
   const context = useContext(BusinessContext);
 
   if (context === undefined) {
-    throw new Error('useBusinessContext must be used within BusinessProvider');
+    // Return default values for app.apinlero.com (no BusinessProvider)
+    return {
+      business: null,
+      subdomain: null,
+      isLoading: false,
+      isAppDashboard: true,
+      isBusinessStore: false,
+      error: null
+    };
   }
 
   return context;
