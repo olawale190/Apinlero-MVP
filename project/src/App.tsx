@@ -35,26 +35,71 @@ function SaaSDashboard() {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
   const navigate = useNavigate();
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   useEffect(() => {
+    let mounted = true;
+    const addLog = (msg: string) => {
+      console.log(msg);
+      setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+    };
+
+    addLog('[SaaSDashboard] Starting auth check...');
+    addLog(`Supabase URL: ${import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING'}`);
+    addLog(`Supabase Key: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
+
+    // Timeout fallback: if auth check takes more than 5 seconds, show login anyway
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        addLog('⚠️ Auth check timed out after 5s, showing login');
+        setIsCheckingAuth(false);
+        setIsAuthenticated(false);
+      }
+    }, 5000); // Reduced from 10s to 5s for faster fallback
+
     // Check for existing Supabase session
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
-      setIsCheckingAuth(false);
+      try {
+        addLog('[SaaSDashboard] Checking Supabase session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-      // In production, fetch business name from user profile
-      // For now, default to Isha's Treat as first client
+        if (error) {
+          addLog(`❌ Supabase auth error: ${error.message}`);
+          console.error('[SaaSDashboard] Supabase auth error:', error);
+        }
+
+        if (mounted) {
+          addLog(`✅ Session check complete: ${session ? 'authenticated' : 'not authenticated'}`);
+          setIsAuthenticated(!!session);
+        }
+      } catch (err) {
+        addLog(`❌ Failed to check auth: ${err instanceof Error ? err.message : String(err)}`);
+        console.error('[SaaSDashboard] Failed to check auth session:', err);
+        if (mounted) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        if (mounted) {
+          addLog('🏁 Setting isCheckingAuth to false');
+          setIsCheckingAuth(false);
+        }
+      }
     };
 
     checkSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+      if (mounted) {
+        addLog(`Auth state changed: ${_event}, ${session ? 'authenticated' : 'not authenticated'}`);
+        setIsAuthenticated(!!session);
+      }
     });
 
     return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
@@ -76,10 +121,22 @@ function SaaSDashboard() {
   // Show loading state while checking authentication
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 flex items-center justify-center p-4">
+        <div className="text-center max-w-2xl w-full">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400 mx-auto mb-4"></div>
-          <p className="text-slate-300">Loading Àpínlẹ̀rọ...</p>
+          <p className="text-slate-300 mb-2">Loading Àpínlẹ̀rọ...</p>
+          <p className="text-slate-500 text-sm">Connecting to authentication service...</p>
+          <p className="text-slate-600 text-xs mt-4">If this takes longer than 5 seconds, you'll be redirected to the login page.</p>
+
+          {/* Debug logs display */}
+          {debugLogs.length > 0 && (
+            <div className="mt-6 bg-slate-800/50 rounded-lg p-4 text-left max-h-96 overflow-y-auto">
+              <p className="text-teal-400 text-xs font-mono mb-2">Debug Logs:</p>
+              {debugLogs.map((log, i) => (
+                <p key={i} className="text-slate-400 text-xs font-mono mb-1">{log}</p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -165,8 +222,24 @@ function IshasTreatStore() {
   );
 }
 
-// Main App with Router - Wrapped with BusinessProvider
+// Main App with Router - Check subdomain FIRST before BusinessProvider
 export default function App() {
+  const hostname = window.location.hostname;
+
+  // For app.apinlero.com, skip BusinessProvider entirely (dashboard doesn't need it)
+  if (hostname === 'app.apinlero.com' || hostname.startsWith('app.')) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/*" element={<SaaSDashboard />} />
+          <Route path="/reset-password" element={<UpdatePassword />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
+  // For all other domains, use BusinessProvider
   return (
     <BusinessProvider>
       <AppRoutes />

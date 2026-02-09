@@ -4,18 +4,37 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Isha's Treat & Groceries | Order Online</title>
-    <meta name="description" content="Order fresh African & Caribbean groceries online from Isha's Treat & Groceries. Quality wholesale products delivered to your door in London." />
-    <meta property="og:title" content="Isha's Treat & Groceries" />
-    <meta property="og:description" content="Fresh African & Caribbean Groceries - Order Online" />
+    <title>Àpínlẹ̀rọ - Smart Commerce Platform</title>
+    <meta name="description" content="Àpínlẹ̀rọ - The smart commerce platform for African & Caribbean businesses. Manage orders, inventory, and customers." />
+    <meta property="og:title" content="Àpínlẹ̀rọ" />
+    <meta property="og:description" content="Smart Commerce Platform for African & Caribbean Businesses" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Isha's Treat & Groceries" />
-    <meta name="twitter:description" content="Fresh African & Caribbean Groceries - Order Online" />
+    <meta name="twitter:title" content="Àpínlẹ̀rọ" />
+    <meta name="twitter:description" content="Smart Commerce Platform for African & Caribbean Businesses" />
     <meta name="theme-color" content="#0d9488" />
 </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback content shown if JavaScript fails to load -->
+      <div style="min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0d9488 100%); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, sans-serif;">
+        <div style="text-align: center; color: #cbd5e1; padding: 2rem;">
+          <div style="width: 48px; height: 48px; border: 3px solid #5eead4; border-top-color: transparent; border-radius: 50%; margin: 0 auto 1rem; animation: spin 1s linear infinite;"></div>
+          <p style="font-size: 1.125rem; margin-bottom: 0.5rem;">Loading Àpínlẹ̀rọ...</p>
+          <p style="font-size: 0.875rem; color: #94a3b8;">If this message persists, please refresh the page.</p>
+        </div>
+      </div>
+      <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+      </style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Global error handler
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error);
+        document.getElementById('root').innerHTML = '<div style="min-height: 100vh; background: #0f172a; display: flex; align-items: center; justify-content: center; font-family: monospace; color: #ef4444; padding: 2rem;"><div style="max-width: 600px;"><h1 style="color: #f87171; margin-bottom: 1rem;">Application Error</h1><p style="margin-bottom: 1rem;">The application failed to load. Error: ' + (e.error?.message || 'Unknown error') + '</p><pre style="background: #1e293b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.75rem;">' + (e.error?.stack || '') + '</pre><button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #14b8a6; color: white; border: none; border-radius: 0.375rem; cursor: pointer;">Reload Page</button></div></div>';
+      });
+    </script>
   </body>
 </html>
