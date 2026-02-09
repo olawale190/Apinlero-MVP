@@ -49,14 +49,15 @@ export function BusinessProvider({ children }: BusinessProviderProps) {
     console.log(`[BusinessContext] Supabase URL: ${import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING'}`);
     console.log(`[BusinessContext] Supabase Key: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
 
-    // Timeout fallback: if business loading takes more than 5 seconds, stop loading
+    // Timeout fallback: if business loading takes more than 3 seconds, stop loading
+    // The business-resolver has its own 2s timeout + fallback, so this is a safety net
     const timeoutId = setTimeout(() => {
       if (mounted) {
-        console.warn('[BusinessContext] ⚠️ Loading timed out after 5s');
+        console.warn('[BusinessContext] ⚠️ Loading timed out after 3s');
         setError('Failed to load business information (timeout)');
         setIsLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     async function loadBusiness() {
       try {

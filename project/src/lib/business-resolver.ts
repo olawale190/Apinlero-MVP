@@ -15,6 +15,17 @@ export interface Business {
 // In-memory cache to avoid repeated DB lookups
 const businessCache = new Map<string, Business>();
 
+// Hardcoded fallback for known businesses (prevents complete failure if DB is slow)
+const KNOWN_BUSINESSES: Record<string, Business> = {
+  'ishas-treat': {
+    id: '00000000-0000-0000-0000-000000000000', // Placeholder ID
+    slug: 'ishas-treat',
+    name: "Isha's Treat & Groceries",
+    owner_email: 'ishastreat@example.com',
+    is_active: true
+  }
+};
+
 /**
  * Resolve subdomain/slug to business record
  * Example: 'ishas-treat' → { id: 'uuid', name: 'Isha's Treat', ... }
@@ -41,9 +52,9 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
       .eq('is_active', true) // Only active businesses
       .single();
 
-    // Add 3 second timeout (fail fast for better UX)
+    // Add 2 second timeout (fail fast, then use fallback)
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Database query timeout after 3s')), 3000)
+      setTimeout(() => reject(new Error('Database query timeout after 2s')), 2000)
     );
 
     const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
@@ -52,11 +63,29 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
 
     if (error) {
       console.error(`[business-resolver] Supabase error:`, error);
+
+      // Use fallback for known businesses
+      if (KNOWN_BUSINESSES[slug]) {
+        console.warn(`[business-resolver] Using hardcoded fallback for: ${slug}`);
+        const fallback = KNOWN_BUSINESSES[slug];
+        businessCache.set(slug, fallback);
+        return fallback;
+      }
+
       return null;
     }
 
     if (!data) {
       console.warn(`[business-resolver] No business found for slug: ${slug}`);
+
+      // Use fallback for known businesses
+      if (KNOWN_BUSINESSES[slug]) {
+        console.warn(`[business-resolver] Using hardcoded fallback for: ${slug}`);
+        const fallback = KNOWN_BUSINESSES[slug];
+        businessCache.set(slug, fallback);
+        return fallback;
+      }
+
       return null;
     }
 
@@ -76,6 +105,15 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error(`[business-resolver] ❌ Error after ${duration}ms:`, error);
+
+    // Use fallback for known businesses on any error
+    if (KNOWN_BUSINESSES[slug]) {
+      console.warn(`[business-resolver] Using hardcoded fallback after error for: ${slug}`);
+      const fallback = KNOWN_BUSINESSES[slug];
+      businessCache.set(slug, fallback);
+      return fallback;
+    }
+
     return null;
   }
 }
