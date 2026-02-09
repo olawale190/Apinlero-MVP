@@ -34,7 +34,6 @@ function SaaSDashboard() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
-  const navigate = useNavigate();
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   useEffect(() => {
