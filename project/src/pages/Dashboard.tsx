@@ -69,7 +69,7 @@ const tabs: { id: TabType; label: string; icon: React.ReactNode; mobileLabel: st
 export default function Dashboard({ onLogout, onViewStorefront, businessName = "Isha's Treat & Groceries" }: DashboardProps) {
   // Get business from context - will be undefined for app.apinlero.com
   const businessContext = useBusinessContext();
-  const business = businessContext?.business || null;
+  const [business, setBusiness] = useState(businessContext?.business || null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [showAISummary, setShowAISummary] = useState(true);
@@ -99,16 +99,86 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
     day: 'numeric',
   });
 
+  // Load business from authenticated user if not available from context (app.apinlero.com case)
+  useEffect(() => {
+    async function loadUserBusiness() {
+      // If we already have business from context, use it
+      if (businessContext?.business) {
+        setBusiness(businessContext.business);
+        return;
+      }
+
+      console.log('[Dashboard] No business from context, loading from authenticated user...');
+
+      try {
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          console.error('[Dashboard] ❌ No authenticated user:', userError);
+          setIsLoading(false);
+          return;
+        }
+
+        console.log('[Dashboard] User authenticated:', user.email);
+
+        // Get user's business from user_businesses table
+        const { data: userBusinessData, error: ubError } = await supabase
+          .from('user_businesses')
+          .select(`
+            business_id,
+            role,
+            businesses (
+              id,
+              slug,
+              name,
+              owner_email,
+              phone,
+              is_active
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('businesses.is_active', true)
+          .limit(1)
+          .single();
+
+        if (ubError || !userBusinessData) {
+          console.error('[Dashboard] ❌ No business found for user:', ubError);
+          setIsLoading(false);
+          return;
+        }
+
+        const businessData = userBusinessData.businesses as any;
+        if (businessData) {
+          console.log('[Dashboard] ✅ Loaded business from user:', businessData.name);
+          setBusiness({
+            id: businessData.id,
+            slug: businessData.slug,
+            name: businessData.name,
+            owner_email: businessData.owner_email,
+            phone: businessData.phone,
+            is_active: businessData.is_active
+          });
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error loading user business:', error);
+        setIsLoading(false);
+      }
+    }
+
+    loadUserBusiness();
+  }, [businessContext?.business]);
+
   useEffect(() => {
     if (!business?.id) {
-      // No business context (app.apinlero.com) - skip data loading but stop loading state
-      console.log('[Dashboard] No business ID available, skipping data load');
-      setIsLoading(false);
+      console.log('[Dashboard] Waiting for business to load...');
       return;
     }
 
+    console.log('[Dashboard] Business loaded, fetching data for:', business.name);
     loadOrders();
     loadProducts();
+    setIsLoading(false);
 
     // Set up real-time subscription with business_id filter
     const channel = supabase
@@ -135,10 +205,10 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
   const loadOrders = async () => {
     if (!business?.id) {
       console.warn('⚠️ No business_id available, skipping orders load');
-      setIsLoading(false);
       return;
     }
 
+    console.log('📋 Loading orders from database for business:', business.id);
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -146,11 +216,11 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       .order('created_at', { ascending: false });
 
     if (!error && data) {
+      console.log(`✅ Loaded ${data.length} orders from database`);
       setOrders(data);
     } else if (error) {
       console.error('❌ Error loading orders:', error);
     }
-    setIsLoading(false);
   };
 
   const loadProducts = async () => {
