@@ -122,44 +122,95 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
         console.log('[Dashboard] User authenticated:', user.email);
 
-        // Get user's business from user_businesses table
-        const { data: userBusinessData, error: ubError } = await supabase
-          .from('user_businesses')
-          .select(`
-            business_id,
-            role,
-            businesses (
-              id,
-              slug,
-              name,
-              owner_email,
-              phone,
-              is_active
-            )
-          `)
-          .eq('user_id', user.id)
-          .eq('businesses.is_active', true)
+        // Strategy 1: Try user_businesses table (if it exists)
+        try {
+          const { data: userBusinessData, error: ubError } = await supabase
+            .from('user_businesses')
+            .select(`
+              business_id,
+              role,
+              businesses (
+                id,
+                slug,
+                name,
+                owner_email,
+                phone,
+                is_active
+              )
+            `)
+            .eq('user_id', user.id)
+            .limit(1)
+            .single();
+
+          if (!ubError && userBusinessData) {
+            const businessData = userBusinessData.businesses as any;
+            if (businessData && businessData.is_active) {
+              console.log('[Dashboard] ✅ Loaded business via user_businesses:', businessData.name);
+              setBusiness({
+                id: businessData.id,
+                slug: businessData.slug,
+                name: businessData.name,
+                owner_email: businessData.owner_email,
+                phone: businessData.phone,
+                is_active: businessData.is_active
+              });
+              return;
+            }
+          }
+          console.warn('[Dashboard] user_businesses lookup failed, trying fallback...', ubError?.message);
+        } catch {
+          console.warn('[Dashboard] user_businesses table may not exist, trying fallback...');
+        }
+
+        // Strategy 2: Fallback - find business by owner_email
+        console.log('[Dashboard] Trying to find business by owner email:', user.email);
+        const { data: businessByEmail, error: emailError } = await supabase
+          .from('businesses')
+          .select('id, slug, name, owner_email, phone, is_active')
+          .eq('owner_email', user.email)
+          .eq('is_active', true)
           .limit(1)
           .single();
 
-        if (ubError || !userBusinessData) {
-          console.error('[Dashboard] ❌ No business found for user:', ubError);
-          setIsLoading(false);
+        if (!emailError && businessByEmail) {
+          console.log('[Dashboard] ✅ Loaded business via owner_email:', businessByEmail.name);
+          setBusiness({
+            id: businessByEmail.id,
+            slug: businessByEmail.slug,
+            name: businessByEmail.name,
+            owner_email: businessByEmail.owner_email,
+            phone: businessByEmail.phone,
+            is_active: businessByEmail.is_active
+          });
           return;
         }
 
-        const businessData = userBusinessData.businesses as any;
-        if (businessData) {
-          console.log('[Dashboard] ✅ Loaded business from user:', businessData.name);
+        console.warn('[Dashboard] owner_email lookup failed:', emailError?.message);
+
+        // Strategy 3: Last resort - get first active business (single-tenant fallback)
+        console.log('[Dashboard] Trying last resort: first active business...');
+        const { data: anyBusiness, error: anyError } = await supabase
+          .from('businesses')
+          .select('id, slug, name, owner_email, phone, is_active')
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+
+        if (!anyError && anyBusiness) {
+          console.log('[Dashboard] ✅ Loaded business (first active):', anyBusiness.name);
           setBusiness({
-            id: businessData.id,
-            slug: businessData.slug,
-            name: businessData.name,
-            owner_email: businessData.owner_email,
-            phone: businessData.phone,
-            is_active: businessData.is_active
+            id: anyBusiness.id,
+            slug: anyBusiness.slug,
+            name: anyBusiness.name,
+            owner_email: anyBusiness.owner_email,
+            phone: anyBusiness.phone,
+            is_active: anyBusiness.is_active
           });
+          return;
         }
+
+        console.error('[Dashboard] ❌ No business found at all:', anyError);
+        setIsLoading(false);
       } catch (error) {
         console.error('[Dashboard] Error loading user business:', error);
         setIsLoading(false);
