@@ -245,17 +245,19 @@ export function requiresOnlineProcessing(paymentMethod: string): boolean {
 
 /**
  * Verify Stripe webhook signature
- * Note: This should be done server-side in Supabase Edge Functions
+ * IMPORTANT: Webhook verification MUST happen server-side (Supabase Edge Functions).
+ * Use Stripe's constructEvent() method in your Edge Function with the webhook signing secret.
+ * This client-side stub throws to prevent accidental misuse.
  */
 export function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  // This is a placeholder - actual verification happens server-side
-  // In production, use Stripe's constructEvent method in your Edge Function
-  console.warn('⚠️ Webhook verification should be server-side');
-  return false;
+  _payload: string,
+  _signature: string,
+  _secret: string
+): never {
+  throw new Error(
+    'verifyWebhookSignature cannot be called client-side. ' +
+    'Implement webhook verification in your Supabase Edge Function using stripe.webhooks.constructEvent().'
+  );
 }
 
 // ==============================================================================

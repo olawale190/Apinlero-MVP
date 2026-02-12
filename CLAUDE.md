@@ -339,6 +339,14 @@ Available skills for common tasks:
 2. **NPM Audit Vulnerabilities**: 26 in project/ (run `npm audit fix`)
 3. **Neo4j Password**: Cannot rotate on Aura free tier
 
+## ⚠️ Critical Deployment Rules
+
+### DO NOT add www ↔ root domain redirects in vercel.json
+
+Vercel's **domain settings** (configured in the Vercel dashboard) handle the `apinlero.com` → `www.apinlero.com` redirect automatically. Adding a competing redirect in `project/vercel.json` (e.g., `www.apinlero.com` → `apinlero.com`) will create an **infinite redirect loop** that breaks all JS/CSS asset loading, causing a blank white page.
+
+**Rule**: The `"redirects"` array in `project/vercel.json` must stay empty (`[]`) unless the redirect does NOT involve `www` ↔ root domain swapping. If you need to change the canonical domain (www vs non-www), change it in the **Vercel dashboard** under Project → Settings → Domains, NOT in `vercel.json`.
+
 ---
 
 ## Security Status

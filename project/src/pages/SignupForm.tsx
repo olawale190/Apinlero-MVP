@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { CheckCircle, ArrowRight, Building2, Mail, Phone, User, PartyPopper } from 'lucide-react';
+import { CheckCircle, ArrowRight, Building2, Mail, Phone, User, PartyPopper, Lock, Eye, EyeOff, AlertCircle, Globe } from 'lucide-react';
 import { colors } from '../config/colors';
+import { supabase } from '../lib/supabase';
 import { triggerWelcomeEmail, isN8nConfigured } from '../lib/n8n';
 import { sendWelcomeEmail, isEmailConfigured } from '../lib/email';
 import { getCurrentSubdomain } from '../lib/business-resolver';
 
 interface SignupFormProps {
-  onSuccess: (businessSubdomain?: string) => void; // Added subdomain parameter
+  onSuccess: (businessSubdomain?: string) => void;
   onCancel: () => void;
 }
 
@@ -17,21 +18,25 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
     ownerName: '',
     email: '',
     phone: '',
+    password: '',
+    confirmPassword: '',
     businessType: 'grocery',
     monthlyOrders: '0-50',
     plan: 'solo'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [businessSlug, setBusinessSlug] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Generate slug from business name (e.g., "Isha's Treat" → "ishas-treat")
   const generateSlug = (businessName: string): string => {
     return businessName
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/[^a-z0-9\s-]/g, '')
       .trim()
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-'); // Remove duplicate hyphens
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -39,32 +44,68 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
       ...formData,
       [e.target.name]: e.target.value
     });
+    if (error) setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsSubmitting(true);
+
+    // Validate passwords
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      setIsSubmitting(false);
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      setIsSubmitting(false);
+      return;
+    }
 
     // Generate business slug for subdomain
     const slug = generateSlug(formData.businessName);
     setBusinessSlug(slug);
 
-    // Simulate API call to save signup
-    // In production, this would save to Supabase and create business record
-    setTimeout(async () => {
-      // Send welcome email
+    try {
+      // Create auth user with business metadata
+      // The database trigger (handle_new_business_owner) will automatically
+      // create the business record and user_businesses link
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            role: 'business_owner',
+            full_name: formData.ownerName,
+            business_name: formData.businessName,
+            business_slug: slug,
+            phone: formData.phone,
+            business_type: formData.businessType,
+            plan: formData.plan,
+          },
+          emailRedirectTo: 'https://app.apinlero.com',
+        },
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Send welcome email (fire and forget)
       try {
         if (isEmailConfigured()) {
-          // Use direct email service
           await sendWelcomeEmail({
             customerEmail: formData.email,
             customerName: formData.ownerName,
             businessName: formData.businessName,
-            storeUrl: undefined,
+            storeUrl: `https://${slug}.apinlero.com`,
             whatsappNumber: undefined
           });
         } else if (isN8nConfigured()) {
-          // Fallback to n8n
           await triggerWelcomeEmail(
             formData.email,
             formData.businessName,
@@ -72,20 +113,32 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
             formData.plan
           );
         }
-      } catch (error) {
-        console.error('Welcome email error:', error);
+      } catch (emailError) {
+        console.error('Welcome email error:', emailError);
       }
 
       setIsSubmitting(false);
-      setStep(3); // Success step
-    }, 1500);
+      setStep(3);
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      setIsSubmitting(false);
+    }
   };
 
   const handleContinue = () => {
+    // Validate passwords before moving to step 2
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setError('');
     if (step === 1) {
       setStep(2);
     }
-    // Step 3 no longer redirects to dashboard
   };
 
   const getPlanName = () => {
@@ -96,6 +149,8 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
       default: return 'Solo';
     }
   };
+
+  const currentSlug = generateSlug(formData.businessName);
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${colors.gradients.subtle} py-12 px-4 sm:px-6 lg:px-8`}>
@@ -149,6 +204,14 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
 
         {/* Form Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-lg mb-6 bg-red-50 text-red-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
           {/* Step 1: Business Information */}
           {step === 1 && (
             <form onSubmit={(e) => { e.preventDefault(); handleContinue(); }} className="space-y-6">
@@ -170,6 +233,13 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   placeholder="e.g., Isha's Treat & Groceries"
                 />
+                {/* Slug Preview */}
+                {formData.businessName.length >= 2 && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                    <Globe className="w-4 h-4" />
+                    <span>Your store: <strong className="text-teal-600">{currentSlug}.apinlero.com</strong></span>
+                  </div>
+                )}
               </div>
 
               {/* Owner Name */}
@@ -223,6 +293,53 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                   onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   placeholder="+44 7448 682282"
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  <Lock className="w-4 h-4 inline mr-2" />
+                  Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    name="password"
+                    required
+                    minLength={6}
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    placeholder="Min 6 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  <Lock className="w-4 h-4 inline mr-2" />
+                  Confirm Password *
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  required
+                  minLength={6}
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  placeholder="Re-enter password"
                 />
               </div>
 
@@ -414,7 +531,7 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      Starting Trial...
+                      Creating Account...
                     </>
                   ) : (
                     <>
@@ -434,28 +551,28 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                 <PartyPopper className="w-12 h-12 text-white" />
               </div>
 
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Thank You for Joining Àpínlẹ̀rọ!</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Àpínlẹ̀rọ!</h2>
               <p className="text-xl text-teal-600 font-medium mb-6">
-                Welcome aboard, {formData.ownerName || 'there'}!
+                Your account has been created, {formData.ownerName || 'there'}!
               </p>
 
               <div className="bg-gray-50 rounded-xl p-6 mb-8 text-left">
-                <h3 className="font-semibold text-gray-900 mb-4 text-center">Your Registration Details</h3>
+                <h3 className="font-semibold text-gray-900 mb-4 text-center">Your Account Details</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Business Name:</span>
                     <span className="font-medium text-gray-900">{formData.businessName}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-200">
+                    <span className="text-gray-600">Store URL:</span>
+                    <span className="font-medium text-teal-600">{businessSlug}.apinlero.com</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Email:</span>
                     <span className="font-medium text-gray-900">{formData.email}</span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Phone:</span>
-                    <span className="font-medium text-gray-900">{formData.phone}</span>
-                  </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Selected Plan:</span>
+                    <span className="text-gray-600">Plan:</span>
                     <span className="font-medium text-teal-600">{getPlanName()} (30-day free trial)</span>
                   </div>
                 </div>
@@ -466,26 +583,22 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
                 <ul className="space-y-3 text-sm text-gray-700 text-left">
                   <li className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-bold">1</div>
-                    <span>Check your email (<strong>{formData.email}</strong>) for your account activation link</span>
+                    <span>Check your email (<strong>{formData.email}</strong>) and click the confirmation link to activate your account</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-bold">2</div>
-                    <span>Our team will reach out within 24 hours to help you get started</span>
+                    <span>Sign in at <strong>app.apinlero.com</strong> to access your dashboard</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-bold">3</div>
-                    <span>Complete your business profile and add your products</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center flex-shrink-0 text-xs font-bold">4</div>
-                    <span>Start accepting orders via WhatsApp and your web storefront!</span>
+                    <span>Add your products and start accepting orders!</span>
                   </li>
                 </ul>
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-amber-800">
-                  <strong>Questions?</strong> Reply to our welcome email or contact us at{' '}
+                  <strong>Questions?</strong> Contact us at{' '}
                   <a href="mailto:hello@apinlero.co.uk" className="text-teal-600 hover:underline font-medium">
                     hello@apinlero.co.uk
                   </a>
@@ -493,13 +606,13 @@ export function SignupForm({ onSuccess, onCancel }: SignupFormProps) {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={() => onSuccess(businessSlug || getCurrentSubdomain() || undefined)}
+                <a
+                  href="https://app.apinlero.com"
                   className="px-8 py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  Continue to Dashboard
+                  Go to Dashboard
                   <ArrowRight className="w-5 h-5" />
-                </button>
+                </a>
                 <a
                   href="/"
                   className="inline-block px-8 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-center"

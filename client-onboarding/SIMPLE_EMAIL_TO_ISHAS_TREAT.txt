@@ -1,0 +1,107 @@
+========================================
+TO: Info@ishastreatandgroceriescom.uk
+SUBJECT: 🔑 How to Get Your Stripe Keys
+========================================
+
+Hi Isha's Treat Team,
+
+To enable payments on your Apinlero store, we need your Stripe API keys. Here's exactly how to get them:
+
+
+📖 STEP-BY-STEP GUIDE
+========================================
+
+STEP 1: Log in to Stripe
+-------------------------
+Go to: https://dashboard.stripe.com
+(If you don't have an account yet, sign up at https://stripe.com)
+
+
+STEP 2: Click "Developers" in the Left Menu
+--------------------------------------------
+You'll see a menu on the left side of your Stripe dashboard.
+Click on "Developers"
+
+
+STEP 3: Click "API keys" at the Top
+------------------------------------
+Once in Developers, you'll see tabs at the top.
+Click "API keys"
+
+
+STEP 4: Find Your Two Keys
+---------------------------
+You'll see two keys on this page:
+
+1. Publishable key (starts with: pk_test_... or pk_live_...)
+2. Secret key (starts with: sk_test_... or sk_live_...)
+
+
+STEP 5: Reveal and Copy Each Key
+---------------------------------
+For EACH key:
+1. Click the eye icon (👁️) to reveal the full key
+2. Click "Copy" to copy it
+3. Paste it into a document
+
+Your keys should look like:
+- Publishable Key: pk_test_51ABC123...
+- Secret Key: sk_test_51XYZ789...
+
+
+STEP 6: Send the Keys to Us
+----------------------------
+Once you have both keys, please send them to:
+
+📧 ol.walexy@gmail.com
+
+You can either:
+✅ Create a Word document with both keys and email it
+✅ Just paste both keys directly in the email
+
+Format:
+-------
+Publishable Key: pk_test_[your key here]
+Secret Key: sk_test_[your key here]
+
+
+❓ COMMON QUESTIONS
+========================================
+
+Q: Will you have access to our money?
+A: No! Payments go directly from customers to YOUR Stripe
+   account to YOUR bank. We never touch your money.
+
+Q: What's the difference between test and live keys?
+A: - Test keys (pk_test_ and sk_test_): For testing with fake money
+   - Live keys (pk_live_ and sk_live_): For real payments
+   We recommend starting with test keys!
+
+Q: How much does Stripe charge?
+A: Stripe charges 1.4% + 20p per transaction in the UK.
+   Apinlero doesn't take any additional fees.
+
+
+⏱️ TIMELINE
+========================================
+1. You get your Stripe keys (5 minutes)
+2. You send them to ol.walexy@gmail.com
+3. We set up your payment system (10 minutes)
+4. Your store is live and accepting payments! 🎉
+
+Total: About 30 minutes!
+
+
+📧 NEED HELP?
+========================================
+If you need assistance, just reply to this email:
+ol.walexy@gmail.com
+
+We can help you get set up!
+
+
+Looking forward to getting your store live!
+
+Best regards,
+Apinlero Team
+ol.walexy@gmail.com

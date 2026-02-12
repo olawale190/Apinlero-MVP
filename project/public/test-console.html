@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Console Logger</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1a1a1a;
+      color: #00ff00;
+      padding: 20px;
+    }
+    #logs {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .error { color: #ff0000; }
+    .warn { color: #ffaa00; }
+    .info { color: #00aaff; }
+  </style>
+</head>
+<body>
+  <h1>Real-time Console Logger</h1>
+  <div id="logs"></div>
+  <script>
+    const logsDiv = document.getElementById('logs');
+
+    // Capture console logs
+    ['log', 'warn', 'error', 'info'].forEach(method => {
+      const original = console[method];
+      console[method] = function(...args) {
+        original.apply(console, args);
+        const entry = document.createElement('div');
+        entry.className = method;
+        entry.textContent = `[${method.toUpperCase()}] ${args.join(' ')}`;
+        logsDiv.appendChild(entry);
+        logsDiv.scrollTop = logsDiv.scrollHeight;
+      };
+    });
+
+    // Now load the main app
+    console.log('Loading main application...');
+    console.log('Current URL:', window.location.href);
+    console.log('Hostname:', window.location.hostname);
+
+    // Import the main app script
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = '/assets/index-wB32X5oB.js';
+    script.onerror = (e) => console.error('Failed to load main script:', e);
+    document.head.appendChild(script);
+  </script>
+</body>
+</html>

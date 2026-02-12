@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Get Your Stripe API Keys - Isha's Treat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #635BFF;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            color: #635BFF;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 18px;
+        }
+
+        .intro {
+            background: #f0f4ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #635BFF;
+        }
+
+        .intro h2 {
+            color: #635BFF;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .step {
+            margin-bottom: 40px;
+            page-break-inside: avoid;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #635BFF;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .step h3 {
+            color: #333;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .step-content {
+            padding-left: 20px;
+        }
+
+        .screenshot-placeholder {
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 60px 20px;
+            text-align: center;
+            margin: 20px 0;
+            color: #999;
+        }
+
+        .visual-guide {
+            background: #fff;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .key-example {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            border-left: 4px solid #635BFF;
+        }
+
+        .key-type {
+            font-weight: bold;
+            color: #635BFF;
+            margin-bottom: 5px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .send-methods {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .method {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .method h4 {
+            color: #635BFF;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .recommended {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+
+        .recommended h4 {
+            color: #28a745;
+        }
+
+        .contact-box {
+            background: #635BFF;
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .contact-box h3 {
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+
+        .contact-info {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            color: #666;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🔑</div>
+            <h1>How to Get Your Stripe API Keys</h1>
+            <p class="subtitle">A Simple Guide for Isha's Treat</p>
+        </div>
+
+        <!-- Introduction -->
+        <div class="intro">
+            <h2>Why Do You Need This?</h2>
+            <p>To accept payments on your Apinlero store, we need to connect your Stripe account. This guide shows you exactly where to find your API keys in your Stripe dashboard.</p>
+            <p style="margin-top: 10px;"><strong>Time needed:</strong> 5 minutes</p>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-number">1</div>
+            <h3>Log in to Your Stripe Dashboard</h3>
+            <div class="step-content">
+                <p><strong>Go to:</strong> <a href="https://dashboard.stripe.com" style="color: #635BFF;">https://dashboard.stripe.com</a></p>
+                <p>Log in with your email and password.</p>
+
+                <div class="info">
+                    <strong>📌 Don't have a Stripe account yet?</strong><br>
+                    Go to <a href="https://stripe.com" style="color: #17a2b8;">https://stripe.com</a> and click "Sign up". It takes 1-3 days for verification.
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-number">2</div>
+            <h3>Click "Developers" in the Left Sidebar</h3>
+            <div class="step-content">
+                <p>On the left side of your Stripe dashboard, look for the menu and click on <strong>"Developers"</strong>.</p>
+
+                <div class="visual-guide">
+                    <pre>
+┌─────────────────────────┐
+│ 🏠 Home                 │
+│ 💳 Payments             │
+│ 👥 Customers            │
+│ 📦 Products             │
+│ <strong style="color: #635BFF;">⚙️  Developers  ← CLICK HERE</strong> │
+│ 📊 Reports              │
+│ ⚙️  Settings            │
+└─────────────────────────┘
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-number">3</div>
+            <h3>Click "API keys" at the Top</h3>
+            <div class="step-content">
+                <p>Once you're in the Developers section, you'll see a menu at the top. Click on <strong>"API keys"</strong>.</p>
+
+                <div class="visual-guide">
+                    <pre>
+Developers Menu:
+[Overview]  <strong style="color: #635BFF;">[API keys] ← CLICK HERE</strong>  [Webhooks]  [Events]  [Logs]
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step">
+            <div class="step-number">4</div>
+            <h3>Find Your Two Keys</h3>
+            <div class="step-content">
+                <p>You'll now see a page showing your API keys. You need to copy <strong>TWO</strong> keys:</p>
+
+                <div class="key-example">
+                    <div class="key-type">1. Publishable Key</div>
+                    <code>pk_test_••••••••••••••••••••••••  👁️ [Copy]</code>
+                </div>
+
+                <div class="key-example">
+                    <div class="key-type">2. Secret Key</div>
+                    <code>sk_test_••••••••••••••••••••••••  👁️ [Copy]</code>
+                </div>
+
+                <div class="warning">
+                    <strong>⚠️ Important:</strong> The keys are hidden with dots (••••). You need to click the <strong>eye icon (👁️)</strong> to reveal each key before copying it.
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step">
+            <div class="step-number">5</div>
+            <h3>Reveal and Copy Each Key</h3>
+            <div class="step-content">
+                <p><strong>For each key (Publishable and Secret):</strong></p>
+                <ol>
+                    <li>Click the <strong>eye icon (👁️)</strong> next to the key</li>
+                    <li>The full key will appear (starts with <code>pk_test_</code> or <code>sk_test_</code>)</li>
+                    <li>Click the <strong>"Copy"</strong> button</li>
+                    <li>Paste it somewhere safe (like a document)</li>
+                </ol>
+
+                <div class="info">
+                    <strong>💡 What should the keys look like?</strong><br>
+                    • Publishable Key: <code>pk_test_51ABC123...</code> (starts with pk_)<br>
+                    • Secret Key: <code>sk_test_51XYZ789...</code> (starts with sk_)
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="step">
+            <div class="step-number">6</div>
+            <h3>Send the Keys to Apinlero Securely</h3>
+            <div class="step-content">
+                <p><strong>IMPORTANT:</strong> These keys are sensitive! Send them using one of these secure methods:</p>
+
+                <div class="send-methods">
+                    <div class="method recommended">
+                        <h4>✅ Option 1: Password-Protected Document (Recommended)</h4>
+                        <ol>
+                            <li>Create a Word or text document</li>
+                            <li>Type both keys:
+                                <div class="key-example" style="margin-top: 10px;">
+                                    Publishable Key: pk_test_[your key]<br>
+                                    Secret Key: sk_test_[your key]
+                                </div>
+                            </li>
+                            <li>Save with a password</li>
+                            <li>Email document to: <strong>ol.walexy@gmail.com</strong></li>
+                            <li>Send password via text message or call</li>
+                        </ol>
+                    </div>
+
+                    <div class="method">
+                        <h4>Option 2: Direct Email</h4>
+                        <p>Send both keys directly via email to:</p>
+                        <p style="font-size: 20px; font-weight: bold; color: #635BFF; margin-top: 10px;">ol.walexy@gmail.com</p>
+                        <p style="margin-top: 10px;">We'll save them securely and confirm receipt.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="step">
+            <h3 style="color: #635BFF; margin-bottom: 20px;">❓ Common Questions</h3>
+            <div class="step-content">
+                <div style="margin-bottom: 20px;">
+                    <strong style="color: #635BFF;">Q: Will Apinlero have access to my money?</strong>
+                    <p>A: No! Payments go directly from customers to YOUR Stripe account to YOUR bank. We never touch your money.</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <strong style="color: #635BFF;">Q: What's the difference between test and live keys?</strong>
+                    <p>A: Test keys (pk_test_ and sk_test_) are for testing with fake money. Live keys (pk_live_ and sk_live_) are for real payments. We recommend starting with test keys!</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <strong style="color: #635BFF;">Q: How much does Stripe charge?</strong>
+                    <p>A: Stripe charges 1.4% + 20p per transaction in the UK. Apinlero doesn't take any additional fees.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success -->
+        <div class="success">
+            <strong>🎉 That's it!</strong> Once you send us your keys, we'll have your payment system set up in about 10 minutes. Your store will be ready to accept payments!
+        </div>
+
+        <!-- Contact Box -->
+        <div class="contact-box">
+            <h3>Need Help?</h3>
+            <div class="contact-info">📧 ol.walexy@gmail.com</div>
+            <p style="margin-top: 15px;">Email me anytime and I'll help you get set up!</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Apinlero</strong> - Making Online Selling Simple</p>
+            <p style="margin-top: 10px;">Created for Isha's Treat | February 2026</p>
+        </div>
+    </div>
+</body>
+</html>

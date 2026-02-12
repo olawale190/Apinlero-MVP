@@ -19,7 +19,7 @@ const businessCache = new Map<string, Business>();
 // Hardcoded fallback for known businesses (prevents complete failure if DB is slow)
 const KNOWN_BUSINESSES: Record<string, Business> = {
   'ishas-treat': {
-    id: '00000000-0000-0000-0000-000000000000', // Placeholder ID
+    id: 'bf642ec5-8990-4581-bc1c-e4171d472007',
     slug: 'ishas-treat',
     name: "Isha's Treat & Groceries",
     owner_email: 'ishastreat@example.com',

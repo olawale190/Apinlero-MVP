@@ -193,7 +193,7 @@ export default function NewOrderForm({ onOrderCreated }: NewOrderFormProps) {
                 <option value="">Select product...</option>
                 {products.map(product => (
                   <option key={product.id} value={product.id}>
-                    {product.name} - £{(product.price / 100).toFixed(2)}
+                    {product.name} - £{product.price.toFixed(2)}
                   </option>
                 ))}
               </select>

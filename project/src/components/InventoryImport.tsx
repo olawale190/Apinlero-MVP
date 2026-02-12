@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBusinessContext } from '../contexts/BusinessContext';
+import type { Business } from '../lib/business-resolver';
 import {
   Upload,
   FileSpreadsheet,
@@ -32,20 +33,22 @@ interface ImportedProduct {
 interface InventoryImportProps {
   onImportComplete: () => void;
   onClose: () => void;
+  business?: Business | null;
 }
 
 // Valid categories for validation
 const VALID_CATEGORIES = [
   'Grains', 'Oils', 'Produce', 'Fish', 'Meat', 'Spices', 'Canned',
   'Drinks', 'Flour', 'Seeds', 'Seafood', 'Seasonings', 'Snacks',
-  'Dairy', 'Frozen', 'General'
+  'Dairy', 'Frozen', 'General', 'Rice & Beans', 'Flour & Garri'
 ];
 
 // Valid units
 const VALID_UNITS = ['each', 'kg', 'pack', 'box', 'case', 'bag', 'bottle', 'tin', 'litre', 'gram'];
 
-export default function InventoryImport({ onImportComplete, onClose }: InventoryImportProps) {
-  const { business } = useBusinessContext();
+export default function InventoryImport({ onImportComplete, onClose, business: businessProp }: InventoryImportProps) {
+  const businessContext = useBusinessContext();
+  const business = businessProp ?? businessContext?.business ?? null;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<'upload' | 'preview' | 'importing' | 'complete'>('upload');
@@ -288,11 +291,6 @@ export default function InventoryImport({ onImportComplete, onClose }: Inventory
 
   // Import products to database
   const handleImport = async () => {
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     const validProducts = parsedProducts.filter(p => p.isValid);
     if (validProducts.length === 0) {
       alert('No valid products to import');
@@ -308,23 +306,35 @@ export default function InventoryImport({ onImportComplete, onClose }: Inventory
     for (let i = 0; i < validProducts.length; i += batchSize) {
       const batch = validProducts.slice(i, i + batchSize);
 
-      const productsToInsert = batch.map(p => ({
-        business_id: business.id,
-        name: p.name,
-        price: Math.round(p.price * 100), // Convert to pence
-        category: p.category,
-        unit: p.unit,
-        stock_quantity: p.stock_quantity,
-        barcode: p.barcode || null,
-        expiry_date: p.expiry_date || null,
-        batch_number: p.batch_number || null,
-        is_active: true
-      }));
+      const productsToInsert = batch.map(p => {
+        const row: Record<string, unknown> = {
+          name: p.name,
+          price: Math.round(p.price * 100), // Convert to pence
+          category: p.category,
+          unit: p.unit,
+          stock_quantity: p.stock_quantity,
+          barcode: p.barcode || null,
+          expiry_date: p.expiry_date || null,
+          batch_number: p.batch_number || null,
+          is_active: true
+        };
+        if (business?.id) row.business_id = business.id;
+        return row;
+      });
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('products')
         .insert(productsToInsert)
         .select();
+
+      // Retry without business_id if column doesn't exist
+      if (error && error.message?.includes('business_id')) {
+        const withoutBizId = productsToInsert.map(p => {
+          const { business_id, ...rest } = p as Record<string, unknown> & { business_id?: unknown };
+          return rest;
+        });
+        ({ data, error } = await supabase.from('products').insert(withoutBizId).select());
+      }
 
       if (error) {
         results.failed += batch.length;

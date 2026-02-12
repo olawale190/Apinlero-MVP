@@ -62,7 +62,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="flex items-center justify-between mb-3">
           <span className={`text-xl font-bold ${colors.tailwind.primaryMainText}`}>
-            {shopConfig.currency}{(product.price / 100).toFixed(2)}
+            {shopConfig.currency}{product.price.toFixed(2)}
           </span>
         </div>
 

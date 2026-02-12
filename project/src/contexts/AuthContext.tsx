@@ -68,46 +68,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const { business } = useBusinessContext();
 
-  // Fetch or create customer profile
+  // Fetch or create customer profile (atomic upsert prevents duplicate profiles)
   const fetchOrCreateProfile = useCallback(async (userId: string, email: string, fullName?: string) => {
     try {
-      // First try to fetch existing profile
-      const { data: existingProfile, error: fetchError } = await supabase
+      // Use upsert with onConflict to atomically create or fetch profile
+      // This prevents race conditions when user opens multiple tabs
+      const { data: profile, error } = await supabase
         .from('customer_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (existingProfile) {
-        setProfile(existingProfile);
-        return existingProfile;
-      }
-
-      // If no profile exists, create one
-      if (fetchError?.code === 'PGRST116') { // No rows returned
-        const { data: newProfile, error: createError } = await supabase
-          .from('customer_profiles')
-          .insert({
+        .upsert(
+          {
             user_id: userId,
             business_id: business?.id || null,
             email: email,
             full_name: fullName || null,
             marketing_consent: false
-          })
-          .select()
+          },
+          { onConflict: 'user_id', ignoreDuplicates: true }
+        )
+        .select()
+        .single();
+
+      if (error) {
+        // If upsert fails (e.g., no unique constraint on user_id), fall back to fetch
+        const { data: existingProfile } = await supabase
+          .from('customer_profiles')
+          .select('*')
+          .eq('user_id', userId)
           .single();
 
-        if (createError) {
-          console.error('Error creating profile:', createError);
-          return null;
+        if (existingProfile) {
+          setProfile(existingProfile);
+          return existingProfile;
         }
 
-        setProfile(newProfile);
-        return newProfile;
+        console.error('Error in profile upsert:', error);
+        return null;
       }
 
-      console.error('Error fetching profile:', fetchError);
-      return null;
+      setProfile(profile);
+      return profile;
     } catch (err) {
       console.error('Error in fetchOrCreateProfile:', err);
       return null;

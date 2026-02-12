@@ -14,7 +14,6 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,33 +21,15 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: 'owner',
-            },
-          },
-        });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (signUpError) {
-          setError(signUpError.message);
-        } else {
-          setError('Check your email for a confirmation link!');
-        }
+      if (signInError) {
+        setError(signInError.message);
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          setError(signInError.message);
-        } else {
-          onLoginSuccess();
-        }
+        onLoginSuccess();
       }
     } catch {
       setError('An unexpected error occurred. Please try again.');
@@ -71,11 +52,7 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
 
           {/* Error Message */}
           {error && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg mb-6 ${
-              error.includes('Check your email')
-                ? 'bg-green-50 text-green-700'
-                : 'bg-red-50 text-red-700'
-            }`}>
+            <div className="flex items-center gap-2 p-3 rounded-lg mb-6 bg-red-50 text-red-700">
               <AlertCircle size={18} />
               <span className="text-sm">{error}</span>
             </div>
@@ -130,19 +107,19 @@ export default function Login({ onLoginSuccess, onViewStorefront, onForgotPasswo
               className="w-full py-3 rounded-lg text-white font-medium transition-all hover:opacity-90 disabled:opacity-50"
               style={{ backgroundColor: '#0d9488' }}
             >
-              {isLoading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
+              {isLoading ? 'Please wait...' : 'Sign In'}
             </button>
           </form>
 
-          {/* Toggle Sign Up / Sign In */}
+          {/* Sign Up Link & Forgot Password */}
           <div className="mt-4 text-center space-y-2">
-            <button
-              onClick={() => setIsSignUp(!isSignUp)}
+            <a
+              href="https://apinlero.com/signup"
               className="text-sm text-teal-600 hover:text-teal-700 block w-full"
             >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
-            {!isSignUp && onForgotPassword && (
+              Don't have an account? Start your free trial
+            </a>
+            {onForgotPassword && (
               <button
                 onClick={onForgotPassword}
                 className="text-sm text-gray-600 hover:text-teal-600 block w-full"

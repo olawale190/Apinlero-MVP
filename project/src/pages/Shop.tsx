@@ -29,29 +29,39 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    if (business?.id) {
-      fetchProducts();
-    }
+    fetchProducts();
   }, [business?.id]);
 
   const fetchProducts = async () => {
-    if (!business?.id) {
-      console.warn('⚠️ No business_id available, skipping products load');
-      setLoading(false);
-      return;
-    }
-
     try {
-      console.log('🛍️ Loading products for business:', business.id);
+      console.log('🛍️ Loading products for storefront...');
+
+      // Try with business_id filter first (multi-tenant)
+      if (business?.id) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('business_id', business.id)
+          .eq('is_active', true)
+          .order('name');
+
+        if (!error && data) {
+          console.log(`✅ Loaded ${data.length} products for storefront`);
+          setProducts(data);
+          return;
+        }
+        console.warn('⚠️ business_id filter failed, trying fallback:', error?.message);
+      }
+
+      // Fallback: load all active products (pre-migration or no business context)
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('business_id', business.id)
         .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
-      console.log(`✅ Loaded ${data?.length || 0} products for storefront`);
+      console.log(`✅ Loaded ${data?.length || 0} products (fallback)`);
       setProducts(data || []);
     } catch (error) {
       console.error('Error fetching products:', error);

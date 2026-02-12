@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Connection Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        .log { margin: 5px 0; padding: 5px; background: #2a2a2a; }
+        .error { color: #ff5555; }
+        .success { color: #55ff55; }
+        .info { color: #5555ff; }
+    </style>
+</head>
+<body>
+    <h1>Supabase Connection Diagnostic</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+            console.log(message);
+        }
+
+        async function testConnection() {
+            log('Starting Supabase connection test...', 'info');
+
+            const SUPABASE_URL = 'https://gafoezdpaotwvpfldyhc.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhZm9lemRwYW90d3ZwZmxkeWhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzE0ODcsImV4cCI6MjA4MDc0NzQ4N30.mnnK_P0liG-cZrTHP2Q3f2aefNNlIUVUBGvSnPVd81Q';
+
+            log(`URL: ${SUPABASE_URL}`, 'info');
+            log(`Anon Key: ${SUPABASE_ANON_KEY.substring(0, 20)}...`, 'info');
+
+            try {
+                const { createClient } = supabase;
+                const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                log('Supabase client created', 'success');
+
+                // Test 1: Query businesses table
+                log('Testing businesses table query...', 'info');
+                const { data: businesses, error: bizError } = await client
+                    .from('businesses')
+                    .select('*')
+                    .eq('slug', 'ishas-treat')
+                    .eq('is_active', true)
+                    .single();
+
+                if (bizError) {
+                    log(`❌ Business query error: ${bizError.message}`, 'error');
+                    log(`Error details: ${JSON.stringify(bizError, null, 2)}`, 'error');
+                } else if (!businesses) {
+                    log('❌ No business found for slug: ishas-treat', 'error');
+                } else {
+                    log(`✅ Business found: ${businesses.name}`, 'success');
+                    log(`   ID: ${businesses.id}`, 'success');
+                    log(`   Slug: ${businesses.slug}`, 'success');
+                    log(`   Owner: ${businesses.owner_email}`, 'success');
+                }
+
+                // Test 2: List all businesses
+                log('Listing all businesses...', 'info');
+                const { data: allBiz, error: allError } = await client
+                    .from('businesses')
+                    .select('*');
+
+                if (allError) {
+                    log(`❌ All businesses query error: ${allError.message}`, 'error');
+                } else {
+                    log(`✅ Found ${allBiz.length} total business(es)`, 'success');
+                    allBiz.forEach(biz => {
+                        log(`   - ${biz.name} (${biz.slug}) - Active: ${biz.is_active}`, 'info');
+                    });
+                }
+
+            } catch (err) {
+                log(`❌ Unexpected error: ${err.message}`, 'error');
+                log(`Stack: ${err.stack}`, 'error');
+            }
+        }
+
+        // Run test on page load
+        testConnection();
+    </script>
+</body>
+</html>

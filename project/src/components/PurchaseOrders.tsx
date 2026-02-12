@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useBusinessContext } from '../contexts/BusinessContext';
+import type { Business } from '../lib/business-resolver';
 import {
   ShoppingCart,
   AlertTriangle,
@@ -26,7 +27,7 @@ interface Product {
   price: number;
   category: string;
   unit: string;
-  stock_quantity: number;
+  stock_quantity?: number;
   is_active: boolean;
 }
 
@@ -68,6 +69,7 @@ interface PurchaseOrder {
 interface PurchaseOrdersProps {
   products: Product[];
   onProductUpdate: () => void;
+  business?: Business | null;
 }
 
 // Default suppliers for African/Caribbean grocery stores
@@ -140,13 +142,15 @@ const getThreshold = (category: string) => {
 
 const getStockStatus = (product: Product): 'critical' | 'warning' | 'ok' => {
   const threshold = getThreshold(product.category);
-  if (product.stock_quantity <= threshold.critical) return 'critical';
-  if (product.stock_quantity <= threshold.warning) return 'warning';
+  const qty = product.stock_quantity ?? 0;
+  if (qty <= threshold.critical) return 'critical';
+  if (qty <= threshold.warning) return 'warning';
   return 'ok';
 };
 
-export default function PurchaseOrders({ products, onProductUpdate }: PurchaseOrdersProps) {
-  const { business } = useBusinessContext();
+export default function PurchaseOrders({ products, onProductUpdate, business: businessProp }: PurchaseOrdersProps) {
+  const businessContext = useBusinessContext();
+  const business = businessProp ?? businessContext?.business ?? null;
   const [suppliers] = useState<Supplier[]>(DEFAULT_SUPPLIERS);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [orderItems, setOrderItems] = useState<PurchaseOrderItem[]>([]);
@@ -177,7 +181,7 @@ export default function PurchaseOrders({ products, onProductUpdate }: PurchaseOr
   // Get estimated cost (using 60% of retail as wholesale estimate)
   const getEstimatedCost = (product: Product, quantity: number): number => {
     const wholesaleRate = 0.6;
-    return Math.round((product.price / 100) * wholesaleRate * quantity * 100) / 100;
+    return Math.round(product.price * wholesaleRate * quantity * 100) / 100;
   };
 
   // Add product to order
@@ -193,7 +197,7 @@ export default function PurchaseOrders({ products, onProductUpdate }: PurchaseOr
         product_name: product.name,
         category: product.category,
         unit: product.unit,
-        current_stock: product.stock_quantity,
+        current_stock: product.stock_quantity ?? 0,
         reorder_quantity: suggestedQty,
         unit_cost: unitCost,
         total_cost: unitCost * suggestedQty
@@ -231,7 +235,7 @@ export default function PurchaseOrders({ products, onProductUpdate }: PurchaseOr
           product_name: product.name,
           category: product.category,
           unit: product.unit,
-          current_stock: product.stock_quantity,
+          current_stock: product.stock_quantity ?? 0,
           reorder_quantity: suggestedQty,
           unit_cost: unitCost,
           total_cost: unitCost * suggestedQty
@@ -360,7 +364,7 @@ export default function PurchaseOrders({ products, onProductUpdate }: PurchaseOr
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
               status === 'critical' ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'
             }`}>
-              {product.stock_quantity} left
+              {product.stock_quantity ?? 0} left
             </span>
             <h4 className="font-medium text-gray-800 truncate">{product.name}</h4>
           </div>

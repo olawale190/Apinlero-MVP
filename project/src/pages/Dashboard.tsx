@@ -209,7 +209,57 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           return;
         }
 
-        console.error('[Dashboard] ❌ No business found at all:', anyError);
+        console.warn('[Dashboard] Strategy 3 failed:', anyError?.message);
+
+        // Strategy 4: Recovery - create business from user metadata (trigger may have failed)
+        const userMeta = user.user_metadata;
+        if (userMeta?.role === 'business_owner' && userMeta?.business_name) {
+          console.log('[Dashboard] Attempting recovery: creating business from user metadata...');
+          const recoverySlug = userMeta.business_slug || userMeta.business_name
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .trim()
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-');
+
+          const { data: recoveredBusiness, error: recoverError } = await supabase
+            .from('businesses')
+            .insert({
+              slug: recoverySlug,
+              name: userMeta.business_name,
+              owner_email: user.email,
+              phone: userMeta.phone || null,
+              business_type: userMeta.business_type || null,
+              subscription_tier: userMeta.plan || 'solo',
+              is_active: true,
+            })
+            .select()
+            .single();
+
+          if (!recoverError && recoveredBusiness) {
+            // Also create user_businesses link
+            await supabase.from('user_businesses').insert({
+              user_id: user.id,
+              business_id: recoveredBusiness.id,
+              role: 'owner',
+            });
+
+            console.log('[Dashboard] ✅ Recovery succeeded:', recoveredBusiness.name);
+            setBusiness({
+              id: recoveredBusiness.id,
+              slug: recoveredBusiness.slug,
+              name: recoveredBusiness.name,
+              owner_email: recoveredBusiness.owner_email,
+              phone: recoveredBusiness.phone,
+              is_active: recoveredBusiness.is_active,
+            });
+            return;
+          }
+
+          console.error('[Dashboard] Recovery failed:', recoverError?.message);
+        }
+
+        console.error('[Dashboard] ❌ No business found at all');
         setIsLoading(false);
       } catch (error) {
         console.error('[Dashboard] Error loading user business:', error);
@@ -231,7 +281,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
     loadProducts();
     setIsLoading(false);
 
-    // Set up real-time subscription with business_id filter
+    // Set up real-time subscription for orders
     const channel = supabase
       .channel('orders-changes')
       .on(
@@ -240,7 +290,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           event: '*',
           schema: 'public',
           table: 'orders',
-          filter: `business_id=eq.${business.id}`,
         },
         () => {
           loadOrders();
@@ -260,6 +309,8 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
     }
 
     console.log('📋 Loading orders from database for business:', business.id);
+
+    // Try with business_id filter first (multi-tenant)
     const { data, error } = await supabase
       .from('orders')
       .select('*')
@@ -270,7 +321,19 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       console.log(`✅ Loaded ${data.length} orders from database`);
       setOrders(data);
     } else if (error) {
-      console.error('❌ Error loading orders:', error);
+      // Fallback: business_id column may not exist yet (pre-migration)
+      console.warn('⚠️ business_id filter failed, loading all orders:', error.message);
+      const { data: allData, error: allError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!allError && allData) {
+        console.log(`✅ Loaded ${allData.length} orders (fallback, no business_id filter)`);
+        setOrders(allData);
+      } else if (allError) {
+        console.error('❌ Error loading orders:', allError);
+      }
     }
   };
 
@@ -281,6 +344,8 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
     }
 
     console.log('📦 Loading products from database for business:', business.id);
+
+    // Try with business_id filter first (multi-tenant)
     const { data, error } = await supabase
       .from('products')
       .select('*')
@@ -291,7 +356,20 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       console.log(`✅ Loaded ${data.length} products from database`);
       setProducts(data);
     } else if (error) {
-      console.error('❌ Error loading products:', error);
+      // Fallback: business_id column may not exist yet (pre-migration)
+      console.warn('⚠️ business_id filter failed, loading all products:', error.message);
+      const { data: allData, error: allError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (!allError && allData) {
+        console.log(`✅ Loaded ${allData.length} products (fallback, no business_id filter)`);
+        setProducts(allData);
+      } else if (allError) {
+        console.error('❌ Error loading products:', allError);
+      }
     }
   };
 
@@ -525,14 +603,14 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         {/* Inventory Manager Tab */}
         {activeTab === 'inventory' && (
           <div className="space-y-6">
-            <InventoryManager products={products} onProductUpdate={loadProducts} />
+            <InventoryManager products={products} onProductUpdate={loadProducts} business={business} />
           </div>
         )}
 
         {/* Purchase Orders Tab */}
         {activeTab === 'purchase' && (
           <div className="space-y-6">
-            <PurchaseOrders products={products} onProductUpdate={loadProducts} />
+            <PurchaseOrders products={products} onProductUpdate={loadProducts} business={business} />
           </div>
         )}
 

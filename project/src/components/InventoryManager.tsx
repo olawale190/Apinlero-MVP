@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useBusinessContext } from '../contexts/BusinessContext';
-import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import type { Business } from '../lib/business-resolver';
+import { Package, QrCode, Plus, Minus, Search, AlertTriangle, Camera, Edit3, Tag, Check, X, Calendar, Clock, Barcode, Trash2, FolderOpen, Mail, Image, Upload, Loader2, Database, RefreshCw, FileSpreadsheet, Brain, ChevronDown, ChevronUp } from 'lucide-react';
 import ProductQRCode from './ProductQRCode';
 import QRScanner from './QRScanner';
 import CategoryManager from './CategoryManager';
@@ -12,6 +13,7 @@ import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
 import InventoryImport from './InventoryImport';
+import AIInventoryAssistant from './AIInventoryAssistant';
 
 interface BulkPriceTier {
   minQty: number;
@@ -78,6 +80,7 @@ const getDaysUntilExpiry = (expiryDate: string | undefined): number | null => {
 interface InventoryManagerProps {
   products: Product[];
   onProductUpdate: () => void;
+  business?: Business | null; // Optional: passed from Dashboard when BusinessContext is unavailable
 }
 
 // Default bulk pricing tiers for wholesale
@@ -87,8 +90,10 @@ const defaultBulkTiers: BulkPriceTier[] = [
   { minQty: 51, maxQty: null, price: 0 }, // 15% off
 ];
 
-export default function InventoryManager({ products: initialProducts, onProductUpdate }: InventoryManagerProps) {
-  const { business } = useBusinessContext();
+export default function InventoryManager({ products: initialProducts, onProductUpdate, business: businessProp }: InventoryManagerProps) {
+  const businessContext = useBusinessContext();
+  // Use prop (from Dashboard) if provided, otherwise fall back to context (storefront)
+  const business = businessProp ?? businessContext?.business ?? null;
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -164,6 +169,45 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Bulk import state
   const [showBulkImport, setShowBulkImport] = useState(false);
+
+  // AI assistant state
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+
+  // Alert expand/collapse state
+  const [showAllLowStock, setShowAllLowStock] = useState(false);
+  const [showAllExpiring, setShowAllExpiring] = useState(false);
+
+  // Direct stock quantity editing state
+  const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  const [editingStockValue, setEditingStockValue] = useState<string>('');
+
+  // AI price change handler
+  const handleAIPriceChange = async (productId: string, newPrice: number) => {
+    let query = supabase.from('products').update({ price: newPrice }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ price: newPrice }).eq('id', productId));
+    }
+    if (!error) {
+      setProducts(products.map(p => p.id === productId ? { ...p, price: newPrice } : p));
+      onProductUpdate();
+    }
+  };
+
+  // AI category change handler
+  const handleAICategoryChange = async (productId: string, newCategory: string) => {
+    let query = supabase.from('products').update({ category: newCategory }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ category: newCategory }).eq('id', productId));
+    }
+    if (!error) {
+      setProducts(products.map(p => p.id === productId ? { ...p, category: newCategory } : p));
+      onProductUpdate();
+    }
+  };
 
   // Handle sending low stock alert
   const handleSendLowStockAlert = async (product: Product) => {
@@ -369,17 +413,17 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Update product price
   const updatePrice = async (productId: string, price: number) => {
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setSavingPrice(true);
-    const { error } = await supabase
-      .from('products')
-      .update({ price })
-      .eq('id', productId)
-      .eq('business_id', business.id);
+
+    // Try with business_id filter, fallback without it (pre-migration support)
+    let query = supabase.from('products').update({ price }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    // Retry without business_id if column doesn't exist
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ price }).eq('id', productId));
+    }
 
     if (!error) {
       setProducts(products.map(p =>
@@ -397,17 +441,15 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
   // Save bulk pricing tiers
   const saveBulkPricing = async (productId: string) => {
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setSavingPrice(true);
-    const { error } = await supabase
-      .from('products')
-      .update({ bulk_pricing: bulkTiers })
-      .eq('id', productId)
-      .eq('business_id', business.id);
+
+    let query = supabase.from('products').update({ bulk_pricing: bulkTiers }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ bulk_pricing: bulkTiers }).eq('id', productId));
+    }
 
     if (!error) {
       setProducts(products.map(p =>
@@ -435,11 +477,6 @@ export default function InventoryManager({ products: initialProducts, onProductU
   };
 
   const updateStock = async (productId: string, change: number) => {
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setUpdatingStock(productId);
     const product = products.find(p => p.id === productId);
     if (!product) return;
@@ -447,11 +484,13 @@ export default function InventoryManager({ products: initialProducts, onProductU
     const newQuantity = Math.max(0, product.stock_quantity + change);
     const previousQuantity = product.stock_quantity;
 
-    const { error } = await supabase
-      .from('products')
-      .update({ stock_quantity: newQuantity })
-      .eq('id', productId)
-      .eq('business_id', business.id);
+    let query = supabase.from('products').update({ stock_quantity: newQuantity }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ stock_quantity: newQuantity }).eq('id', productId));
+    }
 
     if (!error) {
       setProducts(products.map(p =>
@@ -466,6 +505,80 @@ export default function InventoryManager({ products: initialProducts, onProductU
       }
     }
     setUpdatingStock(null);
+  };
+
+  const setStockQuantity = async (productId: string, newQuantity: number) => {
+    setUpdatingStock(productId);
+    const product = products.find(p => p.id === productId);
+    if (!product) { setUpdatingStock(null); return; }
+
+    const qty = Math.max(0, Math.round(newQuantity));
+    const previousQuantity = product.stock_quantity ?? 0;
+
+    let query = supabase.from('products').update({ stock_quantity: qty }).eq('id', productId);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ stock_quantity: qty }).eq('id', productId));
+    }
+
+    if (!error) {
+      setProducts(products.map(p =>
+        p.id === productId ? { ...p, stock_quantity: qty } : p
+      ));
+      onProductUpdate();
+
+      if (isN8nConfigured() && qty <= 5 && previousQuantity > 5) {
+        triggerLowStockAlert(productId, product.name, qty).catch(console.error);
+      }
+    }
+    setUpdatingStock(null);
+    setEditingStockId(null);
+  };
+
+  // Quick image upload directly from product card (no edit modal needed)
+  const quickImageInputRef = useRef<HTMLInputElement>(null);
+  const [quickImageProductId, setQuickImageProductId] = useState<string | null>(null);
+
+  const handleQuickImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const productId = quickImageProductId;
+    if (!file || !productId) return;
+
+    if (!file.type.startsWith('image/')) { alert('Please select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be less than 5MB'); return; }
+
+    setUploadingImage(true);
+    try {
+      const compression = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8, maxSizeKB: 500 });
+      const result = await uploadAndTrack(BUCKETS.PRODUCTS, compression.file, {
+        folder: 'catalog',
+        source: 'web',
+        metadata: { uploadedFrom: 'quick-upload', originalSize: compression.originalSize, compressedSize: compression.compressedSize, wasCompressed: compression.wasCompressed }
+      });
+
+      if (result.success && result.url) {
+        let query = supabase.from('products').update({ image_url: result.url }).eq('id', productId);
+        if (business?.id) query = query.eq('business_id', business.id);
+        let { error } = await query;
+        if (error && error.message?.includes('business_id')) {
+          ({ error } = await supabase.from('products').update({ image_url: result.url }).eq('id', productId));
+        }
+        if (!error) {
+          setProducts(products.map(p => p.id === productId ? { ...p, image_url: result.url! } : p));
+          onProductUpdate();
+        }
+      } else {
+        alert('Failed to upload image: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Quick image upload error:', error);
+      alert('Failed to upload image');
+    }
+    setUploadingImage(false);
+    setQuickImageProductId(null);
+    if (quickImageInputRef.current) quickImageInputRef.current.value = '';
   };
 
   const handleShowQR = (product: Product) => {
@@ -531,30 +644,41 @@ export default function InventoryManager({ products: initialProducts, onProductU
       return;
     }
 
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setSavingProduct(true);
 
-    const { data, error } = await supabase
+    const productData: Record<string, unknown> = {
+      name: newProductForm.name,
+      price: parseFloat(newProductForm.price),
+      category: newProductForm.category || 'General',
+      unit: newProductForm.unit,
+      stock_quantity: parseInt(newProductForm.stock_quantity) || 1,
+      barcode: newProductForm.barcode || null,
+      expiry_date: newProductForm.expiry_date || null,
+      batch_number: newProductForm.batch_number || null,
+      image_url: newProductForm.image_url || null,
+      is_active: true
+    };
+
+    // Include business_id if available
+    if (business?.id) {
+      productData.business_id = business.id;
+    }
+
+    let { data, error } = await supabase
       .from('products')
-      .insert([{
-        business_id: business.id,
-        name: newProductForm.name,
-        price: parseFloat(newProductForm.price),
-        category: newProductForm.category || 'General',
-        unit: newProductForm.unit,
-        stock_quantity: parseInt(newProductForm.stock_quantity) || 1,
-        barcode: newProductForm.barcode || null,
-        expiry_date: newProductForm.expiry_date || null,
-        batch_number: newProductForm.batch_number || null,
-        image_url: newProductForm.image_url || null,
-        is_active: true
-      }])
+      .insert([productData])
       .select()
       .single();
+
+    // Retry without business_id if column doesn't exist yet
+    if (error && error.message?.includes('business_id')) {
+      delete productData.business_id;
+      ({ data, error } = await supabase
+        .from('products')
+        .insert([productData])
+        .select()
+        .single());
+    }
 
     if (!error && data) {
       console.log('✅ Product saved successfully:', data.name);
@@ -643,28 +767,27 @@ export default function InventoryManager({ products: initialProducts, onProductU
       return;
     }
 
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setSavingProduct(true);
 
-    const { error } = await supabase
-      .from('products')
-      .update({
-        name: editForm.name,
-        price: parseFloat(editForm.price),
-        category: editForm.category || 'General',
-        unit: editForm.unit,
-        stock_quantity: parseInt(editForm.stock_quantity) || 0,
-        barcode: editForm.barcode || null,
-        expiry_date: editForm.expiry_date || null,
-        batch_number: editForm.batch_number || null,
-        image_url: editForm.image_url || null
-      })
-      .eq('id', editingProduct.id)
-      .eq('business_id', business.id);
+    const updateData = {
+      name: editForm.name,
+      price: parseFloat(editForm.price),
+      category: editForm.category || 'General',
+      unit: editForm.unit,
+      stock_quantity: parseInt(editForm.stock_quantity) || 0,
+      barcode: editForm.barcode || null,
+      expiry_date: editForm.expiry_date || null,
+      batch_number: editForm.batch_number || null,
+      image_url: editForm.image_url || null
+    };
+
+    let query = supabase.from('products').update(updateData).eq('id', editingProduct.id);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update(updateData).eq('id', editingProduct.id));
+    }
 
     if (!error) {
       setProducts(products.map(p =>
@@ -698,18 +821,15 @@ export default function InventoryManager({ products: initialProducts, onProductU
   const deleteProduct = async () => {
     if (!deletingProduct) return;
 
-    if (!business?.id) {
-      alert('Error: No business context available');
-      return;
-    }
-
     setIsDeleting(true);
 
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: false })
-      .eq('id', deletingProduct.id)
-      .eq('business_id', business.id);
+    let query = supabase.from('products').update({ is_active: false }).eq('id', deletingProduct.id);
+    if (business?.id) query = query.eq('business_id', business.id);
+    let { error } = await query;
+
+    if (error && error.message?.includes('business_id')) {
+      ({ error } = await supabase.from('products').update({ is_active: false }).eq('id', deletingProduct.id));
+    }
 
     if (!error) {
       setProducts(products.filter(p => p.id !== deletingProduct.id));
@@ -739,108 +859,222 @@ export default function InventoryManager({ products: initialProducts, onProductU
   return (
     <div className="space-y-4">
       {/* Expiry Alert */}
-      {expiringProducts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-red-800">
-              <Clock size={20} />
-              <h3 className="font-semibold">Expiry Alert</h3>
-            </div>
-            {isN8nConfigured() && (
-              <button
-                onClick={() => expiringProducts.forEach(p => handleSendExpiryAlert(p))}
-                disabled={sendingAlert !== null}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition disabled:opacity-50"
-              >
-                <Mail size={14} />
-                Email All Alerts
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {expiringProducts.map(product => {
-              const status = getExpiryStatus(product.expiry_date);
-              const days = getDaysUntilExpiry(product.expiry_date);
-              return (
-                <div key={product.id} className="flex items-center gap-1">
-                  <span
-                    className={`px-2 py-1 rounded text-sm ${
-                      status === 'expired' ? 'bg-red-200 text-red-900 font-bold' :
-                      status === 'critical' ? 'bg-red-100 text-red-800' :
-                      'bg-orange-100 text-orange-800'
-                    }`}
-                  >
-                    {product.name} ({status === 'expired' ? 'EXPIRED' : `${days} days left`})
-                  </span>
-                  {isN8nConfigured() && (
-                    <button
-                      onClick={() => handleSendExpiryAlert(product)}
-                      disabled={sendingAlert === product.id}
-                      className="p-1 bg-red-100 hover:bg-red-200 rounded transition disabled:opacity-50"
-                      title="Send expiry alert email"
-                    >
-                      {alertSent === product.id ? (
-                        <Check size={14} className="text-green-600" />
-                      ) : sendingAlert === product.id ? (
-                        <span className="text-xs">...</span>
-                      ) : (
-                        <Mail size={14} className="text-red-600" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {expiringProducts.length > 0 && (() => {
+        const sorted = [...expiringProducts].sort((a, b) => (getDaysUntilExpiry(a.expiry_date) ?? 999) - (getDaysUntilExpiry(b.expiry_date) ?? 999));
+        const expired = sorted.filter(p => getExpiryStatus(p.expiry_date) === 'expired');
+        const criticalExpiry = sorted.filter(p => getExpiryStatus(p.expiry_date) === 'critical');
+        const warningExpiry = sorted.filter(p => getExpiryStatus(p.expiry_date) === 'warning');
+        const preview = sorted.slice(0, 3);
+        const canExpand = sorted.length > 3;
 
-      {/* Low Stock Alert */}
-      {lowStockProducts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-amber-800">
-              <AlertTriangle size={20} />
-              <h3 className="font-semibold">Low Stock Alert</h3>
+        const renderExpiryItem = (product: Product) => {
+          const status = getExpiryStatus(product.expiry_date);
+          const days = getDaysUntilExpiry(product.expiry_date);
+          return (
+            <div key={product.id} className="flex items-center gap-1">
+              <span className={`px-2 py-1 rounded text-sm ${
+                status === 'expired' ? 'bg-red-200 text-red-900 font-bold' :
+                status === 'critical' ? 'bg-red-100 text-red-800' :
+                'bg-orange-100 text-orange-800'
+              }`}>
+                {product.name} ({status === 'expired' ? 'EXPIRED' : `${days} days left`})
+              </span>
+              {isN8nConfigured() && (
+                <button
+                  onClick={() => handleSendExpiryAlert(product)}
+                  disabled={sendingAlert === product.id}
+                  className="p-1 bg-red-100 hover:bg-red-200 rounded transition disabled:opacity-50"
+                  title="Send expiry alert email"
+                >
+                  {alertSent === product.id ? (
+                    <Check size={14} className="text-green-600" />
+                  ) : sendingAlert === product.id ? (
+                    <span className="text-xs">...</span>
+                  ) : (
+                    <Mail size={14} className="text-red-600" />
+                  )}
+                </button>
+              )}
             </div>
-            {isN8nConfigured() && (
-              <button
-                onClick={() => lowStockProducts.forEach(p => handleSendLowStockAlert(p))}
-                disabled={sendingAlert !== null}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition disabled:opacity-50"
-              >
-                <Mail size={14} />
-                Email All Alerts
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {lowStockProducts.map(product => (
-              <div key={product.id} className="flex items-center gap-1">
-                <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-sm">
-                  {product.name} ({product.stock_quantity} left)
+          );
+        };
+
+        return (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-red-800">
+                <Clock size={20} />
+                <h3 className="font-semibold">Expiry Alert</h3>
+                <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-medium">
+                  {sorted.length} {sorted.length === 1 ? 'item' : 'items'}
                 </span>
-                {isN8nConfigured() && (
+              </div>
+              {isN8nConfigured() && (
+                <button
+                  onClick={() => expiringProducts.forEach(p => handleSendExpiryAlert(p))}
+                  disabled={sendingAlert !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  <Mail size={14} />
+                  Email All Alerts
+                </button>
+              )}
+            </div>
+
+            {!showAllExpiring ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {preview.map(renderExpiryItem)}
+                </div>
+                {canExpand && (
                   <button
-                    onClick={() => handleSendLowStockAlert(product)}
-                    disabled={sendingAlert === product.id}
-                    className="p-1 bg-amber-100 hover:bg-amber-200 rounded transition disabled:opacity-50"
-                    title="Send low stock alert email"
+                    onClick={() => setShowAllExpiring(true)}
+                    className="flex items-center gap-1 mt-2 text-sm text-red-700 hover:text-red-900 transition font-medium"
                   >
-                    {alertSent === product.id ? (
-                      <Check size={14} className="text-green-600" />
-                    ) : sendingAlert === product.id ? (
-                      <span className="text-xs">...</span>
-                    ) : (
-                      <Mail size={14} className="text-amber-600" />
-                    )}
+                    <ChevronDown size={16} />
+                    Show all {sorted.length} items
                   </button>
                 )}
+              </>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {expired.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-red-700 mb-1">Expired ({expired.length})</p>
+                    <div className="flex flex-wrap gap-2">{expired.map(renderExpiryItem)}</div>
+                  </div>
+                )}
+                {criticalExpiry.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-red-800 mb-1">Critical — 1-3 days left ({criticalExpiry.length})</p>
+                    <div className="flex flex-wrap gap-2">{criticalExpiry.map(renderExpiryItem)}</div>
+                  </div>
+                )}
+                {warningExpiry.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-orange-700 mb-1">Warning — 4-7 days left ({warningExpiry.length})</p>
+                    <div className="flex flex-wrap gap-2">{warningExpiry.map(renderExpiryItem)}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowAllExpiring(false)}
+                  className="flex items-center gap-1 text-sm text-red-700 hover:text-red-900 transition font-medium"
+                >
+                  <ChevronUp size={16} />
+                  Show less
+                </button>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Low Stock Alert */}
+      {lowStockProducts.length > 0 && (() => {
+        const sorted = [...lowStockProducts].sort((a, b) => (a.stock_quantity ?? 0) - (b.stock_quantity ?? 0));
+        const outOfStock = sorted.filter(p => (p.stock_quantity ?? 0) === 0);
+        const critical = sorted.filter(p => (p.stock_quantity ?? 0) >= 1 && (p.stock_quantity ?? 0) <= 2);
+        const low = sorted.filter(p => (p.stock_quantity ?? 0) >= 3 && (p.stock_quantity ?? 0) <= 5);
+        const preview = sorted.slice(0, 3);
+        const canExpand = sorted.length > 3;
+
+        const renderLowStockItem = (product: Product) => (
+          <div key={product.id} className="flex items-center gap-1">
+            <span className={`px-2 py-1 rounded text-sm ${
+              (product.stock_quantity ?? 0) === 0 ? 'bg-red-100 text-red-800 font-semibold' :
+              (product.stock_quantity ?? 0) <= 2 ? 'bg-amber-200 text-amber-900' :
+              'bg-amber-100 text-amber-800'
+            }`}>
+              {product.name} ({product.stock_quantity ?? 0} left)
+            </span>
+            {isN8nConfigured() && (
+              <button
+                onClick={() => handleSendLowStockAlert(product)}
+                disabled={sendingAlert === product.id}
+                className="p-1 bg-amber-100 hover:bg-amber-200 rounded transition disabled:opacity-50"
+                title="Send low stock alert email"
+              >
+                {alertSent === product.id ? (
+                  <Check size={14} className="text-green-600" />
+                ) : sendingAlert === product.id ? (
+                  <span className="text-xs">...</span>
+                ) : (
+                  <Mail size={14} className="text-amber-600" />
+                )}
+              </button>
+            )}
+          </div>
+        );
+
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-amber-800">
+                <AlertTriangle size={20} />
+                <h3 className="font-semibold">Low Stock Alert</h3>
+                <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                  {sorted.length} {sorted.length === 1 ? 'item' : 'items'}
+                </span>
+              </div>
+              {isN8nConfigured() && (
+                <button
+                  onClick={() => lowStockProducts.forEach(p => handleSendLowStockAlert(p))}
+                  disabled={sendingAlert !== null}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition disabled:opacity-50"
+                >
+                  <Mail size={14} />
+                  Email All Alerts
+                </button>
+              )}
+            </div>
+
+            {!showAllLowStock ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {preview.map(renderLowStockItem)}
+                </div>
+                {canExpand && (
+                  <button
+                    onClick={() => setShowAllLowStock(true)}
+                    className="flex items-center gap-1 mt-2 text-sm text-amber-700 hover:text-amber-900 transition font-medium"
+                  >
+                    <ChevronDown size={16} />
+                    Show all {sorted.length} items
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-3">
+                {outOfStock.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-red-700 mb-1">Out of Stock ({outOfStock.length})</p>
+                    <div className="flex flex-wrap gap-2">{outOfStock.map(renderLowStockItem)}</div>
+                  </div>
+                )}
+                {critical.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800 mb-1">Critical — 1-2 left ({critical.length})</p>
+                    <div className="flex flex-wrap gap-2">{critical.map(renderLowStockItem)}</div>
+                  </div>
+                )}
+                {low.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Low — 3-5 left ({low.length})</p>
+                    <div className="flex flex-wrap gap-2">{low.map(renderLowStockItem)}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowAllLowStock(false)}
+                  className="flex items-center gap-1 text-sm text-amber-700 hover:text-amber-900 transition font-medium"
+                >
+                  <ChevronUp size={16} />
+                  Show less
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Main Inventory Card */}
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
@@ -895,6 +1129,18 @@ export default function InventoryManager({ products: initialProducts, onProductU
               <span className="hidden sm:inline">Import</span>
             </button>
             <button
+              onClick={() => setShowAIAssistant(!showAIAssistant)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition font-medium ${
+                showAIAssistant
+                  ? 'bg-purple-700 text-white'
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+              title="AI Inventory Assistant - Pricing, Stock Predictions & Auto-categorization"
+            >
+              <Brain size={18} />
+              <span className="hidden sm:inline">AI</span>
+            </button>
+            <button
               onClick={() => setShowDiagnostics(true)}
               className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
               title="Storage Diagnostics - Check if image uploads are configured"
@@ -925,6 +1171,26 @@ export default function InventoryManager({ products: initialProducts, onProductU
           {searchTerm && ` (filtered from ${products.length} total)`}
         </div>
 
+        {/* AI Inventory Assistant Panel */}
+        {showAIAssistant && (
+          <div className="mb-4">
+            <AIInventoryAssistant
+              products={products}
+              onApplyPriceChange={handleAIPriceChange}
+              onApplyCategoryChange={handleAICategoryChange}
+            />
+          </div>
+        )}
+
+        {/* Hidden input for quick image upload */}
+        <input
+          ref={quickImageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleQuickImageUpload}
+        />
+
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProducts.map(product => {
@@ -941,7 +1207,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                 }`}
               >
                 {/* Product Image */}
-                <div className="relative h-32 bg-gray-100">
+                <div className="relative h-32 bg-gray-100 group">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
@@ -952,8 +1218,41 @@ export default function InventoryManager({ products: initialProducts, onProductU
                     <ProductImagePlaceholder productName={product.name} className="w-full h-full" />
                   )}
                   {isOutOfStock && (
-                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center pointer-events-none">
                       <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">OUT OF STOCK</span>
+                    </div>
+                  )}
+                  {/* Quick add image button */}
+                  {!product.image_url && (
+                    <button
+                      onClick={() => {
+                        setQuickImageProductId(product.id);
+                        quickImageInputRef.current?.click();
+                      }}
+                      disabled={uploadingImage}
+                      className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition cursor-pointer"
+                      title="Add photo"
+                    >
+                      <Camera size={24} className="text-gray-400 group-hover:text-white transition" />
+                      <span className="text-xs text-gray-400 group-hover:text-white transition mt-1">Add photo</span>
+                    </button>
+                  )}
+                  {product.image_url && (
+                    <button
+                      onClick={() => {
+                        setQuickImageProductId(product.id);
+                        quickImageInputRef.current?.click();
+                      }}
+                      disabled={uploadingImage}
+                      className="absolute bottom-1 right-1 p-1.5 bg-black bg-opacity-50 hover:bg-opacity-70 rounded-full transition opacity-0 group-hover:opacity-100"
+                      title="Change photo"
+                    >
+                      <Camera size={14} className="text-white" />
+                    </button>
+                  )}
+                  {uploadingImage && quickImageProductId === product.id && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <Loader2 size={24} className="text-white animate-spin" />
                     </div>
                   )}
                 </div>
@@ -992,7 +1291,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                   <div className="flex items-center justify-between">
                   <div>
                     <p className="text-lg font-bold" style={{ color: '#0d9488' }}>
-                      £{(product.price / 100).toFixed(2)}
+                      £{product.price.toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500">per {product.unit}</p>
                   </div>
@@ -1006,13 +1305,48 @@ export default function InventoryManager({ products: initialProducts, onProductU
                     >
                       <Minus size={16} />
                     </button>
-                    <span className={`w-12 text-center font-bold ${
-                      isOutOfStock ? 'text-red-600' :
-                      isLowStock ? 'text-amber-600' :
-                      'text-gray-800'
-                    }`}>
-                      {product.stock_quantity}
-                    </span>
+                    {editingStockId === product.id ? (
+                      <input
+                        type="number"
+                        min="0"
+                        autoFocus
+                        value={editingStockValue}
+                        onChange={(e) => setEditingStockValue(e.target.value)}
+                        onBlur={() => {
+                          const val = parseInt(editingStockValue);
+                          if (!isNaN(val)) setStockQuantity(product.id, val);
+                          else setEditingStockId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(editingStockValue);
+                            if (!isNaN(val)) setStockQuantity(product.id, val);
+                            else setEditingStockId(null);
+                          }
+                          if (e.key === 'Escape') setEditingStockId(null);
+                        }}
+                        className={`w-16 text-center font-bold border-2 rounded px-1 py-0.5 text-sm ${
+                          isOutOfStock ? 'border-red-400 text-red-600' :
+                          isLowStock ? 'border-amber-400 text-amber-600' :
+                          'border-blue-400 text-gray-800'
+                        }`}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setEditingStockId(product.id);
+                          setEditingStockValue(String(product.stock_quantity ?? 0));
+                        }}
+                        className={`w-12 text-center font-bold cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 transition ${
+                          isOutOfStock ? 'text-red-600' :
+                          isLowStock ? 'text-amber-600' :
+                          'text-gray-800'
+                        }`}
+                        title="Click to edit quantity"
+                      >
+                        {product.stock_quantity}
+                      </button>
+                    )}
                     <button
                       onClick={() => updateStock(product.id, 1)}
                       disabled={updatingStock === product.id}
@@ -1115,12 +1449,12 @@ export default function InventoryManager({ products: initialProducts, onProductU
                   ) : (
                     <div className="flex items-center gap-2">
                       <p className="text-2xl font-bold" style={{ color: '#0d9488' }}>
-                        £{(scanResult.price / 100).toFixed(2)}
+                        £{scanResult.price.toFixed(2)}
                       </p>
                       <button
                         onClick={() => {
                           setEditingPrice(scanResult.id);
-                          setNewPrice((scanResult.price / 100).toFixed(2));
+                          setNewPrice(scanResult.price.toFixed(2));
                         }}
                         className="p-1 bg-gray-100 hover:bg-gray-200 rounded transition"
                         title="Edit Price"
@@ -1155,7 +1489,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                         <span className="text-gray-600">
                           {tier.maxQty ? `${tier.minQty}-${tier.maxQty} units` : `${tier.minQty}+ units`}
                         </span>
-                        <span className="font-semibold text-purple-700">£{(tier.price / 100).toFixed(2)}</span>
+                        <span className="font-semibold text-purple-700">£{tier.price.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -1810,7 +2144,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
               </p>
               <div className="bg-gray-50 rounded-lg p-3 mb-4">
                 <p className="font-semibold text-gray-800">{deletingProduct.name}</p>
-                <p className="text-sm text-gray-500">{deletingProduct.category} • £{(deletingProduct.price / 100).toFixed(2)}</p>
+                <p className="text-sm text-gray-500">{deletingProduct.category} • £{deletingProduct.price.toFixed(2)}</p>
               </div>
               <p className="text-sm text-gray-500">
                 This will hide the product from your storefront. You can restore it later if needed.
@@ -1858,6 +2192,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
         <InventoryImport
           onImportComplete={onProductUpdate}
           onClose={() => setShowBulkImport(false)}
+          business={business}
         />
       )}
     </div>
