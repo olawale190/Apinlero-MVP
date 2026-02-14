@@ -4,10 +4,10 @@ export const shopConfig: ShopConfig = {
   industry: 'wholesale',
   name: "Isha's Treat & Groceries",
   tagline: 'African & Caribbean Wholesale',
-  currency: '₦',
-  deliveryFee: 500,
+  currency: '£',
+  deliveryFee: 5,
   phone: '07448682282',
-  location: 'Lagos, Nigeria'
+  location: 'London, UK'
 };
 
 export const platformConfig = {
