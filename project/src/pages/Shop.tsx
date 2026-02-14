@@ -47,6 +47,7 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
 
         if (!error && data) {
           console.log(`✅ Loaded ${data.length} products for storefront`);
+          // Prices are already stored in pounds in the database
           setProducts(data);
           return;
         }
@@ -62,6 +63,7 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
 
       if (error) throw error;
       console.log(`✅ Loaded ${data?.length || 0} products (fallback)`);
+      // Prices are already stored in pounds in the database
       setProducts(data || []);
     } catch (error) {
       console.error('Error fetching products:', error);

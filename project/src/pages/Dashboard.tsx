@@ -354,6 +354,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
     if (!error && data) {
       console.log(`✅ Loaded ${data.length} products from database`);
+      // Prices are already stored in pounds in the database
       setProducts(data);
     } else if (error) {
       // Fallback: business_id column may not exist yet (pre-migration)
@@ -366,6 +367,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
       if (!allError && allData) {
         console.log(`✅ Loaded ${allData.length} products (fallback, no business_id filter)`);
+        // Prices are already stored in pounds in the database
         setProducts(allData);
       } else if (allError) {
         console.error('❌ Error loading products:', allError);
