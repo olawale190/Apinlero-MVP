@@ -22,13 +22,15 @@ AS $$
 DECLARE
   master_key TEXT;
 BEGIN
-  -- Get master key from environment variable
-  -- In production, set this in Supabase Dashboard → Settings → Vault
+  -- Get master key from Supabase Vault / app settings
+  -- Set in Supabase Dashboard → Settings → Database → Configuration Parameters
+  -- Or via: ALTER DATABASE postgres SET app.settings.stripe_encryption_key = 'your-key-here';
   master_key := current_setting('app.settings.stripe_encryption_key', true);
 
-  -- Fallback for development (CHANGE IN PRODUCTION!)
   IF master_key IS NULL OR master_key = '' THEN
-    master_key := 'dev-encryption-key-change-in-production-2026';
+    RAISE EXCEPTION 'app.settings.stripe_encryption_key is not set. '
+      'Set it in Supabase Dashboard → Database → Configuration Parameters. '
+      'Generate with: openssl rand -hex 32';
   END IF;
 
   -- Encrypt using AES-256
@@ -48,12 +50,12 @@ AS $$
 DECLARE
   master_key TEXT;
 BEGIN
-  -- Get master key from environment variable
+  -- Get master key from Supabase Vault / app settings
   master_key := current_setting('app.settings.stripe_encryption_key', true);
 
-  -- Fallback for development (CHANGE IN PRODUCTION!)
   IF master_key IS NULL OR master_key = '' THEN
-    master_key := 'dev-encryption-key-change-in-production-2026';
+    RAISE EXCEPTION 'app.settings.stripe_encryption_key is not set. '
+      'Set it in Supabase Dashboard → Database → Configuration Parameters.';
   END IF;
 
   -- Decrypt using AES-256
