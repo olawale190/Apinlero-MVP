@@ -13,6 +13,28 @@ interface Category {
   display_order: number;
 }
 
+const DEFAULT_CATEGORIES = [
+  'Fresh Meat & Poultry',
+  'Fresh & Frozen Seafood',
+  'Fresh Fruits & Vegetables',
+  'Dairy & Eggs',
+  'Grains, Rice & Pasta',
+  'African & World Foods',
+  'Flours',
+  'Beans & Legumes',
+  'Dried Fish',
+  'Dried Vegetables',
+  'Spices, Seasonings & Oils',
+  'Canned, Packaged & Dry Foods',
+  'Bakery & Breakfast Items',
+  'Snacks & Confectionery',
+  'Drinks & Beverages',
+  'Household & Essentials',
+  'Baby & Family Essentials',
+  'Halal & Specialty Products',
+  'General'
+];
+
 export default function CategoryFilter({
   selectedCategory,
   onCategoryChange,
@@ -39,6 +61,41 @@ export default function CategoryFilter({
       console.error('Error fetching categories:', error);
       setLoading(false);
       return;
+    }
+
+    // Auto-seed missing categories if the table has fewer than expected
+    const existingNames = new Set((data || []).map(c => c.name));
+    const missing = DEFAULT_CATEGORIES.filter(name => !existingNames.has(name));
+
+    if (missing.length > 0) {
+      console.log(`🔧 Seeding ${missing.length} missing categories...`);
+      const maxOrder = Math.max(...(data || []).map(c => c.display_order), 0);
+      const toInsert = missing.map((name, i) => ({
+        name,
+        store_id: storeId,
+        display_order: maxOrder + i + 1,
+        is_active: true
+      }));
+
+      const { error: insertError } = await supabase
+        .from('categories')
+        .insert(toInsert);
+
+      if (!insertError) {
+        // Re-fetch to get the full list with IDs
+        const { data: refreshed } = await supabase
+          .from('categories')
+          .select('id, name, display_order')
+          .eq('store_id', storeId)
+          .eq('is_active', true)
+          .order('display_order', { ascending: true });
+
+        setCategories(refreshed || []);
+        setLoading(false);
+        return;
+      } else {
+        console.warn('⚠️ Failed to seed categories:', insertError.message);
+      }
     }
 
     setCategories(data || []);

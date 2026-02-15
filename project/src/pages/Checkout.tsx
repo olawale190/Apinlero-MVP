@@ -10,6 +10,7 @@ import { colors } from '../config/colors';
 import { sendOrderNotifications } from '../lib/notifications';
 import { useBusinessContext } from '../contexts/BusinessContext';
 import StripePaymentForm from '../components/StripePaymentForm';
+import { penceToPounds } from '../lib/currency';
 
 // Initialize Stripe with publishable key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
@@ -23,7 +24,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
   const { cartItems, getCartTotal, clearCart } = useCart();
   const { business } = useBusinessContext();
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'collection'>('delivery');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'card'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -38,7 +39,8 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
     notes: ''
   });
 
-  const subtotal = getCartTotal();
+  const subtotalInPence = getCartTotal();
+  const subtotal = penceToPounds(subtotalInPence);
   const deliveryFee = deliveryMethod === 'delivery' ? shopConfig.deliveryFee : 0;
   const total = subtotal + deliveryFee;
 
@@ -216,85 +218,9 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
     }
   };
 
-  const handleBankTransfer = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
-
-    try {
-      // Log business context status (non-blocking - checkout works without it pre-migration)
-      if (!business?.id) {
-        console.warn('[Checkout] No business context - proceeding without business_id');
-      }
-
-      const orderItems: OrderItem[] = cartItems.map(item => ({
-        product_name: item.product.name,
-        quantity: item.quantity,
-        price: item.product.price,
-        unit: item.product.unit
-      }));
-
-      const order: Record<string, unknown> = {
-        customer_name: formData.name,
-        phone_number: formData.phone,
-        email: formData.email,
-        delivery_address: deliveryMethod === 'delivery'
-          ? `${formData.address}, ${formData.postcode}`
-          : 'Collection',
-        channel: 'Web',
-        items: orderItems,
-        delivery_fee: deliveryFee,
-        total: total,
-        status: 'Pending',
-        notes: `Payment: Bank Transfer - Awaiting Payment${formData.notes ? `. ${formData.notes}` : ''}`,
-        delivery_method: deliveryMethod,
-        payment_method: 'bank_transfer'
-      };
-      if (business?.id) order.business_id = business.id;
-
-      let { data, error: insertError } = await supabase
-        .from('orders')
-        .insert(order)
-        .select()
-        .maybeSingle();
-
-      if (insertError && insertError.message?.includes('business_id')) {
-        delete order.business_id;
-        ({ data, error: insertError } = await supabase.from('orders').insert(order).select().maybeSingle());
-      }
-
-      if (insertError) throw insertError;
-      if (!data) throw new Error('Failed to create order');
-
-      // Send order confirmation notifications (email + WhatsApp)
-      sendOrderNotifications({
-        orderId: data.id,
-        customerName: formData.name,
-        customerPhone: formData.phone,
-        customerEmail: formData.email,
-        total: total,
-        items: orderItems,
-        deliveryMethod: deliveryMethod,
-        deliveryAddress: deliveryMethod === 'delivery' ? `${formData.address}, ${formData.postcode}` : undefined
-      }).catch(console.error); // Fire and forget
-
-      clearCart();
-      onSuccess(data.id);
-    } catch (err: any) {
-      console.error('Order submission error:', err);
-      setError(err?.message || 'Failed to place order');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (paymentMethod === 'card') {
-      handleStripePayment();
-    } else {
-      handleBankTransfer(e);
-    }
+    handleStripePayment();
   };
 
   return (
@@ -492,39 +418,6 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                     </div>
                   )}
 
-                  {/* Bank Transfer Option */}
-                  <label
-                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      paymentMethod === 'bank_transfer'
-                        ? 'border-teal-600 bg-teal-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={paymentMethod === 'bank_transfer'}
-                      onChange={() => setPaymentMethod('bank_transfer')}
-                      className="w-4 h-4 text-teal-600"
-                    />
-                    <div className="flex-1">
-                      <span className="font-semibold">Bank Transfer</span>
-                      <p className="text-sm text-gray-500 mt-1">Manual transfer (order held until payment received)</p>
-                    </div>
-                  </label>
-
-                  {paymentMethod === 'bank_transfer' && (
-                    <div className="ml-7 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <p className="text-sm text-amber-800 font-medium mb-2">Bank Details:</p>
-                      <div className="text-sm space-y-1 text-amber-900">
-                        <p>Bank: <span className="font-medium">Monzo Bank</span></p>
-                        <p>Account: <span className="font-medium">Isha's Treat</span></p>
-                        <p>Sort Code: <span className="font-medium">04-00-04</span></p>
-                        <p>Account No: <span className="font-medium">12345678</span></p>
-                      </div>
-                      <p className="text-xs text-amber-700 mt-2">Use your order number as payment reference</p>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -547,8 +440,8 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                 </div>
               )}
 
-              {/* Only show submit button for bank transfer or card payment setup */}
-              {(paymentMethod === 'bank_transfer' || (paymentMethod === 'card' && !clientSecret)) && (
+              {/* Only show submit button for card payment setup */}
+              {(paymentMethod === 'card' && !clientSecret) && (
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -559,13 +452,11 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       Processing...
                     </>
-                  ) : paymentMethod === 'card' ? (
+                  ) : (
                     <>
                       <Lock size={18} />
                       Continue to Payment
                     </>
-                  ) : (
-                    'Place Order'
                   )}
                 </button>
               )}
@@ -588,7 +479,7 @@ export default function Checkout({ onBack, onSuccess }: CheckoutProps) {
                       {item.product.name} x {item.quantity}
                     </span>
                     <span className="font-medium">
-                      {shopConfig.currency}{(item.product.price * item.quantity).toFixed(2)}
+                      {shopConfig.currency}{(penceToPounds(item.product.price) * item.quantity).toFixed(2)}
                     </span>
                   </div>
                 ))}

@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext';
 import { colors } from '../config/colors';
 import WishlistButton from './WishlistButton';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
+import { penceToPounds } from '../lib/currency';
 
 interface ProductCardProps {
   product: Product;
@@ -18,7 +19,7 @@ function getStockStatus(quantity?: number): { label: string; color: string; canO
   if (quantity <= 0) {
     return { label: 'Out of Stock', color: 'bg-red-100 text-red-800', canOrder: false };
   }
-  if (quantity <= 5) {
+  if (quantity <= 3) {
     return { label: `Low Stock (${quantity})`, color: 'bg-amber-100 text-amber-800', canOrder: true };
   }
   return { label: 'In Stock', color: 'bg-green-100 text-green-800', canOrder: true };
@@ -62,7 +63,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="flex items-center justify-between mb-3">
           <span className={`text-xl font-bold ${colors.tailwind.primaryMainText}`}>
-            {shopConfig.currency}{product.price.toFixed(2)}
+            {shopConfig.currency}{penceToPounds(product.price).toFixed(2)}
           </span>
         </div>
 

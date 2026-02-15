@@ -354,7 +354,73 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
     if (!error && data) {
       console.log(`✅ Loaded ${data.length} products from database`);
-      // Prices are already stored in pounds in the database
+
+      // Auto-fix: remap old short category names to proper names
+      const categoryMap: Record<string, string> = {
+        'Fish': 'Fresh & Frozen Seafood',
+        'Seafood': 'Fresh & Frozen Seafood',
+        'Meat': 'Fresh Meat & Poultry',
+        'Produce': 'Fresh Fruits & Vegetables',
+        'Grains': 'Grains, Rice & Pasta',
+        'Rice & Beans': 'Grains, Rice & Pasta',
+        'Oils': 'Spices, Seasonings & Oils',
+        'Spices': 'Spices, Seasonings & Oils',
+        'Seasonings': 'Spices, Seasonings & Oils',
+        'Flour': 'Flours',
+        'Flour & Garri': 'Flours',
+        'Canned': 'Canned, Packaged & Dry Foods',
+        'Drinks': 'Drinks & Beverages',
+        'Dairy': 'Dairy & Eggs',
+        'Frozen': 'Fresh & Frozen Seafood',
+        'Snacks': 'Snacks & Confectionery',
+        'Seeds': 'Beans & Legumes',
+      };
+      const needsRemap = data.filter(p => p.category && categoryMap[p.category]);
+      if (needsRemap.length > 0) {
+        console.log(`🔧 Remapping ${needsRemap.length} products to proper category names...`);
+        // Group by old category for batch updates
+        const groups: Record<string, string[]> = {};
+        needsRemap.forEach(p => {
+          const oldCat = p.category;
+          if (!groups[oldCat]) groups[oldCat] = [];
+          groups[oldCat].push(p.id);
+        });
+        for (const [oldCat, ids] of Object.entries(groups)) {
+          await supabase.from('products').update({ category: categoryMap[oldCat] }).in('id', ids);
+        }
+        // Apply locally
+        data.forEach(p => {
+          if (p.category && categoryMap[p.category]) {
+            p.category = categoryMap[p.category];
+          }
+        });
+      }
+
+      // Auto-fix: set default stock_quantity (10) for products with 0 or null
+      const needsDefault = data.filter(p => p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0);
+      if (needsDefault.length > 0) {
+        console.log(`🔧 Setting default stock_quantity (10) for ${needsDefault.length} products...`);
+        const ids = needsDefault.map(p => p.id);
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ stock_quantity: 10 })
+          .in('id', ids);
+
+        if (!updateError) {
+          console.log(`✅ Updated ${needsDefault.length} products with default stock`);
+          // Apply fix locally too
+          const fixed = data.map(p =>
+            (p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0)
+              ? { ...p, stock_quantity: 10 }
+              : p
+          );
+          setProducts(fixed);
+          return;
+        } else {
+          console.warn('⚠️ Failed to update default stock:', updateError.message);
+        }
+      }
+
       setProducts(data);
     } else if (error) {
       // Fallback: business_id column may not exist yet (pre-migration)
@@ -367,7 +433,21 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
       if (!allError && allData) {
         console.log(`✅ Loaded ${allData.length} products (fallback, no business_id filter)`);
-        // Prices are already stored in pounds in the database
+
+        // Auto-fix: set default stock_quantity for fallback path too
+        const needsDefault = allData.filter(p => p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0);
+        if (needsDefault.length > 0) {
+          const ids = needsDefault.map(p => p.id);
+          await supabase.from('products').update({ stock_quantity: 10 }).in('id', ids);
+          const fixed = allData.map(p =>
+            (p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0)
+              ? { ...p, stock_quantity: 10 }
+              : p
+          );
+          setProducts(fixed);
+          return;
+        }
+
         setProducts(allData);
       } else if (allError) {
         console.error('❌ Error loading products:', allError);

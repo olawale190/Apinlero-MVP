@@ -112,16 +112,46 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (error || !product) {
-        return new Response(
-          JSON.stringify({
-            error: `Product not found or inactive: ${item.product_name}`,
-            valid: false,
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
+        console.error(`Product lookup failed for "${item.product_name}":`, error?.message);
+
+        // Try fallback without business_id filter (for pre-migration compatibility)
+        const { data: fallbackProduct, error: fallbackError } = await supabase
+          .from('products')
+          .select('id, name, price, is_active')
+          .eq('name', item.product_name)
+          .eq('is_active', true)
+          .single();
+
+        if (fallbackError || !fallbackProduct) {
+          console.error(`Fallback product lookup also failed:`, fallbackError?.message);
+          return new Response(
+            JSON.stringify({
+              error: `Product not found or inactive: ${item.product_name}`,
+              valid: false,
+              debug: {
+                businessId,
+                error: error?.message,
+                fallbackError: fallbackError?.message
+              }
+            }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+
+        // Use fallback product
+        const itemTotal = fallbackProduct.price * item.quantity;
+        calculatedSubtotal += itemTotal;
+        verifiedItems.push({
+          product_id: fallbackProduct.id,
+          product_name: fallbackProduct.name,
+          quantity: item.quantity,
+          price: fallbackProduct.price,
+          item_total: itemTotal,
+        });
+        continue;
       }
 
       // SECURITY: Use database price, NOT client-provided price
@@ -138,9 +168,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // Calculate server-side total
-    // calculatedSubtotal is in pence (from database), deliveryFee is in pounds (from client)
-    // Convert deliveryFee to pence, add to subtotal, then convert total to pounds
-    const serverTotal = (calculatedSubtotal + (deliveryFee * 100)) / 100;
+    // FIXED: calculatedSubtotal is ALREADY in pence (from database)
+    // deliveryFee is in pounds (from client)
+    // Convert both to pounds before adding
+    const serverTotal = (calculatedSubtotal / 100) + deliveryFee;
 
     // SECURITY: Verify totals match (allow 0.01 difference for rounding)
     const totalDifference = Math.abs(serverTotal - clientTotal);

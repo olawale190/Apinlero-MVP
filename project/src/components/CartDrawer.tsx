@@ -2,6 +2,7 @@ import { X, Plus, Minus, Trash2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { shopConfig } from '../config/shop';
 import { colors } from '../config/colors';
+import { penceToPounds } from '../lib/currency';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -11,7 +12,8 @@ interface CartDrawerProps {
 
 export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
   const { cartItems, updateQuantity, removeFromCart, getCartTotal } = useCart();
-  const subtotal = getCartTotal();
+  const subtotalInPence = getCartTotal();
+  const subtotal = penceToPounds(subtotalInPence);
   const total = subtotal + shopConfig.deliveryFee;
 
   if (!isOpen) return null;
@@ -48,7 +50,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                     <h3 className="font-semibold text-gray-900">{item.product.name}</h3>
                     <p className="text-sm text-gray-600">{item.product.unit}</p>
                     <p className="text-lg font-bold text-teal-600 mt-1">
-                      {shopConfig.currency}{item.product.price.toFixed(2)}
+                      {shopConfig.currency}{penceToPounds(item.product.price).toFixed(2)}
                     </p>
                   </div>
 
@@ -82,7 +84,7 @@ export default function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerPr
                     </div>
 
                     <p className="text-sm font-medium text-gray-900">
-                      {shopConfig.currency}{(item.product.price * item.quantity).toFixed(2)}
+                      {shopConfig.currency}{(penceToPounds(item.product.price) * item.quantity).toFixed(2)}
                     </p>
                   </div>
                 </div>

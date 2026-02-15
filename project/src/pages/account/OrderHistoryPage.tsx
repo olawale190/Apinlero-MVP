@@ -8,6 +8,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { useCart } from '../../context/CartContext';
 import { colors } from '../../config/colors';
 import { shopConfig } from '../../config/shop';
+import { penceToPounds } from '../../lib/currency';
 
 export default function OrderHistoryPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -135,7 +136,7 @@ export default function OrderHistoryPage() {
                       </span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      {formatDate(order.created_at)} &middot; {order.items.length} item{order.items.length !== 1 ? 's' : ''} &middot; {shopConfig.currency}{order.total.toFixed(2)}
+                      {formatDate(order.created_at)} &middot; {order.items.length} item{order.items.length !== 1 ? 's' : ''} &middot; {shopConfig.currency}{penceToPounds(order.total).toFixed(2)}
                     </div>
                   </div>
                   {expandedOrder === order.id ? (
@@ -156,7 +157,7 @@ export default function OrderHistoryPage() {
                             {item.quantity}x {item.product_name}
                           </span>
                           <span className="text-gray-900 font-medium">
-                            {shopConfig.currency}{(item.price * item.quantity).toFixed(2)}
+                            {shopConfig.currency}{(penceToPounds(item.price) * item.quantity).toFixed(2)}
                           </span>
                         </div>
                       ))}
@@ -166,11 +167,11 @@ export default function OrderHistoryPage() {
                     <div className="border-t border-gray-100 pt-3 space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Delivery</span>
-                        <span className="text-gray-900">{shopConfig.currency}{order.delivery_fee.toFixed(2)}</span>
+                        <span className="text-gray-900">{shopConfig.currency}{penceToPounds(order.delivery_fee).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between font-medium">
                         <span className="text-gray-900">Total</span>
-                        <span className="text-gray-900">{shopConfig.currency}{order.total.toFixed(2)}</span>
+                        <span className="text-gray-900">{shopConfig.currency}{penceToPounds(order.total).toFixed(2)}</span>
                       </div>
                     </div>
 

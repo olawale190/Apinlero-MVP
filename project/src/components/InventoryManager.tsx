@@ -13,7 +13,9 @@ import { compressImage, getCompressionSummary } from '../lib/imageCompression';
 import StorageDiagnosticsPanel from './StorageDiagnostics';
 import ProductImagePlaceholder from './ProductImagePlaceholder';
 import InventoryImport from './InventoryImport';
+import BulkImageUpload from './BulkImageUpload';
 import AIInventoryAssistant from './AIInventoryAssistant';
+import { penceToPounds, poundsToPence } from '../lib/currency';
 
 interface BulkPriceTier {
   minQty: number;
@@ -118,7 +120,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
     price: '',
     category: '',
     unit: 'each',
-    stock_quantity: '1',
+    stock_quantity: '3',
     barcode: '',
     expiry_date: '',
     batch_number: '',
@@ -134,7 +136,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
     price: '',
     category: '',
     unit: 'each',
-    stock_quantity: '1',
+    stock_quantity: '3',
     barcode: '',
     expiry_date: '',
     batch_number: '',
@@ -173,6 +175,9 @@ export default function InventoryManager({ products: initialProducts, onProductU
   // AI assistant state
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
+  // Bulk image upload state
+  const [showBulkImageUpload, setShowBulkImageUpload] = useState(false);
+
   // Alert expand/collapse state
   const [showAllLowStock, setShowAllLowStock] = useState(false);
   const [showAllExpiring, setShowAllExpiring] = useState(false);
@@ -182,15 +187,18 @@ export default function InventoryManager({ products: initialProducts, onProductU
   const [editingStockValue, setEditingStockValue] = useState<string>('');
 
   // AI price change handler
-  const handleAIPriceChange = async (productId: string, newPrice: number) => {
-    let query = supabase.from('products').update({ price: newPrice }).eq('id', productId);
+  const handleAIPriceChange = async (productId: string, newPriceInPounds: number) => {
+    // Convert price from pounds to pence for database storage
+    const priceInPence = Math.round(newPriceInPounds * 100);
+
+    let query = supabase.from('products').update({ price: priceInPence }).eq('id', productId);
     if (business?.id) query = query.eq('business_id', business.id);
     let { error } = await query;
     if (error && error.message?.includes('business_id')) {
-      ({ error } = await supabase.from('products').update({ price: newPrice }).eq('id', productId));
+      ({ error } = await supabase.from('products').update({ price: priceInPence }).eq('id', productId));
     }
     if (!error) {
-      setProducts(products.map(p => p.id === productId ? { ...p, price: newPrice } : p));
+      // Don't update local state - let parent reload from database with proper conversion
       onProductUpdate();
     }
   };
@@ -411,27 +419,22 @@ export default function InventoryManager({ products: initialProducts, onProductU
     return tier ? tier.price : product.price;
   };
 
-  // Update product price
-  const updatePrice = async (productId: string, price: number) => {
+  // Update product price (receives price in pence)
+  const updatePrice = async (productId: string, priceInPence: number) => {
     setSavingPrice(true);
 
     // Try with business_id filter, fallback without it (pre-migration support)
-    let query = supabase.from('products').update({ price }).eq('id', productId);
+    let query = supabase.from('products').update({ price: priceInPence }).eq('id', productId);
     if (business?.id) query = query.eq('business_id', business.id);
     let { error } = await query;
 
     // Retry without business_id if column doesn't exist
     if (error && error.message?.includes('business_id')) {
-      ({ error } = await supabase.from('products').update({ price }).eq('id', productId));
+      ({ error } = await supabase.from('products').update({ price: priceInPence }).eq('id', productId));
     }
 
     if (!error) {
-      setProducts(products.map(p =>
-        p.id === productId ? { ...p, price } : p
-      ));
-      if (scanResult?.id === productId) {
-        setScanResult({ ...scanResult, price });
-      }
+      // Don't update local state - let parent reload from database with proper conversion
       onProductUpdate();
     }
     setSavingPrice(false);
@@ -466,11 +469,11 @@ export default function InventoryManager({ products: initialProducts, onProductU
     if (product.bulk_pricing && product.bulk_pricing.length > 0) {
       setBulkTiers(product.bulk_pricing);
     } else {
-      // Create default tiers based on product price
+      // Create default tiers based on product price (already in pence)
       setBulkTiers([
         { minQty: 1, maxQty: 10, price: product.price },
-        { minQty: 11, maxQty: 50, price: Number((product.price * 0.9).toFixed(2)) },
-        { minQty: 51, maxQty: null, price: Number((product.price * 0.85).toFixed(2)) },
+        { minQty: 11, maxQty: 50, price: Math.round(product.price * 0.9) },
+        { minQty: 51, maxQty: null, price: Math.round(product.price * 0.85) },
       ]);
     }
     setShowBulkPricing(product.id);
@@ -481,8 +484,8 @@ export default function InventoryManager({ products: initialProducts, onProductU
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    const newQuantity = Math.max(0, product.stock_quantity + change);
-    const previousQuantity = product.stock_quantity;
+    const newQuantity = Math.max(0, (product.stock_quantity ?? 0) + change);
+    const previousQuantity = product.stock_quantity ?? 0;
 
     let query = supabase.from('products').update({ stock_quantity: newQuantity }).eq('id', productId);
     if (business?.id) query = query.eq('business_id', business.id);
@@ -628,7 +631,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
       price: '',
       category: '',
       unit: 'each',
-      stock_quantity: '1',
+      stock_quantity: '3',
       barcode: data,
       expiry_date: '',
       batch_number: '',
@@ -648,10 +651,10 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
     const productData: Record<string, unknown> = {
       name: newProductForm.name,
-      price: parseFloat(newProductForm.price),
+      price: Math.round(parseFloat(newProductForm.price) * 100), // Convert pounds to pence for DB storage
       category: newProductForm.category || 'General',
       unit: newProductForm.unit,
-      stock_quantity: parseInt(newProductForm.stock_quantity) || 1,
+      stock_quantity: parseInt(newProductForm.stock_quantity) || 3,
       barcode: newProductForm.barcode || null,
       expiry_date: newProductForm.expiry_date || null,
       batch_number: newProductForm.batch_number || null,
@@ -700,7 +703,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
         price: '',
         category: '',
         unit: 'each',
-        stock_quantity: '1',
+        stock_quantity: '3',
         barcode: '',
         expiry_date: '',
         batch_number: '',
@@ -733,7 +736,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
       price: '',
       category: '',
       unit: 'each',
-      stock_quantity: '1',
+      stock_quantity: '3',
       barcode: '',
       expiry_date: '',
       batch_number: '',
@@ -748,7 +751,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
     setEditImagePreview(product.image_url || null);
     setEditForm({
       name: product.name,
-      price: product.price.toString(),
+      price: penceToPounds(product.price).toFixed(2),
       category: product.category || '',
       unit: product.unit || 'each',
       stock_quantity: product.stock_quantity.toString(),
@@ -771,7 +774,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
     const updateData = {
       name: editForm.name,
-      price: parseFloat(editForm.price),
+      price: Math.round(parseFloat(editForm.price) * 100), // Convert to pence
       category: editForm.category || 'General',
       unit: editForm.unit,
       stock_quantity: parseInt(editForm.stock_quantity) || 0,
@@ -790,25 +793,13 @@ export default function InventoryManager({ products: initialProducts, onProductU
     }
 
     if (!error) {
-      setProducts(products.map(p =>
-        p.id === editingProduct.id
-          ? {
-              ...p,
-              name: editForm.name,
-              price: parseFloat(editForm.price),
-              category: editForm.category || 'General',
-              unit: editForm.unit,
-              stock_quantity: parseInt(editForm.stock_quantity) || 0,
-              barcode: editForm.barcode || undefined,
-              expiry_date: editForm.expiry_date || undefined,
-              batch_number: editForm.batch_number || undefined,
-              image_url: editForm.image_url || undefined
-            }
-          : p
-      ));
+      // Don't update local state to avoid unit conversion issues
+      // The parent component will reload all products from the database with proper conversion
       setShowEditModal(false);
       setEditingProduct(null);
       setEditImagePreview(null);
+
+      // Reload from database to ensure prices are correctly converted from pence to pounds
       onProductUpdate();
     } else {
       alert('Error updating product: ' + (error?.message || 'Unknown error'));
@@ -854,7 +845,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
     product.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const lowStockProducts = products.filter(p => p.stock_quantity <= 5 && p.is_active);
+  const lowStockProducts = products.filter(p => (p.stock_quantity ?? 0) <= 3 && p.is_active);
 
   return (
     <div className="space-y-4">
@@ -1129,6 +1120,19 @@ export default function InventoryManager({ products: initialProducts, onProductU
               <span className="hidden sm:inline">Import</span>
             </button>
             <button
+              onClick={() => setShowBulkImageUpload(true)}
+              className="relative flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+              title="Bulk Upload Product Images"
+            >
+              <Image size={18} />
+              <span className="hidden sm:inline">Images</span>
+              {products.filter(p => !p.image_url && p.is_active).length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {products.filter(p => !p.image_url && p.is_active).length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setShowAIAssistant(!showAIAssistant)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition font-medium ${
                 showAIAssistant
@@ -1194,8 +1198,8 @@ export default function InventoryManager({ products: initialProducts, onProductU
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProducts.map(product => {
-            const isLowStock = product.stock_quantity <= 5;
-            const isOutOfStock = product.stock_quantity === 0;
+            const isLowStock = (product.stock_quantity ?? 0) <= 3;
+            const isOutOfStock = (product.stock_quantity ?? 0) === 0;
 
             return (
               <div
@@ -1230,11 +1234,12 @@ export default function InventoryManager({ products: initialProducts, onProductU
                         quickImageInputRef.current?.click();
                       }}
                       disabled={uploadingImage}
-                      className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition cursor-pointer"
+                      className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-gray-100 to-gray-200 hover:from-teal-50 hover:to-teal-100 transition cursor-pointer border-2 border-dashed border-gray-300 hover:border-teal-500"
                       title="Add photo"
                     >
-                      <Camera size={24} className="text-gray-400 group-hover:text-white transition" />
-                      <span className="text-xs text-gray-400 group-hover:text-white transition mt-1">Add photo</span>
+                      <Camera size={40} className="text-gray-400 hover:text-teal-600 transition mb-2" />
+                      <span className="text-sm font-medium text-gray-600 hover:text-teal-700 transition">Click to add photo</span>
+                      <span className="text-xs text-gray-400 mt-1">Max 5MB</span>
                     </button>
                   )}
                   {product.image_url && (
@@ -1244,10 +1249,10 @@ export default function InventoryManager({ products: initialProducts, onProductU
                         quickImageInputRef.current?.click();
                       }}
                       disabled={uploadingImage}
-                      className="absolute bottom-1 right-1 p-1.5 bg-black bg-opacity-50 hover:bg-opacity-70 rounded-full transition opacity-0 group-hover:opacity-100"
+                      className="absolute bottom-2 right-2 p-2 bg-teal-600 hover:bg-teal-700 rounded-lg transition opacity-90 group-hover:opacity-100 shadow-lg"
                       title="Change photo"
                     >
-                      <Camera size={14} className="text-white" />
+                      <Camera size={18} className="text-white" />
                     </button>
                   )}
                   {uploadingImage && quickImageProductId === product.id && (
@@ -1291,7 +1296,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                   <div className="flex items-center justify-between">
                   <div>
                     <p className="text-lg font-bold" style={{ color: '#0d9488' }}>
-                      £{product.price.toFixed(2)}
+                      £{penceToPounds(product.price).toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500">per {product.unit}</p>
                   </div>
@@ -1468,7 +1473,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
                 <div className={`text-center px-4 py-2 rounded-lg ${
                   scanResult.stock_quantity === 0 ? 'bg-red-100 text-red-800' :
-                  scanResult.stock_quantity <= 5 ? 'bg-amber-100 text-amber-800' :
+                  scanResult.stock_quantity <= 3 ? 'bg-amber-100 text-amber-800' :
                   'bg-green-100 text-green-800'
                 }`}>
                   <p className="text-2xl font-bold">{scanResult.stock_quantity}</p>
@@ -1750,15 +1755,20 @@ export default function InventoryManager({ products: initialProducts, onProductU
                       ))
                     ) : (
                       <>
-                        <option value="Grains">Grains</option>
-                        <option value="Oils">Oils</option>
-                        <option value="Produce">Produce</option>
-                        <option value="Fish">Fish</option>
-                        <option value="Meat">Meat</option>
-                        <option value="Spices">Spices</option>
-                        <option value="Canned">Canned</option>
-                        <option value="Drinks">Drinks</option>
-                        <option value="Flour">Flour</option>
+                        <option value="Fresh Meat & Poultry">Fresh Meat & Poultry</option>
+                        <option value="Fresh & Frozen Seafood">Fresh & Frozen Seafood</option>
+                        <option value="Dried Fish">Dried Fish</option>
+                        <option value="Fresh Fruits & Vegetables">Fresh Fruits & Vegetables</option>
+                        <option value="Grains, Rice & Pasta">Grains, Rice & Pasta</option>
+                        <option value="Beans & Legumes">Beans & Legumes</option>
+                        <option value="Flours">Flours</option>
+                        <option value="Spices, Seasonings & Oils">Spices, Seasonings & Oils</option>
+                        <option value="Canned, Packaged & Dry Foods">Canned, Packaged & Dry Foods</option>
+                        <option value="Drinks & Beverages">Drinks & Beverages</option>
+                        <option value="Dairy & Eggs">Dairy & Eggs</option>
+                        <option value="African & World Foods">African & World Foods</option>
+                        <option value="Snacks & Confectionery">Snacks & Confectionery</option>
+                        <option value="Household & Essentials">Household & Essentials</option>
                         <option value="General">General</option>
                       </>
                     )}
@@ -1982,15 +1992,20 @@ export default function InventoryManager({ products: initialProducts, onProductU
                       ))
                     ) : (
                       <>
-                        <option value="Grains">Grains</option>
-                        <option value="Oils">Oils</option>
-                        <option value="Produce">Produce</option>
-                        <option value="Fish">Fish</option>
-                        <option value="Meat">Meat</option>
-                        <option value="Spices">Spices</option>
-                        <option value="Canned">Canned</option>
-                        <option value="Drinks">Drinks</option>
-                        <option value="Flour">Flour</option>
+                        <option value="Fresh Meat & Poultry">Fresh Meat & Poultry</option>
+                        <option value="Fresh & Frozen Seafood">Fresh & Frozen Seafood</option>
+                        <option value="Dried Fish">Dried Fish</option>
+                        <option value="Fresh Fruits & Vegetables">Fresh Fruits & Vegetables</option>
+                        <option value="Grains, Rice & Pasta">Grains, Rice & Pasta</option>
+                        <option value="Beans & Legumes">Beans & Legumes</option>
+                        <option value="Flours">Flours</option>
+                        <option value="Spices, Seasonings & Oils">Spices, Seasonings & Oils</option>
+                        <option value="Canned, Packaged & Dry Foods">Canned, Packaged & Dry Foods</option>
+                        <option value="Drinks & Beverages">Drinks & Beverages</option>
+                        <option value="Dairy & Eggs">Dairy & Eggs</option>
+                        <option value="African & World Foods">African & World Foods</option>
+                        <option value="Snacks & Confectionery">Snacks & Confectionery</option>
+                        <option value="Household & Essentials">Household & Essentials</option>
                         <option value="General">General</option>
                       </>
                     )}
@@ -2192,6 +2207,19 @@ export default function InventoryManager({ products: initialProducts, onProductU
         <InventoryImport
           onImportComplete={onProductUpdate}
           onClose={() => setShowBulkImport(false)}
+          business={business}
+        />
+      )}
+
+      {/* Bulk Image Upload Modal */}
+      {showBulkImageUpload && (
+        <BulkImageUpload
+          products={products}
+          onComplete={() => {
+            setShowBulkImageUpload(false);
+            onProductUpdate();
+          }}
+          onClose={() => setShowBulkImageUpload(false)}
           business={business}
         />
       )}

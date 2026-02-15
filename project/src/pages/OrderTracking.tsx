@@ -3,6 +3,7 @@ import { Search, Package, Truck, CheckCircle, Clock, ArrowLeft } from 'lucide-re
 import { supabase } from '../lib/supabase';
 import { colors } from '../config/colors';
 import { shopConfig } from '../config/shop';
+import { penceToPounds } from '../lib/currency';
 
 interface OrderData {
   id: string;
@@ -280,7 +281,7 @@ export default function OrderTracking() {
                         {item.product_name} x {item.quantity}
                       </span>
                       <span className="font-medium">
-                        {shopConfig.currency}{(item.price * item.quantity).toFixed(2)}
+                        {shopConfig.currency}{(penceToPounds(item.price) * item.quantity).toFixed(2)}
                       </span>
                     </div>
                   ))}
@@ -289,16 +290,16 @@ export default function OrderTracking() {
                 <div className="mt-4 pt-4 border-t space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal</span>
-                    <span>{shopConfig.currency}{(order.total - order.delivery_fee).toFixed(2)}</span>
+                    <span>{shopConfig.currency}{(penceToPounds(order.total) - penceToPounds(order.delivery_fee)).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Delivery</span>
-                    <span>{shopConfig.currency}{order.delivery_fee?.toFixed(2) || '0.00'}</span>
+                    <span>{shopConfig.currency}{penceToPounds(order.delivery_fee)?.toFixed(2) || '0.00'}</span>
                   </div>
                   <div className="flex justify-between font-semibold text-lg pt-2 border-t">
                     <span>Total</span>
                     <span className={colors.tailwind.primaryMainText}>
-                      {shopConfig.currency}{order.total.toFixed(2)}
+                      {shopConfig.currency}{penceToPounds(order.total).toFixed(2)}
                     </span>
                   </div>
                 </div>

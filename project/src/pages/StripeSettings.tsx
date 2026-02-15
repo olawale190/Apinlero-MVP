@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 interface StripeConfig {
   id?: string;
   stripe_publishable_key: string | null;
-  stripe_secret_key_encrypted: string | null;
+  stripe_secret_key_encrypted?: string | null;
   stripe_account_id: string | null;
   stripe_webhook_secret: string | null;
   stripe_connected_at: string | null;

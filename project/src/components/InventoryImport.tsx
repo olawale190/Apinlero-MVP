@@ -38,9 +38,16 @@ interface InventoryImportProps {
 
 // Valid categories for validation
 const VALID_CATEGORIES = [
+  'Fresh Meat & Poultry', 'Fresh & Frozen Seafood', 'Fresh Fruits & Vegetables',
+  'Dairy & Eggs', 'Grains, Rice & Pasta', 'African & World Foods', 'Flours',
+  'Beans & Legumes', 'Dried Fish', 'Dried Vegetables', 'Spices, Seasonings & Oils',
+  'Canned, Packaged & Dry Foods', 'Bakery & Breakfast Items', 'Snacks & Confectionery',
+  'Drinks & Beverages', 'Household & Essentials', 'Baby & Family Essentials',
+  'Halal & Specialty Products', 'General',
+  // Legacy short names for backward compatibility
   'Grains', 'Oils', 'Produce', 'Fish', 'Meat', 'Spices', 'Canned',
   'Drinks', 'Flour', 'Seeds', 'Seafood', 'Seasonings', 'Snacks',
-  'Dairy', 'Frozen', 'General', 'Rice & Beans', 'Flour & Garri'
+  'Dairy', 'Frozen', 'Rice & Beans', 'Flour & Garri'
 ];
 
 // Valid units
