@@ -295,9 +295,12 @@ export function securityHeaders(req, res, next) {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
   // Content Security Policy
+  // 'unsafe-inline' removed from script-src to prevent XSS.
+  // Stripe.js loads as an external script and does not require inline scripts.
+  // 'unsafe-inline' kept in style-src (required by CSS-in-JS and inline styles).
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com; " +
+    "script-src 'self' https://js.stripe.com; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: https: blob:; " +
@@ -515,12 +518,28 @@ export function validatePaymentInput(req, res, next) {
 // ==============================================================================
 
 /**
+ * Get the delivery token secret.
+ * Requires DELIVERY_TOKEN_SECRET to be set — no fallback to other keys.
+ * Generate with: openssl rand -hex 32
+ */
+function getDeliveryTokenSecret() {
+  const secret = process.env.DELIVERY_TOKEN_SECRET;
+  if (!secret) {
+    throw new Error(
+      'DELIVERY_TOKEN_SECRET is not set. ' +
+      'Generate one with: openssl rand -hex 32'
+    );
+  }
+  return secret;
+}
+
+/**
  * Generate cryptographically secure token for delivery links
  */
 export function generateSecureToken(orderId, expiresInHours = 72) {
+  const secret = getDeliveryTokenSecret();
   const expiresAt = Date.now() + (expiresInHours * 60 * 60 * 1000);
   const data = `${orderId}:${expiresAt}`;
-  const secret = process.env.DELIVERY_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'default-secret';
 
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(data);
@@ -536,6 +555,7 @@ export function generateSecureToken(orderId, expiresInHours = 72) {
  */
 export function verifyDeliveryToken(token, orderId) {
   try {
+    const secret = getDeliveryTokenSecret();
     const decoded = JSON.parse(Buffer.from(token, 'base64url').toString());
 
     // Check if token has expired
@@ -550,18 +570,24 @@ export function verifyDeliveryToken(token, orderId) {
 
     // Verify signature
     const data = `${decoded.orderId}:${decoded.expiresAt}`;
-    const secret = process.env.DELIVERY_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || 'default-secret';
 
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(data);
     const expectedSig = hmac.digest('hex');
 
-    if (decoded.sig !== expectedSig) {
+    // Constant-time comparison to prevent timing attacks
+    const sigBuffer = Buffer.from(decoded.sig, 'hex');
+    const expectedBuffer = Buffer.from(expectedSig, 'hex');
+
+    if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
       return { valid: false, reason: 'Invalid signature' };
     }
 
     return { valid: true, orderId: decoded.orderId, expiresAt: decoded.expiresAt };
   } catch (error) {
+    if (error.message?.includes('DELIVERY_TOKEN_SECRET')) {
+      throw error; // Re-throw config errors
+    }
     return { valid: false, reason: 'Invalid token format' };
   }
 }

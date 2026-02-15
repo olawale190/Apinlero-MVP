@@ -157,10 +157,10 @@ Key tables in Supabase:
 
 ## Security Notes
 
-> **Current Status**: RLS is disabled for testing. See [SECURITY_GUIDE.md](SECURITY_GUIDE.md) for production setup.
+> **Current Status**: RLS migration ready. Run `project/supabase/migrations/20260215000001_consolidated_rls_security.sql` in Supabase SQL Editor to enable all policies. See [SECURITY_GUIDE.md](SECURITY_GUIDE.md) for details.
 
 Before production:
-1. Enable RLS on all tables
+1. Run consolidated RLS migration (20260215000001)
 2. Configure storage policies
 3. Use service key only on backend
 4. Validate environment on startup

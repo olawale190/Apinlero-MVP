@@ -1,6 +1,109 @@
+/**
+ * WhatsApp Webhook API - Handles incoming Twilio WhatsApp messages
+ *
+ * GET  /api/whatsapp — Health check (requires API key)
+ * POST /api/whatsapp — Twilio webhook (validated via Twilio signature)
+ *
+ * Security:
+ * - POST: Twilio request signature validation (X-Twilio-Signature)
+ * - GET: Requires X-API-Key header matching WHATSAPP_HEALTH_API_KEY env var
+ * - Input validation on message body
+ * - Rate limited per IP
+ */
+
+import crypto from 'crypto';
+
+// Rate limiting store
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = 60; // 60 requests per minute (Twilio can send bursts)
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const key = `whatsapp:${ip}`;
+  let entry = rateLimitStore.get(key);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    entry = { count: 0, windowStart: now };
+  }
+
+  entry.count++;
+  rateLimitStore.set(key, entry);
+
+  return entry.count <= RATE_LIMIT_MAX;
+}
+
+/**
+ * Validate Twilio request signature
+ * See: https://www.twilio.com/docs/usage/security#validating-requests
+ */
+function validateTwilioSignature(req) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken) {
+    console.warn('TWILIO_AUTH_TOKEN not set, skipping signature validation');
+    return process.env.NODE_ENV === 'development';
+  }
+
+  const twilioSignature = req.headers['x-twilio-signature'];
+  if (!twilioSignature) {
+    return false;
+  }
+
+  // Build the URL that Twilio used to call us
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const host = req.headers.host;
+  const url = `${protocol}://${host}${req.url}`;
+
+  // Sort POST params and concatenate key+value pairs
+  const params = req.body || {};
+  const sortedKeys = Object.keys(params).sort();
+  const paramString = sortedKeys.reduce((acc, key) => acc + key + params[key], '');
+
+  // Compute HMAC-SHA1 signature
+  const expectedSignature = crypto
+    .createHmac('sha1', authToken)
+    .update(url + paramString)
+    .digest('base64');
+
+  // Constant-time comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(twilioSignature),
+      Buffer.from(expectedSignature)
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Sanitize input to prevent injection in TwiML responses
+function sanitizeMessage(str) {
+  if (typeof str !== 'string') return '';
+  return str.trim().slice(0, 500); // Limit message length
+}
+
 export default function handler(req, res) {
-  // Health check
+  // Rate limiting
+  const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  if (!checkRateLimit(clientIP)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
+  // Health check (authenticated)
   if (req.method === 'GET') {
+    const apiKey = req.headers['x-api-key'];
+    const expectedKey = process.env.WHATSAPP_HEALTH_API_KEY;
+
+    // If no API key is configured, disable health check in production
+    if (!expectedKey && process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // In development, allow without key; in production, require it
+    if (expectedKey && apiKey !== expectedKey) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     return res.status(200).json({
       status: 'ok',
       service: 'Apinlero WhatsApp Bot',
@@ -8,11 +111,17 @@ export default function handler(req, res) {
     });
   }
 
-  // Handle incoming WhatsApp messages
+  // Handle incoming WhatsApp messages (Twilio webhook)
   if (req.method === 'POST') {
+    // Validate Twilio signature
+    if (!validateTwilioSignature(req)) {
+      console.warn('Invalid Twilio signature from IP:', clientIP);
+      return res.status(403).json({ error: 'Forbidden: Invalid signature' });
+    }
+
     try {
       const body = req.body || {};
-      const incomingMessage = (body.Body || '').toLowerCase().trim();
+      const incomingMessage = sanitizeMessage(body.Body || '').toLowerCase().trim();
       let responseMessage = '';
 
       // Bot responses

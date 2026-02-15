@@ -122,6 +122,11 @@ const REQUIRED_VARS = {
         description: 'Stripe secret key (secret!)',
         example: 'sk_test_...',
       },
+      {
+        name: 'DELIVERY_TOKEN_SECRET',
+        description: 'Secret for signing delivery link tokens (generate: openssl rand -hex 32)',
+        example: 'a1b2c3d4e5f6...',
+      },
     ],
     optional: [
       {

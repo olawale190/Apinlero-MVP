@@ -2,14 +2,118 @@
  * Order Notification API - Sends Email + WhatsApp confirmations
  *
  * POST /api/notify
+ * Headers: Authorization: Bearer <supabase-jwt>
  * Body: { orderId, customerName, customerPhone, customerEmail, total, items, deliveryMethod }
+ *
+ * Security:
+ * - Requires valid Supabase JWT token
+ * - CORS restricted to allowed origins
+ * - Input validation on all fields
+ * - Rate limited per IP
  */
 
-export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+import { createClient } from '@supabase/supabase-js';
+
+// Allowed origins (must match backend CORS config)
+const ALLOWED_ORIGINS = [
+  'https://project-apinlero.vercel.app',
+  'https://apinlero.vercel.app',
+  'https://app.apinlero.com',
+  'https://ishas-treat.apinlero.com',
+  'https://apinlero.com',
+  'https://www.apinlero.com',
+];
+
+// Rate limiting store (in-memory, resets on cold start)
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 10; // 10 notifications per minute per IP
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const key = `notify:${ip}`;
+  let entry = rateLimitStore.get(key);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    entry = { count: 0, windowStart: now };
+  }
+
+  entry.count++;
+  rateLimitStore.set(key, entry);
+
+  return entry.count <= RATE_LIMIT_MAX;
+}
+
+function setCorsHeaders(res, origin) {
+  const isAllowed =
+    ALLOWED_ORIGINS.includes(origin) ||
+    (origin && origin.endsWith('.apinlero.com')) ||
+    process.env.NODE_ENV === 'development';
+
+  if (isAllowed && origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400');
+}
+
+// Validate and sanitize input
+function validateInput(body) {
+  const errors = [];
+
+  if (!body.orderId || typeof body.orderId !== 'string') {
+    errors.push('orderId is required');
+  } else if (!/^[0-9a-f-]{36}$/i.test(body.orderId)) {
+    errors.push('orderId must be a valid UUID');
+  }
+
+  if (!body.customerName || typeof body.customerName !== 'string') {
+    errors.push('customerName is required');
+  } else if (body.customerName.length < 2 || body.customerName.length > 100) {
+    errors.push('customerName must be 2-100 characters');
+  }
+
+  if (body.customerEmail && typeof body.customerEmail === 'string') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.customerEmail) || body.customerEmail.length > 255) {
+      errors.push('Invalid email format');
+    }
+  }
+
+  if (body.customerPhone && typeof body.customerPhone === 'string') {
+    const cleaned = body.customerPhone.replace(/\s/g, '');
+    if (!/^\+?44\d{10}$|^0\d{10}$/.test(cleaned)) {
+      errors.push('Invalid UK phone number');
+    }
+  }
+
+  if (body.total !== undefined && body.total !== null) {
+    if (typeof body.total !== 'number' || body.total < 0 || body.total > 100000) {
+      errors.push('total must be a number between 0 and 100000');
+    }
+  }
+
+  if (body.items && Array.isArray(body.items) && body.items.length > 50) {
+    errors.push('Maximum 50 items per order');
+  }
+
+  return errors;
+}
+
+// Sanitize string to prevent XSS in email HTML
+function sanitize(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export default async function handler(req, res) {
+  const origin = req.headers.origin || '';
+  setCorsHeaders(res, origin);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -19,7 +123,42 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Rate limiting
+  const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  if (!checkRateLimit(clientIP)) {
+    return res.status(429).json({ error: 'Too many requests. Try again later.' });
+  }
+
+  // Authenticate: verify Supabase JWT
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
   try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    // Validate input
+    const inputErrors = validateInput(req.body);
+    if (inputErrors.length > 0) {
+      return res.status(400).json({ error: 'Validation failed', messages: inputErrors });
+    }
+
     const {
       orderId,
       customerName,
@@ -31,23 +170,23 @@ export default async function handler(req, res) {
       deliveryAddress
     } = req.body;
 
-    if (!orderId || !customerName) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
     const results = {
       email: { sent: false, error: null },
       whatsapp: { sent: false, error: null }
     };
 
-    // Format items for message
+    // Format items for message (sanitized)
     const itemsList = items?.map(item =>
-      `• ${item.product_name} x${item.quantity} - £${(item.price * item.quantity).toFixed(2)}`
+      `• ${sanitize(item.product_name)} x${item.quantity} - £${(item.price * item.quantity).toFixed(2)}`
     ).join('\n') || 'No items';
 
     // 1. Send Email (if email provided and Resend API key configured)
     if (customerEmail && process.env.RESEND_API_KEY) {
       try {
+        const safeCustomerName = sanitize(customerName);
+        const safeOrderId = sanitize(orderId.slice(0, 8).toUpperCase());
+        const safeDeliveryAddress = sanitize(deliveryAddress || 'Delivery');
+
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: #1e3a5f; color: white; padding: 20px; text-align: center;">
@@ -55,17 +194,17 @@ export default async function handler(req, res) {
             </div>
 
             <div style="padding: 20px; background: #f9fafb;">
-              <p>Hi ${customerName},</p>
+              <p>Hi ${safeCustomerName},</p>
               <p>Thank you for your order from <strong>Isha's Treat</strong>!</p>
 
               <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #1e3a5f;">Order #${orderId.slice(0, 8).toUpperCase()}</h3>
+                <h3 style="margin-top: 0; color: #1e3a5f;">Order #${safeOrderId}</h3>
 
                 <p><strong>Items:</strong></p>
                 <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; font-family: monospace; white-space: pre-line;">${itemsList}</div>
 
                 <p style="margin-top: 16px;"><strong>Total:</strong> £${total?.toFixed(2) || '0.00'}</p>
-                <p><strong>Delivery:</strong> ${deliveryMethod === 'collection' ? 'Collection' : deliveryAddress || 'Delivery'}</p>
+                <p><strong>Delivery:</strong> ${deliveryMethod === 'collection' ? 'Collection' : safeDeliveryAddress}</p>
               </div>
 
               <p>We'll notify you when your order is ready${deliveryMethod === 'delivery' ? ' for delivery' : ' for collection'}.</p>
@@ -77,7 +216,6 @@ export default async function handler(req, res) {
 
             <div style="background: #1e3a5f; color: white; padding: 16px; text-align: center; font-size: 12px;">
               <p style="margin: 0;">Isha's Treat & Groceries</p>
-              <p style="margin: 4px 0 0 0; opacity: 0.8;">Powered by Àpínlẹ̀rọ</p>
             </div>
           </div>
         `;
@@ -106,7 +244,7 @@ export default async function handler(req, res) {
         results.email.error = emailError.message;
       }
     } else if (customerEmail && !process.env.RESEND_API_KEY) {
-      results.email.error = 'Email service not configured (missing RESEND_API_KEY)';
+      results.email.error = 'Email service not configured';
     }
 
     // 2. Send WhatsApp (if phone provided and Twilio configured)
@@ -162,7 +300,7 @@ Questions? Just reply to this message.`;
         results.whatsapp.error = whatsappError.message;
       }
     } else if (customerPhone && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN)) {
-      results.whatsapp.error = 'WhatsApp service not configured (missing Twilio credentials)';
+      results.whatsapp.error = 'WhatsApp service not configured';
     }
 
     return res.status(200).json({
@@ -173,8 +311,7 @@ Questions? Just reply to this message.`;
   } catch (error) {
     console.error('Notification error:', error);
     return res.status(500).json({
-      error: 'Failed to send notifications',
-      message: error.message
+      error: 'Failed to send notifications'
     });
   }
 }

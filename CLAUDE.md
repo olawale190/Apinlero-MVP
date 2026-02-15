@@ -335,7 +335,7 @@ Available skills for common tasks:
 
 ## Known Issues
 
-1. **RLS Partially Disabled**: Some Row Level Security policies disabled for testing
+1. **RLS Consolidated**: Run `project/supabase/migrations/20260215000001_consolidated_rls_security.sql` in Supabase SQL Editor to apply all RLS policies
 2. **NPM Audit Vulnerabilities**: 26 in project/ (run `npm audit fix`)
 3. **Neo4j Password**: Cannot rotate on Aura free tier
 
