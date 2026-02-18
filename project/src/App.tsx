@@ -1,30 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { BusinessProvider, useBusinessContext } from './contexts/BusinessContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { getCurrentSubdomain } from './lib/business-resolver';
 import { supabase } from './lib/supabase';
+
+// Static imports — needed immediately on first render
 import { Landing } from './pages/Landing';
-import { SignupForm } from './pages/SignupForm';
-import EmailSettings from './pages/EmailSettings';
 import Shop from './pages/Shop';
-import Checkout from './pages/Checkout';
-import Confirmation from './pages/Confirmation';
-import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import PasswordReset from './pages/PasswordReset';
-import UpdatePassword from './pages/UpdatePassword';
-import DeliveryConfirm from './pages/DeliveryConfirm';
-import OrderTracking from './pages/OrderTracking';
-import PrivacyPolicy from './pages/PrivacyPolicy';
 import ConsentBanner from './components/ConsentBanner';
-// Account pages
-import AccountPage from './pages/account/AccountPage';
-import OrderHistoryPage from './pages/account/OrderHistoryPage';
-import AddressesPage from './pages/account/AddressesPage';
-import WishlistPage from './pages/account/WishlistPage';
-import RecentlyViewedPage from './pages/account/RecentlyViewedPage';
+
+// Lazy-loaded pages — loaded on demand when navigated to
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Confirmation = lazy(() => import('./pages/Confirmation'));
+const UpdatePassword = lazy(() => import('./pages/UpdatePassword'));
+const DeliveryConfirm = lazy(() => import('./pages/DeliveryConfirm'));
+const OrderTracking = lazy(() => import('./pages/OrderTracking'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const EmailSettings = lazy(() => import('./pages/EmailSettings'));
+const SignupForm = lazy(() => import('./pages/SignupForm').then(m => ({ default: m.SignupForm })));
+const AccountPage = lazy(() => import('./pages/account/AccountPage'));
+const OrderHistoryPage = lazy(() => import('./pages/account/OrderHistoryPage'));
+const AddressesPage = lazy(() => import('./pages/account/AddressesPage'));
+const WishlistPage = lazy(() => import('./pages/account/WishlistPage'));
+const RecentlyViewedPage = lazy(() => import('./pages/account/RecentlyViewedPage'));
+
+// Loading fallback for lazy-loaded pages
+const PageLoader = () => (
+  <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400 mx-auto mb-4"></div>
+      <p className="text-slate-300">Loading...</p>
+    </div>
+  </div>
+);
 
 type View = 'landing' | 'storefront' | 'checkout' | 'confirmation' | 'login' | 'dashboard' | 'delivery' | 'password-reset';
 
@@ -163,11 +176,13 @@ function SaaSDashboard() {
 
   // Render Dashboard (authenticated)
   return (
-    <Dashboard
-      onLogout={handleLogout}
-      onViewStorefront={handleViewStorefront}
-      businessName={businessName}
-    />
+    <Suspense fallback={<PageLoader />}>
+      <Dashboard
+        onLogout={handleLogout}
+        onViewStorefront={handleViewStorefront}
+        businessName={businessName}
+      />
+    </Suspense>
   );
 }
 
@@ -204,18 +219,20 @@ function IshasTreatStore() {
   return (
     <AuthProvider>
       <CartProvider>
-        {currentView === 'storefront' && (
-          <Shop
-            onCheckout={handleCheckout}
-            onViewDashboard={handleViewDashboard}
-          />
-        )}
-        {currentView === 'checkout' && (
-          <Checkout onBack={handleBackToShop} onSuccess={handleOrderSuccess} />
-        )}
-        {currentView === 'confirmation' && (
-          <Confirmation orderId={orderId} onContinueShopping={handleContinueShopping} />
-        )}
+        <Suspense fallback={<PageLoader />}>
+          {currentView === 'storefront' && (
+            <Shop
+              onCheckout={handleCheckout}
+              onViewDashboard={handleViewDashboard}
+            />
+          )}
+          {currentView === 'checkout' && (
+            <Checkout onBack={handleBackToShop} onSuccess={handleOrderSuccess} />
+          )}
+          {currentView === 'confirmation' && (
+            <Confirmation orderId={orderId} onContinueShopping={handleContinueShopping} />
+          )}
+        </Suspense>
       </CartProvider>
     </AuthProvider>
   );
@@ -230,11 +247,13 @@ export default function App() {
     return (
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/*" element={<SaaSDashboard />} />
-            <Route path="/reset-password" element={<UpdatePassword />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/*" element={<SaaSDashboard />} />
+              <Route path="/reset-password" element={<UpdatePassword />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     );
@@ -285,24 +304,26 @@ function AppRoutes() {
       <BrowserRouter>
         <AuthProvider>
           <CartProvider>
-            <Routes>
-              {/* Store routes */}
-              <Route path="/" element={<IshasTreatStore />} />
-              <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
-              <Route path="/checkout" element={<IshasTreatStore />} />
-              <Route path="/track" element={<OrderTracking />} />
-              <Route path="/privacy" element={<PrivacyPolicy />} />
-              <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
-              <Route path="/reset-password" element={<UpdatePassword />} />
-              {/* Account routes */}
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="/account/orders" element={<OrderHistoryPage />} />
-              <Route path="/account/addresses" element={<AddressesPage />} />
-              <Route path="/account/wishlist" element={<WishlistPage />} />
-              <Route path="/account/recently-viewed" element={<RecentlyViewedPage />} />
-              {/* Catch all for store subdomain */}
-              <Route path="*" element={<IshasTreatStore />} />
-            </Routes>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Store routes */}
+                <Route path="/" element={<IshasTreatStore />} />
+                <Route path="/store/ishas-treat/*" element={<IshasTreatStore />} />
+                <Route path="/checkout" element={<IshasTreatStore />} />
+                <Route path="/track" element={<OrderTracking />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/delivery/:orderId" element={<DeliveryConfirmWrapper />} />
+                <Route path="/reset-password" element={<UpdatePassword />} />
+                {/* Account routes */}
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/account/orders" element={<OrderHistoryPage />} />
+                <Route path="/account/addresses" element={<AddressesPage />} />
+                <Route path="/account/wishlist" element={<WishlistPage />} />
+                <Route path="/account/recently-viewed" element={<RecentlyViewedPage />} />
+                {/* Catch all for store subdomain */}
+                <Route path="*" element={<IshasTreatStore />} />
+              </Routes>
+            </Suspense>
             <ConsentBanner />
           </CartProvider>
         </AuthProvider>
@@ -314,13 +335,15 @@ function AppRoutes() {
   if (subdomain === 'app' || isAppDashboard) {
     return (
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<SaaSDashboard />} />
-          <Route path="/app/*" element={<SaaSDashboard />} />
-          <Route path="/reset-password" element={<UpdatePassword />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="*" element={<SaaSDashboard />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<SaaSDashboard />} />
+            <Route path="/app/*" element={<SaaSDashboard />} />
+            <Route path="/reset-password" element={<UpdatePassword />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="*" element={<SaaSDashboard />} />
+          </Routes>
+        </Suspense>
         <ConsentBanner />
       </BrowserRouter>
     );
@@ -329,6 +352,7 @@ function AppRoutes() {
   // ROOT DOMAIN (apinlero.com) or LOCALHOST - Path-based routing
   return (
     <BrowserRouter>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* SaaS Dashboard (path-based for localhost) */}
         <Route path="/app" element={<SaaSDashboard />} />
@@ -399,6 +423,7 @@ function AppRoutes() {
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       <ConsentBanner />
     </BrowserRouter>
   );
