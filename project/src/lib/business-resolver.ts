@@ -37,11 +37,8 @@ const KNOWN_BUSINESSES: Record<string, Business> = {
 export async function getBusinessBySlug(slug: string): Promise<Business | null> {
   // Check cache first
   if (businessCache.has(slug)) {
-    console.log(`[business-resolver] Cache hit for slug: ${slug}`);
     return businessCache.get(slug)!;
   }
-
-  console.log(`[business-resolver] Fetching business for slug: ${slug}`);
 
   try {
     // Track query performance
@@ -69,11 +66,8 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     const { data, error } = result;
 
     if (error) {
-      console.error(`[business-resolver] Supabase error:`, error);
-
       // Use fallback for known businesses
       if (KNOWN_BUSINESSES[slug]) {
-        console.warn(`[business-resolver] Using hardcoded fallback for: ${slug}`);
         const fallback = KNOWN_BUSINESSES[slug];
         businessCache.set(slug, fallback);
         return fallback;
@@ -83,11 +77,8 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     }
 
     if (!data) {
-      console.warn(`[business-resolver] No business found for slug: ${slug}`);
-
       // Use fallback for known businesses
       if (KNOWN_BUSINESSES[slug]) {
-        console.warn(`[business-resolver] Using hardcoded fallback for: ${slug}`);
         const fallback = KNOWN_BUSINESSES[slug];
         businessCache.set(slug, fallback);
         return fallback;
@@ -107,14 +98,10 @@ export async function getBusinessBySlug(slug: string): Promise<Business | null> 
     };
 
     businessCache.set(slug, business);
-    console.log(`[business-resolver] ✅ Business loaded and cached: ${business.name}`);
     return business;
-  } catch (error) {
-    console.error(`[business-resolver] ❌ Error:`, error);
-
+  } catch {
     // Use fallback for known businesses on any error
     if (KNOWN_BUSINESSES[slug]) {
-      console.warn(`[business-resolver] Using hardcoded fallback after error for: ${slug}`);
       const fallback = KNOWN_BUSINESSES[slug];
       businessCache.set(slug, fallback);
       return fallback;

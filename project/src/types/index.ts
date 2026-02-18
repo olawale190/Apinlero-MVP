@@ -41,16 +41,17 @@ export interface OrderItem {
   product_name: string;
   quantity: number;
   price: number;
-  unit: string;
+  unit?: string;
 }
 
 export interface Order {
-  id?: string;
+  id: string;
   customer_name: string;
   phone_number: string;
   email?: string;
+  customer_email?: string;
   delivery_address: string;
-  channel: 'Web' | 'WhatsApp' | 'Phone' | 'Walk-in';
+  channel: 'WhatsApp' | 'Web' | 'Phone' | 'Walk-in';
   items: OrderItem[];
   delivery_fee: number;
   total: number;
@@ -58,7 +59,8 @@ export interface Order {
   notes: string;
   delivery_method?: 'delivery' | 'collection';
   payment_method?: 'cash' | 'bank_transfer';
-  created_at?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface ShopConfig {

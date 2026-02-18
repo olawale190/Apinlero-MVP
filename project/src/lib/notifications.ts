@@ -13,7 +13,7 @@ interface OrderNotificationData {
     product_name: string;
     quantity: number;
     price: number;
-    unit: string;
+    unit?: string;
   }>;
   deliveryMethod: 'delivery' | 'collection';
   deliveryAddress?: string;

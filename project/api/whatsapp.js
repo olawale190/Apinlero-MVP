@@ -137,7 +137,7 @@ Commands:
 • DELIVERY - Delivery information
 • HELP - Get assistance
 
-Visit: https://apinlero.vercel.app/store/ishas-treat`;
+Visit: https://ishas-treat.apinlero.com`;
       }
       else if (incomingMessage === 'menu') {
         responseMessage = `📦 Our Product Categories:
@@ -150,7 +150,7 @@ Visit: https://apinlero.vercel.app/store/ishas-treat`;
 • Frozen Foods
 
 Browse our full catalog:
-https://apinlero.vercel.app/store/ishas-treat`;
+https://ishas-treat.apinlero.com`;
       }
       else if (incomingMessage === 'order') {
         responseMessage = `🛍️ How to Order:
@@ -206,7 +206,7 @@ I can help you with:
 • DELIVERY - Delivery info
 • HELP - Get assistance
 
-Or visit: https://apinlero.vercel.app/store/ishas-treat`;
+Or visit: https://ishas-treat.apinlero.com`;
       }
 
       // Return TwiML response (Twilio's XML format)

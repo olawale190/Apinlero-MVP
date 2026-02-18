@@ -1,21 +1,41 @@
-import express from 'express';
+import { createServer } from 'http';
+import { readFile } from 'fs/promises';
+import { extname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const app = express();
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = process.env.PORT || 3000;
+const DIST = join(__dirname, 'dist');
 
-// Serve static files from dist folder
-app.use(express.static(join(__dirname, 'dist')));
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
 
-// Handle SPA routing - serve index.html for all routes
-app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, 'dist', 'index.html'));
+const server = createServer(async (req, res) => {
+  let filePath = join(DIST, req.url === '/' ? 'index.html' : req.url);
+
+  try {
+    const data = await readFile(filePath);
+    const ext = extname(filePath);
+    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+    res.end(data);
+  } catch {
+    // SPA fallback — serve index.html for all routes
+    const html = await readFile(join(DIST, 'index.html'));
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+  }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });

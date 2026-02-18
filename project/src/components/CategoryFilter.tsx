@@ -68,7 +68,6 @@ export default function CategoryFilter({
     const missing = DEFAULT_CATEGORIES.filter(name => !existingNames.has(name));
 
     if (missing.length > 0) {
-      console.log(`🔧 Seeding ${missing.length} missing categories...`);
       const maxOrder = Math.max(...(data || []).map(c => c.display_order), 0);
       const toInsert = missing.map((name, i) => ({
         name,

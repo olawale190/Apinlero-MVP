@@ -34,8 +34,6 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
 
   const fetchProducts = async () => {
     try {
-      console.log('🛍️ Loading products for storefront...');
-
       // Try with business_id filter first (multi-tenant)
       if (business?.id) {
         const { data, error } = await supabase
@@ -46,12 +44,9 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
           .order('name');
 
         if (!error && data) {
-          console.log(`✅ Loaded ${data.length} products for storefront`);
-          // Prices are already stored in pounds in the database
           setProducts(data);
           return;
         }
-        console.warn('⚠️ business_id filter failed, trying fallback:', error?.message);
       }
 
       // Fallback: load all active products (pre-migration or no business context)
@@ -62,8 +57,6 @@ export default function Shop({ onCheckout, onViewDashboard }: ShopProps) {
         .order('name');
 
       if (error) throw error;
-      console.log(`✅ Loaded ${data?.length || 0} products (fallback)`);
-      // Prices are already stored in pounds in the database
       setProducts(data || []);
     } catch (error) {
       console.error('Error fetching products:', error);

@@ -118,8 +118,6 @@ export function startHealthMonitoring(onUnhealthy?: (status: HealthStatus) => vo
       if (!import.meta.env.DEV) {
         reportUnhealthyStatus(status);
       }
-    } else {
-      console.log('✅ [HealthCheck] System healthy');
     }
   };
 

@@ -47,53 +47,33 @@ function SaaSDashboard() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [businessName, setBusinessName] = useState('Isha\'s Treat & Groceries');
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
-    const addLog = (msg: string) => {
-      console.log(msg);
-      setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
-    };
-
-    addLog('[SaaSDashboard] Starting auth check...');
-    addLog(`Supabase URL: ${import.meta.env.VITE_SUPABASE_URL ? 'SET' : 'MISSING'}`);
-    addLog(`Supabase Key: ${import.meta.env.VITE_SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
 
     // Timeout fallback: if auth check takes more than 5 seconds, show login anyway
     const timeoutId = setTimeout(() => {
       if (mounted) {
-        addLog('⚠️ Auth check timed out after 5s, showing login');
         setIsCheckingAuth(false);
         setIsAuthenticated(false);
       }
-    }, 5000); // Reduced from 10s to 5s for faster fallback
+    }, 5000);
 
     // Check for existing Supabase session
     const checkSession = async () => {
       try {
-        addLog('[SaaSDashboard] Checking Supabase session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          addLog(`❌ Supabase auth error: ${error.message}`);
-          console.error('[SaaSDashboard] Supabase auth error:', error);
-        }
+        const { data: { session } } = await supabase.auth.getSession();
 
         if (mounted) {
-          addLog(`✅ Session check complete: ${session ? 'authenticated' : 'not authenticated'}`);
           setIsAuthenticated(!!session);
         }
-      } catch (err) {
-        addLog(`❌ Failed to check auth: ${err instanceof Error ? err.message : String(err)}`);
-        console.error('[SaaSDashboard] Failed to check auth session:', err);
+      } catch {
         if (mounted) {
           setIsAuthenticated(false);
         }
       } finally {
         clearTimeout(timeoutId);
         if (mounted) {
-          addLog('🏁 Setting isCheckingAuth to false');
           setIsCheckingAuth(false);
         }
       }
@@ -104,7 +84,6 @@ function SaaSDashboard() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
-        addLog(`Auth state changed: ${_event}, ${session ? 'authenticated' : 'not authenticated'}`);
         setIsAuthenticated(!!session);
       }
     });
@@ -139,16 +118,6 @@ function SaaSDashboard() {
           <p className="text-slate-300 mb-2">Loading Àpínlẹ̀rọ...</p>
           <p className="text-slate-500 text-sm">Connecting to authentication service...</p>
           <p className="text-slate-600 text-xs mt-4">If this takes longer than 5 seconds, you'll be redirected to the login page.</p>
-
-          {/* Debug logs display */}
-          {debugLogs.length > 0 && (
-            <div className="mt-6 bg-slate-800/50 rounded-lg p-4 text-left max-h-96 overflow-y-auto">
-              <p className="text-teal-400 text-xs font-mono mb-2">Debug Logs:</p>
-              {debugLogs.map((log, i) => (
-                <p key={i} className="text-slate-400 text-xs font-mono mb-1">{log}</p>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );

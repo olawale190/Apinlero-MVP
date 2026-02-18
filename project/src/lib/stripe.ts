@@ -66,8 +66,6 @@ export async function createPaymentIntent(
       return null;
     }
 
-    console.log(`Payment intent created: ${data.paymentIntentId}`);
-
     return {
       clientSecret: data.clientSecret,
       paymentIntentId: data.paymentIntentId,
@@ -390,8 +388,6 @@ export async function createBusinessPaymentIntent(
       console.error('No client secret returned from payment intent');
       return null;
     }
-
-    console.log(`Payment intent created for business ${businessId}: ${data.paymentIntentId}`);
 
     return {
       clientSecret: data.clientSecret,

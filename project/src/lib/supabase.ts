@@ -33,37 +33,4 @@ export const supabase = createClient(
   }
 );
 
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  sub_category?: string;
-  unit: string;
-  image_url?: string;
-  is_active: boolean;
-  stock_quantity?: number;
-  created_at: string;
-}
-
-export interface OrderItem {
-  product_name: string;
-  quantity: number;
-  price: number;
-}
-
-export interface Order {
-  id: string;
-  customer_name: string;
-  customer_email?: string;
-  phone_number: string;
-  delivery_address: string;
-  channel: 'WhatsApp' | 'Web' | 'Phone' | 'Walk-in';
-  items: OrderItem[];
-  delivery_fee: number;
-  total: number;
-  status: 'Pending' | 'Confirmed' | 'Delivered';
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
+export type { Product, OrderItem, Order } from '../types';

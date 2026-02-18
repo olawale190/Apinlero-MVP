@@ -317,8 +317,6 @@ export default function InventoryManager({ products: initialProducts, onProductU
         maxSizeKB: 500
       });
 
-      console.log(getCompressionSummary(compression));
-
       const result = await uploadAndTrack(BUCKETS.PRODUCTS, compression.file, {
         folder: 'catalog',
         source: 'web',
@@ -684,8 +682,6 @@ export default function InventoryManager({ products: initialProducts, onProductU
     }
 
     if (!error && data) {
-      console.log('✅ Product saved successfully:', data.name);
-
       // Don't update local state to avoid race condition with database reload
       // The parent component will reload all products from the database
 
@@ -715,7 +711,6 @@ export default function InventoryManager({ products: initialProducts, onProductU
 
       // Reload from database after a brief delay to ensure commit completes
       setTimeout(() => {
-        console.log('🔄 Reloading products from database...');
         onProductUpdate();
       }, 200);
     } else {

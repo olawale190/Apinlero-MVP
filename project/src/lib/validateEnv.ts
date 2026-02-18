@@ -62,9 +62,6 @@ export function validateEnvironment(): ValidationResult {
   if (warnings.length > 0) {
     console.warn('Environment validation warnings:', warnings);
   }
-  if (errors.length === 0 && warnings.length === 0) {
-    console.log('Environment validation passed');
-  }
 
   return {
     valid: errors.length === 0,

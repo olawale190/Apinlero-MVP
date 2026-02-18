@@ -119,7 +119,6 @@ async function sendEmail(
 
     if (response.ok) {
       const data = await response.json();
-      console.log(`✅ Email sent via Resend (ID: ${data.id}, Reply-To: ${options.replyTo || 'none'})`);
       return { success: true, messageId: data.id };
     } else {
       const error = await response.json().catch(() => ({}));

@@ -108,19 +108,14 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         return;
       }
 
-      console.log('[Dashboard] No business from context, loading from authenticated user...');
-
       try {
         // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          console.error('[Dashboard] ❌ No authenticated user:', userError);
           setIsLoading(false);
           return;
         }
-
-        console.log('[Dashboard] User authenticated:', user.email);
 
         // Strategy 1: Try user_businesses table (if it exists)
         try {
@@ -145,7 +140,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           if (!ubError && userBusinessData) {
             const businessData = userBusinessData.businesses as any;
             if (businessData && businessData.is_active) {
-              console.log('[Dashboard] ✅ Loaded business via user_businesses:', businessData.name);
               setBusiness({
                 id: businessData.id,
                 slug: businessData.slug,
@@ -157,13 +151,11 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
               return;
             }
           }
-          console.warn('[Dashboard] user_businesses lookup failed, trying fallback...', ubError?.message);
         } catch {
-          console.warn('[Dashboard] user_businesses table may not exist, trying fallback...');
+          // user_businesses table may not exist yet
         }
 
         // Strategy 2: Fallback - find business by owner_email
-        console.log('[Dashboard] Trying to find business by owner email:', user.email);
         const { data: businessByEmail, error: emailError } = await supabase
           .from('businesses')
           .select('id, slug, name, owner_email, phone, is_active')
@@ -173,7 +165,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           .single();
 
         if (!emailError && businessByEmail) {
-          console.log('[Dashboard] ✅ Loaded business via owner_email:', businessByEmail.name);
           setBusiness({
             id: businessByEmail.id,
             slug: businessByEmail.slug,
@@ -185,10 +176,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           return;
         }
 
-        console.warn('[Dashboard] owner_email lookup failed:', emailError?.message);
-
         // Strategy 3: Last resort - get first active business (single-tenant fallback)
-        console.log('[Dashboard] Trying last resort: first active business...');
         const { data: anyBusiness, error: anyError } = await supabase
           .from('businesses')
           .select('id, slug, name, owner_email, phone, is_active')
@@ -197,7 +185,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           .single();
 
         if (!anyError && anyBusiness) {
-          console.log('[Dashboard] ✅ Loaded business (first active):', anyBusiness.name);
           setBusiness({
             id: anyBusiness.id,
             slug: anyBusiness.slug,
@@ -209,12 +196,9 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           return;
         }
 
-        console.warn('[Dashboard] Strategy 3 failed:', anyError?.message);
-
         // Strategy 4: Recovery - create business from user metadata (trigger may have failed)
         const userMeta = user.user_metadata;
         if (userMeta?.role === 'business_owner' && userMeta?.business_name) {
-          console.log('[Dashboard] Attempting recovery: creating business from user metadata...');
           const recoverySlug = userMeta.business_slug || userMeta.business_name
             .toLowerCase()
             .replace(/[^a-z0-9\s-]/g, '')
@@ -244,7 +228,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
               role: 'owner',
             });
 
-            console.log('[Dashboard] ✅ Recovery succeeded:', recoveredBusiness.name);
             setBusiness({
               id: recoveredBusiness.id,
               slug: recoveredBusiness.slug,
@@ -256,13 +239,10 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
             return;
           }
 
-          console.error('[Dashboard] Recovery failed:', recoverError?.message);
         }
 
-        console.error('[Dashboard] ❌ No business found at all');
         setIsLoading(false);
-      } catch (error) {
-        console.error('[Dashboard] Error loading user business:', error);
+      } catch {
         setIsLoading(false);
       }
     }
@@ -272,11 +252,9 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
 
   useEffect(() => {
     if (!business?.id) {
-      console.log('[Dashboard] Waiting for business to load...');
       return;
     }
 
-    console.log('[Dashboard] Business loaded, fetching data for:', business.name);
     loadOrders();
     loadProducts();
     setIsLoading(false);
@@ -303,12 +281,7 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
   }, [business?.id]);
 
   const loadOrders = async () => {
-    if (!business?.id) {
-      console.warn('⚠️ No business_id available, skipping orders load');
-      return;
-    }
-
-    console.log('📋 Loading orders from database for business:', business.id);
+    if (!business?.id) return;
 
     // Try with business_id filter first (multi-tenant)
     const { data, error } = await supabase
@@ -318,32 +291,22 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      console.log(`✅ Loaded ${data.length} orders from database`);
       setOrders(data);
     } else if (error) {
       // Fallback: business_id column may not exist yet (pre-migration)
-      console.warn('⚠️ business_id filter failed, loading all orders:', error.message);
       const { data: allData, error: allError } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (!allError && allData) {
-        console.log(`✅ Loaded ${allData.length} orders (fallback, no business_id filter)`);
         setOrders(allData);
-      } else if (allError) {
-        console.error('❌ Error loading orders:', allError);
       }
     }
   };
 
   const loadProducts = async () => {
-    if (!business?.id) {
-      console.warn('⚠️ No business_id available, skipping products load');
-      return;
-    }
-
-    console.log('📦 Loading products from database for business:', business.id);
+    if (!business?.id) return;
 
     // Try with business_id filter first (multi-tenant)
     const { data, error } = await supabase
@@ -353,7 +316,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       .order('name', { ascending: true });
 
     if (!error && data) {
-      console.log(`✅ Loaded ${data.length} products from database`);
 
       // Auto-fix: remap old short category names to proper names
       const categoryMap: Record<string, string> = {
@@ -377,7 +339,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       };
       const needsRemap = data.filter(p => p.category && categoryMap[p.category]);
       if (needsRemap.length > 0) {
-        console.log(`🔧 Remapping ${needsRemap.length} products to proper category names...`);
         // Group by old category for batch updates
         const groups: Record<string, string[]> = {};
         needsRemap.forEach(p => {
@@ -399,7 +360,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
       // Auto-fix: set default stock_quantity (10) for products with 0 or null
       const needsDefault = data.filter(p => p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0);
       if (needsDefault.length > 0) {
-        console.log(`🔧 Setting default stock_quantity (10) for ${needsDefault.length} products...`);
         const ids = needsDefault.map(p => p.id);
         const { error: updateError } = await supabase
           .from('products')
@@ -407,7 +367,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           .in('id', ids);
 
         if (!updateError) {
-          console.log(`✅ Updated ${needsDefault.length} products with default stock`);
           // Apply fix locally too
           const fixed = data.map(p =>
             (p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0)
@@ -416,15 +375,12 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
           );
           setProducts(fixed);
           return;
-        } else {
-          console.warn('⚠️ Failed to update default stock:', updateError.message);
         }
       }
 
       setProducts(data);
     } else if (error) {
       // Fallback: business_id column may not exist yet (pre-migration)
-      console.warn('⚠️ business_id filter failed, loading all products:', error.message);
       const { data: allData, error: allError } = await supabase
         .from('products')
         .select('*')
@@ -432,8 +388,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         .order('name', { ascending: true });
 
       if (!allError && allData) {
-        console.log(`✅ Loaded ${allData.length} products (fallback, no business_id filter)`);
-
         // Auto-fix: set default stock_quantity for fallback path too
         const needsDefault = allData.filter(p => p.stock_quantity === null || p.stock_quantity === undefined || p.stock_quantity === 0);
         if (needsDefault.length > 0) {
@@ -449,8 +403,6 @@ export default function Dashboard({ onLogout, onViewStorefront, businessName = "
         }
 
         setProducts(allData);
-      } else if (allError) {
-        console.error('❌ Error loading products:', allError);
       }
     }
   };
