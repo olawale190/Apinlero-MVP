@@ -229,20 +229,20 @@ export default function InventoryManager({ products: initialProducts, onProductU
         // Get business email from session/profile
         const { data: { user } } = await supabase.auth.getUser();
         const businessEmail = user?.email || 'owner@business.com';
-        const businessName = 'Your Business'; // TODO: Get from business profile
+        const businessName = business?.name || 'Your Business';
 
         result = await sendLowStockAlertEmail({
           businessEmail,
           businessName,
           productName: product.name,
-          currentStock: product.stock_quantity,
+          currentStock: product.stock_quantity ?? 0,
           threshold: 5,
           productId: product.id
         });
       }
       // Fallback to n8n if configured
       else if (isN8nConfigured()) {
-        result = await triggerLowStockAlert(product.id, product.name, product.stock_quantity);
+        result = await triggerLowStockAlert(product.id, product.name, product.stock_quantity ?? 0);
       } else {
         result = { success: false, error: 'No email service configured' };
       }
@@ -754,7 +754,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
       price: penceToPounds(product.price).toFixed(2),
       category: product.category || '',
       unit: product.unit || 'each',
-      stock_quantity: product.stock_quantity.toString(),
+      stock_quantity: (product.stock_quantity ?? 0).toString(),
       barcode: product.barcode || '',
       expiry_date: product.expiry_date || '',
       batch_number: product.batch_number || '',
@@ -1472,8 +1472,8 @@ export default function InventoryManager({ products: initialProducts, onProductU
                 </div>
 
                 <div className={`text-center px-4 py-2 rounded-lg ${
-                  scanResult.stock_quantity === 0 ? 'bg-red-100 text-red-800' :
-                  scanResult.stock_quantity <= 3 ? 'bg-amber-100 text-amber-800' :
+                  (scanResult.stock_quantity ?? 0) === 0 ? 'bg-red-100 text-red-800' :
+                  (scanResult.stock_quantity ?? 0) <= 3 ? 'bg-amber-100 text-amber-800' :
                   'bg-green-100 text-green-800'
                 }`}>
                   <p className="text-2xl font-bold">{scanResult.stock_quantity}</p>
@@ -1515,9 +1515,9 @@ export default function InventoryManager({ products: initialProducts, onProductU
                 <button
                   onClick={() => {
                     updateStock(scanResult.id, -1);
-                    setScanResult({...scanResult, stock_quantity: Math.max(0, scanResult.stock_quantity - 1)});
+                    setScanResult({...scanResult, stock_quantity: Math.max(0, (scanResult.stock_quantity ?? 0) - 1)});
                   }}
-                  disabled={updatingStock === scanResult.id || scanResult.stock_quantity === 0}
+                  disabled={updatingStock === scanResult.id || (scanResult.stock_quantity ?? 0) === 0}
                   className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition disabled:opacity-50"
                 >
                   <Minus size={24} />
@@ -1526,7 +1526,7 @@ export default function InventoryManager({ products: initialProducts, onProductU
                 <button
                   onClick={() => {
                     updateStock(scanResult.id, 1);
-                    setScanResult({...scanResult, stock_quantity: scanResult.stock_quantity + 1});
+                    setScanResult({...scanResult, stock_quantity: (scanResult.stock_quantity ?? 0) + 1});
                   }}
                   disabled={updatingStock === scanResult.id}
                   className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition disabled:opacity-50"

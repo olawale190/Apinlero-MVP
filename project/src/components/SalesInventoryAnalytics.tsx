@@ -123,7 +123,7 @@ export default function SalesInventoryAnalytics({ orders, products }: SalesInven
     // Calculate inventory value (current stock)
     const inventoryValue = products
       .filter(p => p.is_active)
-      .reduce((sum, p) => sum + (p.price * p.stock_quantity), 0);
+      .reduce((sum, p) => sum + (p.price * (p.stock_quantity ?? 0)), 0);
 
     // Generate chart data for revenue trend
     const chartData = generateChartData(currentOrders, selectedPeriod, currentStart, currentEnd);
@@ -133,7 +133,7 @@ export default function SalesInventoryAnalytics({ orders, products }: SalesInven
       .filter(p => p.is_active)
       .map(p => ({
         name: p.name,
-        value: p.price * p.stock_quantity,
+        value: p.price * (p.stock_quantity ?? 0),
         percentage: 0 // Will calculate below
       }))
       .sort((a, b) => b.value - a.value)
@@ -363,7 +363,7 @@ export default function SalesInventoryAnalytics({ orders, products }: SalesInven
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={(entry) => `${(entry.percent * 100).toFixed(0)}%`}
+                  label={(entry: any) => `${((entry.percent ?? 0) * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -372,7 +372,7 @@ export default function SalesInventoryAnalytics({ orders, products }: SalesInven
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `£${value.toFixed(2)}`} />
+                <Tooltip formatter={(value: any) => `£${Number(value).toFixed(2)}`} />
               </PieChart>
             </ResponsiveContainer>
 

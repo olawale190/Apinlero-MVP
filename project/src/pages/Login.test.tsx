@@ -58,19 +58,15 @@ describe('Login Component', () => {
     });
   });
 
-  it('should handle demo login', async () => {
-    const user = userEvent.setup();
+  it('should show forgot password link when handler provided', () => {
     render(
       <Login
         onLoginSuccess={mockOnLoginSuccess}
         onViewStorefront={mockOnViewStorefront}
+        onForgotPassword={mockOnForgotPassword}
       />
     );
 
-    await user.click(screen.getByRole('button', { name: /demo login/i }));
-
-    // Check that localStorage was called with the correct values
-    expect(localStorage.setItem).toHaveBeenCalledWith('apinlero_demo_mode', 'true');
-    expect(mockOnLoginSuccess).toHaveBeenCalled();
+    expect(screen.getByText('Forgot password?')).toBeInTheDocument();
   });
 });

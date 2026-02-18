@@ -126,7 +126,6 @@ class PerformanceMonitor {
    * Report slow performance to monitoring service
    */
   private reportSlowMetric(metric: PerformanceMetric, threshold: number, type: string) {
-    // TODO: Integrate with monitoring service (Sentry, Vercel Analytics, etc.)
     if (!import.meta.env.DEV) {
       // Example: Send to your backend analytics endpoint
       fetch('/api/analytics/performance', {

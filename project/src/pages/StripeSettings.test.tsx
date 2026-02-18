@@ -36,7 +36,24 @@ vi.mock('../lib/supabase', () => ({
     functions: {
       invoke: vi.fn(),
     },
+    auth: {
+      getSession: vi.fn(() => Promise.resolve({ data: { session: { access_token: 'test-token' } }, error: null })),
+    },
   },
+}));
+
+vi.mock('../contexts/BusinessContext', () => ({
+  useBusinessContext: vi.fn(() => ({
+    business: { id: 'test-business-id', name: 'Test Business' },
+    loading: false,
+  })),
+}));
+
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: 'test-user-id', email: 'test@example.com' },
+    isAuthenticated: true,
+  })),
 }));
 
 describe('StripeSettings Component', () => {
@@ -44,6 +61,11 @@ describe('StripeSettings Component', () => {
     vi.clearAllMocks();
     // Reset the mock to return default config
     vi.mocked(supabase.from).mockReturnValue(createChainableMock(mockStripeConfig) as any);
+    // Restore auth mock after clearAllMocks
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({
+      data: { session: { access_token: 'test-token' } },
+      error: null,
+    } as any);
   });
 
   it('should render Stripe settings page', async () => {
@@ -137,28 +159,11 @@ describe('StripeSettings Component', () => {
 
   it('should save Stripe configuration', async () => {
     const user = userEvent.setup();
-    const mockUpdate = vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ error: null })),
-    }));
 
-    // Return empty config first, then mock update
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({
-            data: {
-              stripe_publishable_key: null,
-              stripe_secret_key_encrypted: null,
-              stripe_account_id: null,
-              stripe_webhook_secret: null,
-              stripe_connected_at: null,
-            },
-            error: null,
-          })),
-        })),
-      })),
-      update: mockUpdate,
-    } as any);
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: { success: true },
+      error: null,
+    });
 
     render(<StripeSettings />);
 
@@ -167,6 +172,7 @@ describe('StripeSettings Component', () => {
     });
 
     const publishableInput = screen.getByLabelText(/publishable key/i);
+    await user.clear(publishableInput);
     await user.type(publishableInput, 'pk_test_newkey');
 
     const secretInput = screen.getByLabelText(/secret key/i);
@@ -176,7 +182,7 @@ describe('StripeSettings Component', () => {
     await user.click(saveButton);
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('save-stripe-config', expect.any(Object));
     });
   });
 

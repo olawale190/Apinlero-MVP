@@ -66,6 +66,34 @@ vi.mock('./StorageDiagnostics', () => ({
   default: () => <div data-testid="storage-diagnostics">Storage Diagnostics</div>,
 }));
 
+vi.mock('./ProductImagePlaceholder', () => ({
+  default: () => <div data-testid="image-placeholder">Image Placeholder</div>,
+}));
+
+vi.mock('./InventoryImport', () => ({
+  default: () => <div data-testid="inventory-import">Inventory Import</div>,
+}));
+
+vi.mock('./BulkImageUpload', () => ({
+  default: () => <div data-testid="bulk-image-upload">Bulk Image Upload</div>,
+}));
+
+vi.mock('./AIInventoryAssistant', () => ({
+  default: () => <div data-testid="ai-assistant">AI Assistant</div>,
+}));
+
+vi.mock('../contexts/BusinessContext', () => ({
+  useBusinessContext: vi.fn(() => ({
+    business: { id: 'test-business-id', name: 'Test Business' },
+    loading: false,
+  })),
+}));
+
+vi.mock('../lib/currency', () => ({
+  penceToPounds: vi.fn((pence: number) => pence / 100),
+  poundsToPence: vi.fn((pounds: number) => pounds * 100),
+}));
+
 describe('InventoryManager Component', () => {
   const mockOnProductUpdate = vi.fn();
 
@@ -73,7 +101,7 @@ describe('InventoryManager Component', () => {
     {
       id: '1',
       name: 'Test Product 1',
-      price: 10.50,
+      price: 1050,
       category: 'Groceries',
       unit: 'each',
       stock_quantity: 20,
@@ -83,7 +111,7 @@ describe('InventoryManager Component', () => {
     {
       id: '2',
       name: 'Test Product 2',
-      price: 5.00,
+      price: 500,
       category: 'Snacks',
       unit: 'pack',
       stock_quantity: 5,

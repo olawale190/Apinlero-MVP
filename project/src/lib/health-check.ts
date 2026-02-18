@@ -114,9 +114,8 @@ export function startHealthMonitoring(onUnhealthy?: (status: HealthStatus) => vo
         onUnhealthy(status);
       }
 
-      // In production, send alert (email, Slack, etc.)
+      // In production, send alert to monitoring service
       if (!import.meta.env.DEV) {
-        // TODO: Send alert to monitoring service
         reportUnhealthyStatus(status);
       }
     } else {
