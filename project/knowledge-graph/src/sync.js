@@ -191,7 +191,7 @@ async function syncProducts(products) {
     `, {
       id: product.id,
       name: product.name,
-      price: parseFloat(product.price) || 0,
+      price: (parseFloat(product.price) || 0) / 100,
       category: product.category || 'Uncategorized',
       unit: product.unit || 'Each',
       stock: product.stock_quantity || 0,
@@ -264,6 +264,8 @@ async function syncOrders(orders) {
     // Create CONTAINS relationships for order items
     const items = order.items || [];
     for (const item of items) {
+      const productName = item.product_name || item.name;
+      if (!productName) continue; // skip items without a product name
       await runWrite(`
         MATCH (o:Order {id: $order_id})
         MATCH (p:Product {name: $product_name})
@@ -273,7 +275,7 @@ async function syncOrders(orders) {
             r.unit = $unit
       `, {
         order_id: order.id,
-        product_name: item.product_name,
+        product_name: productName,
         quantity: item.quantity || 1,
         price: parseFloat(item.price) || 0,
         unit: item.unit || 'Each'
