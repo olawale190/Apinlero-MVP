@@ -7,6 +7,7 @@
  */
 
 import { parseMessage, matchProduct, getDeliveryZone, isCompleteOrder } from './message-parser.js';
+import { penceToPounds } from './currency.js';
 import {
   getProducts,
   createOrder,
@@ -74,6 +75,57 @@ function isCashPayment(text) {
  */
 function isCardPayment(text) {
   return /card|online|pay.*now|transfer|bank|💳|🏦/i.test(text);
+}
+
+// ============================================================
+// BUTTON ID RESOLUTION
+// Maps WhatsApp button text/IDs to canonical intent strings
+// ============================================================
+
+const BUTTON_ID_MAP = {
+  '📦 order': 'START_ORDER',
+  '📦 place order': 'START_ORDER',
+  '📦 new order': 'START_ORDER',
+  '📦 order now': 'START_ORDER',
+  '📋 see products': 'PRODUCTS_LIST',
+  '📋 view catalog': 'PRODUCTS_LIST',
+  '📋 view products': 'PRODUCTS_LIST',
+  '📋 full catalog': 'PRODUCTS_LIST',
+  '📋 products': 'PRODUCTS_LIST',
+  '📋 view more': 'PRODUCTS_LIST',
+  '📋 view alternatives': 'PRODUCTS_LIST',
+  '✅ yes': 'CONFIRM',
+  "✅ yes, that's right": 'CONFIRM',
+  '✅ yes!': 'CONFIRM',
+  '✏️ make changes': 'DECLINE',
+  '✏️ change': 'DECLINE',
+  '✏️ let me correct it': 'DECLINE',
+  '❌ cancel': 'CANCEL',
+  '❌ cancel order': 'CANCEL',
+  '🔄 reorder': 'REORDER',
+  '🔄 start over': 'REORDER',
+  '🔄 try again': 'GREETING',
+  '💳 pay now': 'PAYMENT_CARD',
+  '💳 pay online': 'PAYMENT_CARD',
+  '💳 card': 'PAYMENT_CARD',
+  '💵 cash': 'PAYMENT_CASH',
+  '💵 cash on delivery': 'PAYMENT_CASH',
+  '🏦 transfer': 'PAYMENT_TRANSFER',
+  '🏦 bank transfer': 'PAYMENT_TRANSFER',
+  '💬 help': 'GREETING',
+  '💬 contact us': 'GREETING',
+  '📍 track order': 'ORDER_STATUS',
+};
+
+/**
+ * Resolve a WhatsApp button ID/text to a canonical intent string
+ * @param {string|null} buttonText - The button text or ID from WhatsApp
+ * @returns {string|null} - Resolved intent or null if not a known button
+ */
+export function resolveButtonId(buttonText) {
+  if (!buttonText) return null;
+  const normalized = buttonText.trim().toLowerCase();
+  return BUTTON_ID_MAP[normalized] || null;
 }
 
 // In-memory cache for sessions (backed by Supabase)
@@ -299,7 +351,15 @@ export async function handleIncomingMessage({
   // SECURITY: Use sanitized versions of all inputs
   const messageText = sanitizedButtonId || sanitizedListId || sanitizedText || '';
 
+  // Resolve button ID to intent before parsing
+  const resolvedIntent = resolveButtonId(sanitizedButtonId);
+
   const parsed = await parseMessage(messageText, conversation.state);
+
+  // Override parsed intent if button was resolved
+  if (resolvedIntent) {
+    parsed.intent = resolvedIntent;
+  }
 
   console.log(`📝 Parsed message:`, {
     intent: parsed.intent,
@@ -341,14 +401,37 @@ export async function handleIncomingMessage({
 
     // AWAITING_CONFIRMATION: Accept flexible yes/no responses
     if (conversation.state === 'AWAITING_CONFIRMATION' && conversation.pendingOrder) {
-      if (isPositiveResponse(text)) {
+      // Compound intent: "yes please add palm oil" — positive + new items
+      if (isPositiveResponse(messageText) && parsed.items && parsed.items.length > 0) {
+        // Merge new items into pending order, re-show confirmation
+        const mergedParsed = {
+          ...parsed,
+          items: [...(conversation.pendingOrder.items.map(i => ({
+            product: i.product_name,
+            quantity: i.quantity,
+            unit: i.unit
+          }))), ...parsed.items],
+          address: conversation.pendingOrder.address,
+          postcode: conversation.pendingOrder.postcode,
+          deliveryZone: conversation.pendingOrder.deliveryZone
+        };
+        response = await handleNewOrder(from, customerName, mergedParsed, conversation);
+        await logMessage(from, 'outbound', response.text, 'NEW_ORDER', conversation.lastOrderId, businessId);
+        return response;
+      }
+      if (isPositiveResponse(messageText) || parsed.intent === 'CONFIRM') {
         response = await handleConfirmation(from, customerName, conversation);
         await logMessage(from, 'outbound', response.text, 'CONFIRM', conversation.lastOrderId, businessId);
         return response;
       }
-      if (isNegativeResponse(text)) {
+      if (isNegativeResponse(messageText) || parsed.intent === 'DECLINE') {
         response = handleDecline(conversation);
         await logMessage(from, 'outbound', response.text, 'DECLINE', conversation.lastOrderId, businessId);
+        return response;
+      }
+      if (parsed.intent === 'CANCEL') {
+        response = await handleCancel(conversation);
+        await logMessage(from, 'outbound', response.text, 'CANCEL', conversation.lastOrderId, businessId);
         return response;
       }
       // If adding more items to existing order
@@ -405,6 +488,75 @@ export async function handleIncomingMessage({
         subtotal: conversation.pendingOrder?.subtotal || 0
       });
       await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
+      return response;
+    }
+
+    // EDITING_ORDER: Handle order modifications
+    if (conversation.state === 'EDITING_ORDER' && conversation.pendingOrder) {
+      // New items → rebuild order
+      if (parsed.intent === 'NEW_ORDER' && parsed.items && parsed.items.length > 0) {
+        response = await handleNewOrder(from, customerName, parsed, conversation);
+        await logMessage(from, 'outbound', response.text, 'NEW_ORDER', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Remove item: "remove palm oil", "take out egusi"
+      const removeMatch = messageText.match(/(?:remove|take\s*out|drop|delete)\s+(.+)/i);
+      if (removeMatch) {
+        const removeTarget = removeMatch[1].trim().toLowerCase();
+        const filteredItems = conversation.pendingOrder.items.filter(
+          item => !item.product_name.toLowerCase().includes(removeTarget)
+        );
+        if (filteredItems.length === 0) {
+          // All items removed — cancel
+          response = await handleCancel(conversation);
+          await logMessage(from, 'outbound', response.text, 'CANCEL', conversation.lastOrderId, businessId);
+          return response;
+        }
+        if (filteredItems.length < conversation.pendingOrder.items.length) {
+          const subtotal = filteredItems.reduce((sum, item) => sum + item.subtotal, 0);
+          const deliveryFee = conversation.pendingOrder.deliveryFee;
+          const total = subtotal + deliveryFee;
+          const updatedOrder = {
+            ...conversation.pendingOrder,
+            items: filteredItems,
+            subtotal,
+            total
+          };
+          await updateConversation(from, {
+            state: 'AWAITING_CONFIRMATION',
+            pendingOrder: updatedOrder
+          }, businessId);
+          response = generateResponse('ORDER_CONFIRMATION', {
+            items: filteredItems,
+            subtotal,
+            deliveryFee,
+            total,
+            address: updatedOrder.address,
+            deliveryZone: updatedOrder.deliveryZone
+          });
+          await logMessage(from, 'outbound', response.text, 'EDIT_REMOVE', conversation.lastOrderId, businessId);
+          return response;
+        }
+      }
+      // "start over" → reset to INITIAL
+      if (/start\s*over|fresh|new\s*order|from\s*scratch/i.test(messageText)) {
+        await updateConversation(from, { state: 'INITIAL', pendingOrder: null }, businessId);
+        response = generateResponse('ORDER_CANCELLED');
+        await logMessage(from, 'outbound', response.text, 'START_OVER', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Cancel
+      if (parsed.intent === 'CANCEL') {
+        response = await handleCancel(conversation);
+        await logMessage(from, 'outbound', response.text, 'CANCEL', conversation.lastOrderId, businessId);
+        return response;
+      }
+      // Default: show edit prompt with current items
+      response = generateResponse('ORDER_EDIT_PROMPT_WITH_ITEMS', {
+        items: conversation.pendingOrder.items,
+        total: conversation.pendingOrder.total
+      });
+      await logMessage(from, 'outbound', response.text, 'EDIT_PROMPT', conversation.lastOrderId, businessId);
       return response;
     }
 
@@ -485,8 +637,28 @@ export async function handleIncomingMessage({
         response = await handlePaymentChoice(from, conversation, 'bank_transfer');
         break;
 
+      case 'MODIFY_ORDER':
+        response = await handleModifyOrder(from, customerName, parsed, conversation);
+        break;
+
+      case 'MEAL_ORDER':
+        response = await handleMealOrder(from, customerName, parsed, conversation);
+        break;
+
+      case 'BUDGET_ORDER':
+        response = await handleBudgetOrder(from, customerName, parsed, conversation);
+        break;
+
+      case 'RUNNING_TOTAL':
+        response = handleRunningTotal(conversation);
+        break;
+
+      case 'ADDRESS_UPDATE':
+        response = await handleAddressUpdate(from, parsed, conversation);
+        break;
+
       default:
-        response = await handleGeneralInquiry(text, conversation);
+        response = await handleGeneralInquiry(text, parsed, conversation);
     }
 
     // Log outbound message
@@ -561,8 +733,8 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
         product_name: product.name,
         quantity: item.quantity,
         unit: item.unit,
-        price: product.price,
-        subtotal: product.price * item.quantity
+        price: penceToPounds(product.price),
+        subtotal: penceToPounds(product.price) * item.quantity
       });
     } else {
       notFound.push(item.product);
@@ -571,6 +743,53 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
 
   if (orderItems.length === 0) {
     return generateResponse('PRODUCTS_NOT_FOUND', { products: notFound });
+  }
+
+  // Partial match: some items found, some not — accept found and suggest alternatives
+  if (notFound.length > 0 && orderItems.length > 0) {
+    const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const deliveryFee = deliveryZone.fee;
+    const total = subtotal + deliveryFee;
+
+    // Try to find similar products for unfound items
+    const similarSuggestions = [];
+    for (const missed of notFound) {
+      const missedLower = missed.toLowerCase();
+      const similar = products.find(p =>
+        p.name.toLowerCase().includes(missedLower) ||
+        missedLower.includes(p.name.toLowerCase().split(' ')[0])
+      );
+      if (similar) similarSuggestions.push(similar.name);
+    }
+
+    // Store pending order with found items
+    const pendingOrder = {
+      items: orderItems,
+      subtotal,
+      deliveryFee,
+      total,
+      address: address || null,
+      postcode: postcode || null,
+      deliveryZone,
+      customerName,
+      customerId: conversation.customerId,
+      notFoundProducts: notFound
+    };
+
+    await updateConversation(phone, {
+      state: 'AWAITING_CONFIRMATION',
+      pendingOrder
+    }, conversation.businessId);
+
+    return generateResponse('PARTIAL_MATCH', {
+      items: orderItems,
+      notFound,
+      subtotal,
+      deliveryFee,
+      total,
+      address: address || null,
+      suggestions: similarSuggestions
+    });
   }
 
   // Calculate totals
@@ -741,18 +960,17 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
 
   } catch (error) {
     console.error('Auto-confirm failed:', error);
-    // Fall back to manual confirmation
+    // Fall back to manual confirmation with clear prompt
     await updateConversation(phone, {
       state: 'AWAITING_CONFIRMATION',
       pendingOrder
     }, conversation.businessId);
-    return generateResponse('ORDER_CONFIRMATION', {
+    return generateResponse('AUTO_CONFIRM_FALLBACK', {
       items: pendingOrder.items,
       subtotal: pendingOrder.subtotal,
       deliveryFee: pendingOrder.deliveryFee,
       total: pendingOrder.total,
-      address: pendingOrder.address,
-      deliveryZone: pendingOrder.deliveryZone
+      address: pendingOrder.address
     });
   }
 }
@@ -984,7 +1202,7 @@ async function handlePriceCheck(text, businessId) {
       console.log(`💰 Price check: "${text}" → ${matched.name} (${matched.language})`);
       return generateResponse('PRICE_INFO', {
         product: product.name,
-        price: product.price,
+        price: penceToPounds(product.price),
         unit: product.unit,
         inStock: product.is_active
       });
@@ -996,7 +1214,7 @@ async function handlePriceCheck(text, businessId) {
     if (text.toLowerCase().includes(product.name.toLowerCase())) {
       return generateResponse('PRICE_INFO', {
         product: product.name,
-        price: product.price,
+        price: penceToPounds(product.price),
         unit: product.unit,
         inStock: product.is_active
       });
@@ -1119,7 +1337,7 @@ async function handleStartOrder(conversation) {
   let text = `📦 *Quick Order*\n\nPopular items:\n\n`;
 
   topProducts.forEach((p, i) => {
-    text += `${i + 1}. ${p.name} - £${p.price.toFixed(2)}\n`;
+    text += `${i + 1}. ${p.name} - £${penceToPounds(p.price).toFixed(2)}\n`;
   });
 
   text += `\n*To order:* Just type the number or name!\nExample: "1" or "Palm Oil" or "2x Egusi"\n\n💳 Pay online or Cash on Delivery`;
@@ -1152,7 +1370,7 @@ async function handleProductsList(businessId) {
   for (const [category, items] of Object.entries(categories)) {
     text += `*${category}*\n`;
     for (const item of items) {
-      text += `• ${item.name} - £${item.price.toFixed(2)} (${item.unit})\n`;
+      text += `• ${item.name} - £${penceToPounds(item.price).toFixed(2)} (${item.unit})\n`;
     }
     text += '\n';
   }
@@ -1163,36 +1381,418 @@ async function handleProductsList(businessId) {
 }
 
 /**
- * Handle general inquiries
+ * Handle general inquiries — context-aware based on conversation state
  */
-async function handleGeneralInquiry(text, conversation) {
-  // If waiting for address, treat this as address input
-  if (conversation.state === 'AWAITING_ADDRESS') {
-    const parsed = await parseMessage(text);
-    if (parsed.address || parsed.postcode) {
-      // Update pending order with address
-      const order = conversation.pendingOrder;
-      order.address = parsed.address || text;
-      order.postcode = parsed.postcode;
-      order.deliveryZone = getDeliveryZone(parsed.postcode);
-      order.deliveryFee = order.deliveryZone.fee;
-      order.total = order.subtotal + order.deliveryFee;
+async function handleGeneralInquiry(text, parsed, conversation) {
+  // State-aware re-prompts
+  switch (conversation.state) {
+    case 'AWAITING_CONFIRMATION':
+      if (conversation.pendingOrder) {
+        return generateResponse('REPROMPT_CONFIRMATION', {
+          items: conversation.pendingOrder.items,
+          total: conversation.pendingOrder.total
+        });
+      }
+      break;
 
-      await updateConversation(conversation.phone, {
-        state: 'AWAITING_CONFIRMATION',
-        pendingOrder: order
-      }, conversation.businessId);
+    case 'AWAITING_PAYMENT':
+      return generateResponse('REPROMPT_PAYMENT', {
+        orderId: conversation.lastOrderId?.substring(0, 8).toUpperCase() || 'your order'
+      });
 
-      return generateResponse('ORDER_CONFIRMATION', {
-        items: order.items,
-        subtotal: order.subtotal,
-        deliveryFee: order.deliveryFee,
-        total: order.total,
-        address: order.address,
-        deliveryZone: order.deliveryZone
+    case 'EDITING_ORDER':
+      if (conversation.pendingOrder) {
+        return generateResponse('EDITING_ORDER_REPROMPT', {
+          items: conversation.pendingOrder.items,
+          total: conversation.pendingOrder.total
+        });
+      }
+      break;
+
+    case 'AWAITING_ADDRESS':
+      return generateResponse('REPROMPT_ADDRESS', {
+        items: conversation.pendingOrder?.items || [],
+        subtotal: conversation.pendingOrder?.subtotal || 0
+      });
+  }
+
+  // Try product similarity match before giving up
+  if (text && text.trim().length > 2) {
+    const products = await getProducts(conversation.businessId);
+    const textLower = text.toLowerCase();
+    const similar = products.filter(p => {
+      const nameLower = p.name.toLowerCase();
+      // Check if any word in the query partially matches a product name
+      return textLower.split(/\s+/).some(word =>
+        word.length > 2 && (nameLower.includes(word) || word.includes(nameLower.split(' ')[0]))
+      );
+    });
+
+    if (similar.length > 0) {
+      return generateResponse('DID_YOU_MEAN', {
+        query: text.trim(),
+        suggestions: similar.slice(0, 5).map(p => p.name)
       });
     }
   }
 
+  // Last resort — generic help
   return generateResponse('GENERAL_HELP');
+}
+
+// ============================================================
+// NEW INTENT HANDLERS
+// ============================================================
+
+/**
+ * Handle order modification requests
+ * Parses modification from classifier result and applies to pendingOrder
+ */
+async function handleModifyOrder(phone, customerName, parsed, conversation) {
+  if (!conversation.pendingOrder || !conversation.pendingOrder.items?.length) {
+    return generateResponse('NO_PENDING_ORDER');
+  }
+
+  const order = conversation.pendingOrder;
+  const classifierResult = parsed.classifierResult || {};
+  // Support both singular "modification" and plural "modifications" array
+  const modifications = classifierResult.modifications ||
+    (classifierResult.modification ? [classifierResult.modification] : []);
+
+  if (modifications.length === 0) {
+    // No structured modification data — treat as edit prompt
+    return generateResponse('ORDER_EDIT_PROMPT');
+  }
+
+  const removed = [];
+  const added = [];
+  const products = await getProducts(conversation.businessId);
+  const productMap = new Map(products.map(p => [p.name.toLowerCase(), p]));
+
+  for (const mod of modifications) {
+    const action = mod.action;
+    const target = (mod.target || '').toLowerCase();
+
+    if (action === 'cancel' || action === 'remove') {
+      const idx = order.items.findIndex(i =>
+        i.product_name.toLowerCase().includes(target)
+      );
+      if (idx !== -1) {
+        removed.push(order.items[idx].product_name);
+        order.items.splice(idx, 1);
+      } else {
+        return generateResponse('MODIFY_ORDER_NOT_FOUND', { target: mod.target || target });
+      }
+    } else if (action === 'remove_last') {
+      if (order.items.length > 0) {
+        const last = order.items.pop();
+        removed.push(last.product_name);
+      }
+    } else if (action === 'add') {
+      const productName = (mod.new_value || mod.target || '').toLowerCase();
+      const product = productMap.get(productName) ||
+        products.find(p => p.name.toLowerCase().includes(productName));
+      if (product) {
+        const qty = mod.quantity || 1;
+        order.items.push({
+          product_id: product.id,
+          product_name: product.name,
+          quantity: qty,
+          unit: product.unit,
+          price: penceToPounds(product.price),
+          subtotal: penceToPounds(product.price) * qty
+        });
+        added.push(product.name);
+      }
+    } else if (action === 'change_quantity') {
+      const item = order.items.find(i =>
+        i.product_name.toLowerCase().includes(target)
+      );
+      if (item) {
+        const newQty = mod.new_value || 1;
+        item.quantity = newQty;
+        item.subtotal = item.price * newQty;
+      } else {
+        return generateResponse('MODIFY_ORDER_NOT_FOUND', { target: mod.target || target });
+      }
+    }
+  }
+
+  // Check if order is now empty
+  if (order.items.length === 0) {
+    await updateConversation(phone, { state: 'INITIAL', pendingOrder: null }, conversation.businessId);
+    return generateResponse('MODIFY_ORDER_EMPTY');
+  }
+
+  // Recalculate totals
+  order.subtotal = order.items.reduce((sum, i) => sum + i.subtotal, 0);
+  order.total = order.subtotal + (order.deliveryFee || 0);
+
+  await updateConversation(phone, {
+    state: 'AWAITING_CONFIRMATION',
+    pendingOrder: order
+  }, conversation.businessId);
+
+  return generateResponse('MODIFY_ORDER_APPLIED', {
+    items: order.items,
+    removed,
+    added,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee || 0,
+    total: order.total,
+    address: order.address
+  });
+}
+
+/**
+ * Meal recipe ingredients mapping
+ */
+const MEAL_INGREDIENTS = {
+  'jollof rice': [
+    { product: 'rice', quantity: 2, unit: 'kg' },
+    { product: 'palm oil', quantity: 1, unit: null },
+    { product: 'scotch bonnet', quantity: 1, unit: null },
+    { product: 'maggi', quantity: 1, unit: null }
+  ],
+  'egusi soup': [
+    { product: 'egusi', quantity: 1, unit: null },
+    { product: 'palm oil', quantity: 1, unit: null },
+    { product: 'stockfish', quantity: 1, unit: null },
+    { product: 'crayfish', quantity: 1, unit: null },
+    { product: 'scotch bonnet', quantity: 1, unit: null }
+  ],
+  'pepper soup': [
+    { product: 'scotch bonnet', quantity: 1, unit: null },
+    { product: 'stockfish', quantity: 1, unit: null },
+    { product: 'maggi', quantity: 1, unit: null }
+  ],
+  'fried rice': [
+    { product: 'rice', quantity: 2, unit: 'kg' },
+    { product: 'maggi', quantity: 1, unit: null }
+  ],
+  'efo riro': [
+    { product: 'palm oil', quantity: 1, unit: null },
+    { product: 'stockfish', quantity: 1, unit: null },
+    { product: 'crayfish', quantity: 1, unit: null },
+    { product: 'scotch bonnet', quantity: 1, unit: null },
+    { product: 'maggi', quantity: 1, unit: null }
+  ]
+};
+
+/**
+ * Handle meal-based ordering — suggest ingredients for a named meal
+ */
+async function handleMealOrder(phone, customerName, parsed, conversation) {
+  const classifierResult = parsed.classifierResult || {};
+  const mealName = classifierResult.context_clues?.references_meal ||
+    parsed.originalMessage?.replace(/ingredients?|for|i('m| am) (making|cooking|preparing)/gi, '').trim();
+
+  if (!mealName) {
+    return generateResponse('MEAL_NOT_FOUND', { meal: 'that meal' });
+  }
+
+  // Find meal recipe
+  const mealKey = Object.keys(MEAL_INGREDIENTS).find(k =>
+    mealName.toLowerCase().includes(k)
+  );
+
+  if (!mealKey) {
+    return generateResponse('MEAL_NOT_FOUND', { meal: mealName });
+  }
+
+  const recipe = MEAL_INGREDIENTS[mealKey];
+  const products = await getProducts(conversation.businessId);
+  const productMap = new Map(products.map(p => [p.name.toLowerCase(), p]));
+
+  // Match recipe items to real products
+  const orderItems = [];
+  for (const ingredient of recipe) {
+    const product = productMap.get(ingredient.product) ||
+      products.find(p => p.name.toLowerCase().includes(ingredient.product));
+    if (product) {
+      orderItems.push({
+        product_id: product.id,
+        product_name: product.name,
+        quantity: ingredient.quantity,
+        unit: ingredient.unit || product.unit,
+        price: penceToPounds(product.price),
+        subtotal: penceToPounds(product.price) * ingredient.quantity
+      });
+    }
+  }
+
+  if (orderItems.length === 0) {
+    return generateResponse('MEAL_NOT_FOUND', { meal: mealName });
+  }
+
+  const subtotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const deliveryFee = conversation.pendingOrder?.deliveryFee || 0;
+  const total = subtotal + deliveryFee;
+
+  // Store as pending order
+  await updateConversation(phone, {
+    state: 'AWAITING_CONFIRMATION',
+    pendingOrder: {
+      items: orderItems,
+      subtotal,
+      deliveryFee,
+      total,
+      address: conversation.pendingOrder?.address || null,
+      postcode: conversation.pendingOrder?.postcode || null,
+      deliveryZone: conversation.pendingOrder?.deliveryZone || { fee: 0, estimatedDelivery: 'TBC' },
+      customerName,
+      customerId: conversation.customerId
+    }
+  }, conversation.businessId);
+
+  return generateResponse('MEAL_INGREDIENTS', {
+    meal: mealKey.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' '),
+    items: orderItems,
+    subtotal,
+    deliveryFee,
+    total,
+    address: conversation.pendingOrder?.address || null
+  });
+}
+
+/**
+ * Handle budget-based ordering — suggest product bundles within budget
+ */
+async function handleBudgetOrder(phone, customerName, parsed, conversation) {
+  const classifierResult = parsed.classifierResult || {};
+  const budget = classifierResult.context_clues?.references_budget ||
+    parseFloat((parsed.originalMessage || '').match(/£?(\d+(?:\.\d{2})?)/)?.[1]) || 0;
+
+  if (budget <= 0) {
+    return {
+      text: `How much would you like to spend? Just tell me your budget, like "£30 worth of provisions" 💰`,
+      buttons: ['📋 View Products', '💬 Help']
+    };
+  }
+
+  const products = await getProducts(conversation.businessId);
+  if (!products || products.length === 0) {
+    return generateResponse('NO_PRODUCTS');
+  }
+
+  // Sort by popularity/price and build a bundle within budget
+  const sorted = [...products]
+    .filter(p => p.is_active)
+    .sort((a, b) => a.price - b.price);
+
+  const orderItems = [];
+  let runningTotal = 0;
+
+  for (const product of sorted) {
+    const priceInPounds = penceToPounds(product.price);
+    if (runningTotal + priceInPounds <= budget) {
+      orderItems.push({
+        product_id: product.id,
+        product_name: product.name,
+        quantity: 1,
+        unit: product.unit,
+        price: priceInPounds,
+        subtotal: priceInPounds
+      });
+      runningTotal += priceInPounds;
+    }
+    if (runningTotal >= budget * 0.9) break; // Stop when we're close to budget
+  }
+
+  if (orderItems.length === 0) {
+    return {
+      text: `£${budget.toFixed(2)} isn't quite enough for any of our products. Our prices start from £${penceToPounds(sorted[0]?.price || 0).toFixed(2)}.\n\nWould you like to adjust your budget?`,
+      buttons: ['📋 View Products', '💬 Help']
+    };
+  }
+
+  const subtotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+  // Store as pending order
+  await updateConversation(phone, {
+    state: 'AWAITING_CONFIRMATION',
+    pendingOrder: {
+      items: orderItems,
+      subtotal,
+      deliveryFee: 0,
+      total: subtotal,
+      address: null,
+      postcode: null,
+      deliveryZone: { fee: 0, estimatedDelivery: 'TBC' },
+      customerName,
+      customerId: conversation.customerId
+    }
+  }, conversation.businessId);
+
+  return generateResponse('BUDGET_SUGGESTION', {
+    budget,
+    items: orderItems,
+    total: subtotal
+  });
+}
+
+/**
+ * Handle running total request — show current pendingOrder summary
+ */
+function handleRunningTotal(conversation) {
+  if (!conversation.pendingOrder || !conversation.pendingOrder.items?.length) {
+    return generateResponse('RUNNING_TOTAL_EMPTY');
+  }
+
+  const order = conversation.pendingOrder;
+  return generateResponse('RUNNING_TOTAL', {
+    items: order.items,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee || 0,
+    total: order.total,
+    address: order.address
+  });
+}
+
+/**
+ * Handle address update — extract address, update customer, recalculate delivery
+ */
+async function handleAddressUpdate(phone, parsed, conversation) {
+  const classifierResult = parsed.classifierResult || {};
+  const newAddress = classifierResult.context_clues?.delivery_address ||
+    parsed.address || parsed.originalMessage;
+
+  const { parseAddress } = await import('./message-parser.js');
+  const addressParsed = parseAddress(newAddress || '');
+
+  if (!addressParsed.postcode) {
+    return generateResponse('ADDRESS_INVALID');
+  }
+
+  const zone = getDeliveryZone(addressParsed.postcode);
+  const fullAddress = addressParsed.address || newAddress;
+
+  // Update customer's default address
+  try {
+    await updateCustomerAddress(phone, fullAddress, addressParsed.postcode, conversation.businessId);
+  } catch (err) {
+    console.error('Failed to update customer address:', err);
+  }
+
+  // Update pending order if one exists
+  if (conversation.pendingOrder) {
+    const order = conversation.pendingOrder;
+    order.address = fullAddress;
+    order.postcode = addressParsed.postcode;
+    order.deliveryZone = zone;
+    order.deliveryFee = zone.fee;
+    order.total = order.subtotal + zone.fee;
+
+    await updateConversation(phone, {
+      state: 'AWAITING_CONFIRMATION',
+      pendingOrder: order
+    }, conversation.businessId);
+  }
+
+  return generateResponse('ADDRESS_UPDATED', {
+    address: fullAddress,
+    postcode: addressParsed.postcode,
+    deliveryFee: zone.fee,
+    deliveryZone: zone.zone
+  });
 }
