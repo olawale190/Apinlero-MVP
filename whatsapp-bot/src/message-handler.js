@@ -12,6 +12,7 @@ import {
   getProducts,
   createOrder,
   getOrderByPhone,
+  getOrderByRef,
   updateOrderPayment,
   getSession,
   saveSession,
@@ -37,6 +38,7 @@ import {
   sanitizeQuantity,
   escapeHtml
 } from './input-sanitizer.js';
+import { tryKGPreprocess } from './kg-preprocessor.js';
 
 // Auto-confirm threshold for returning customers
 const AUTO_CONFIRM_THRESHOLD = 30; // £30 for orders below this amount
@@ -351,6 +353,59 @@ export async function handleIncomingMessage({
   // SECURITY: Use sanitized versions of all inputs
   const messageText = sanitizedButtonId || sanitizedListId || sanitizedText || '';
 
+  // ============================================================
+  // KNOWLEDGE-GRAPH PRE-PROCESSOR
+  // Attempts to handle advanced intents (reorder, meal_order,
+  // budget_order, etc.) via the KG context resolver + Neo4j.
+  // If KG is unavailable or the intent is not advanced, falls
+  // through silently to the legacy parseMessage() flow below.
+  // ============================================================
+  if (!sanitizedButtonId && !sanitizedListId && messageText.trim()) {
+    try {
+      const kgResponse = await tryKGPreprocess(
+        sanitizedFrom,
+        messageText,
+        sanitizedName || conversation.customerName,
+        conversation
+      );
+
+      if (kgResponse && kgResponse._kgHandled) {
+        console.log(`🧠 [KG] Handled intent: ${kgResponse._kgIntent || 'preference_update'}`);
+
+        // If KG returned order items, set conversation state to AWAITING_CONFIRMATION
+        // so the user can confirm/decline using the existing state machine
+        if (kgResponse._kgResult && kgResponse._kgResult.items?.length > 0) {
+          const kgItems = kgResponse._kgResult.items.map(item => ({
+            product_name: item.name,
+            quantity: item.quantity || 1,
+            unit: item.unit || null,
+            price: item.price || 0,
+            subtotal: (item.price || 0) * (item.quantity || 1),
+          }));
+          const subtotal = kgItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+          await updateConversation(sanitizedFrom, {
+            state: 'AWAITING_CONFIRMATION',
+            pendingOrder: {
+              items: kgItems,
+              subtotal,
+              deliveryFee: 0,
+              total: subtotal,
+              source: 'knowledge_graph',
+              kgExplanation: kgResponse._kgResult.explanation,
+            },
+          }, businessId);
+        }
+
+        await logMessage(sanitizedFrom, 'outbound', kgResponse.text, `KG_${(kgResponse._kgIntent || 'update').toUpperCase()}`, null, businessId);
+        return kgResponse;
+      }
+    } catch (kgError) {
+      // KG layer failed — log and fall through to legacy handler
+      console.warn('[kg-preprocessor] Error (falling through to legacy):', kgError.message);
+    }
+  }
+
   // Resolve button ID to intent before parsing
   const resolvedIntent = resolveButtonId(sanitizedButtonId);
 
@@ -614,7 +669,7 @@ export async function handleIncomingMessage({
         break;
 
       case 'ORDER_STATUS':
-        response = await handleOrderStatus(from, conversation.businessId);
+        response = await handleOrderStatus(from, conversation.businessId, parsed.orderRef);
         break;
 
       case 'CANCEL':
@@ -1284,9 +1339,29 @@ function handleBusinessHours(isOpen) {
 
 /**
  * Handle order status check
+ * @param {string} phone - Customer phone number
+ * @param {string} businessId - Business ID
+ * @param {string|null} orderRef - Order reference number (if provided)
  */
-async function handleOrderStatus(phone, businessId) {
+async function handleOrderStatus(phone, businessId, orderRef = null) {
   try {
+    // If a reference number was provided, look up by ref first
+    if (orderRef) {
+      const order = await getOrderByRef(orderRef, businessId);
+      if (order) {
+        return generateResponse('ORDER_STATUS', {
+          orderId: order.id,
+          status: order.status,
+          total: order.total,
+          createdAt: order.created_at,
+          items: order.items,
+          deliveryAddress: order.delivery_address
+        });
+      }
+      // Ref not found — fall through to phone lookup
+    }
+
+    // Fall back to phone-based lookup
     const orders = await getOrderByPhone(phone, businessId);
 
     if (!orders || orders.length === 0) {
@@ -1298,7 +1373,9 @@ async function handleOrderStatus(phone, businessId) {
       orderId: latestOrder.id,
       status: latestOrder.status,
       total: latestOrder.total,
-      createdAt: latestOrder.created_at
+      createdAt: latestOrder.created_at,
+      items: latestOrder.items,
+      deliveryAddress: latestOrder.delivery_address
     });
   } catch (error) {
     console.error('Failed to get order status:', error);

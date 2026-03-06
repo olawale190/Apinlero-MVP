@@ -86,10 +86,14 @@ Intent types:
 - "modify_order" — Change current order ("cancel the rice", "add beans", "remove last item", "I meant 2kg not 20kg")
 - "price_enquiry" — Asking about prices, NOT ordering
 - "meal_order" — Ordering by meal name ("jollof rice ingredients", "egusi soup ingredients")
-- "budget_order" — Ordering by budget ("£50 worth of provisions")
+- "budget_order" — Ordering by budget ("£50 worth of provisions", "build me a cart for £30", "everything for egusi soup, you know what I like")
 - "quantity_estimate" — Needs help with quantities ("enough for 20 people")
 - "running_total" — Asking what's in their cart or how much it costs ("how much is everything so far?", "what's my total?", "what have I ordered?")
 - "address_update" — Providing or changing delivery address ("deliver to 14 Market Street", "my address changed")
+- "relationship_order" — Someone else will collect or receive the order ("my sister will collect", "Funke is picking up", "my husband will come for it")
+- "recommendation_recall" — Referencing a past recommendation or suggestion ("that thing you recommended", "what Aunty Isha suggested last time", "the goat meat she told me about")
+- "time_based_order" — Reordering based on a specific time reference ("what I bought in January", "same as last week", "what did I order on Monday")
+- "preference_update" — Feedback about product quality or preference change ("the yam was too soft", "I prefer the big ones", "don't send the small garri next time")
 - "general_query" — Not an order (wrong number, payment question, complaint, "can I pay tomorrow?", "is this still Isha's?")
 - "greeting" — Just saying hello
 
@@ -105,6 +109,7 @@ Response format:
     "references_time": null,
     "references_meal": null,
     "references_budget": null,
+    "references_recommendation": false,
     "serving_size": null,
     "delivery_address": null
   },
@@ -128,6 +133,11 @@ Rules:
 - QUANTITY CORRECTIONS: "I meant 2kg not 20kg" → modify_order, modification: {"action": "change_quantity", "target": "20kg item", "new_value": 2, "unit": "kg", "original_quantity": 20}
 - "Remove the last item" → modify_order, modification: {"action": "remove_last"}
 - "Deliver to <address>" / "My address changed to <address>" → address_update, context_clues.delivery_address: "<full address>"
+- "My sister will collect" / "Funke is picking up" → relationship_order, references_person: "sister" / "Funke"
+- "That thing you recommended" / "what Aunty Isha suggested" → recommendation_recall, context_clues.references_recommendation: true
+- "What I bought in January" / "same as last week" → time_based_order, references_time: "January" / "last week"
+- "The yam was too soft" / "I prefer the big ones" → preference_update, context_clues.product: "yam", context_clues.feedback: "too soft"
+- "Build me a cart for £30" / "everything for egusi soup, you know what I like" → budget_order
 - "Is this still Isha's?" / "wrong number" → general_query
 - "Can I pay tomorrow?" / "pay later" → general_query
 
@@ -149,6 +159,7 @@ const FALLBACK_RESULT = {
     references_time: null,
     references_meal: null,
     references_budget: null,
+    references_recommendation: false,
     serving_size: null,
     delivery_address: null,
   },
@@ -177,6 +188,36 @@ export function regexFallbackClassify(messageText) {
   // Running total
   if (/how much.*(so far|everything|total)|what('s| is) my total|what have i ordered/i.test(lower)) {
     return { ...FALLBACK_RESULT, intent: 'running_total', confidence: 0.7 };
+  }
+
+  // Relationship order — someone else collecting/picking up
+  if (/\b(sister|brother|husband|wife|friend|mum|mom|dad|uncle|aunty?|cousin)\b.*(collect|pick\s*up|come\s*for|picking)/i.test(lower)
+    || /\b(collect|pick\s*up|picking|come\s*for)\b.*(sister|brother|husband|wife|friend|mum|mom|dad|uncle|aunty?|cousin)/i.test(lower)
+    || /\b\w+\s+(is|will)\s+(pick|collect|come\s*for)/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'relationship_order', confidence: 0.6, _fallback: true };
+  }
+
+  // Recommendation recall — referencing past suggestions
+  if (/\b(recommend(ed)?|suggest(ed)?|told\s+me\s+about)\b/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'recommendation_recall', context_clues: { ...FALLBACK_RESULT.context_clues, references_recommendation: true }, confidence: 0.6, _fallback: true };
+  }
+
+  // Time-based order — reorder by time reference
+  if (/\b(last\s+(week|month|time|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|in\s+(january|february|march|april|may|june|july|august|september|october|november|december)|on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i.test(lower)
+    && /\b(bought|ordered|got|order|same)\b/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'time_based_order', confidence: 0.6, _fallback: true };
+  }
+
+  // Preference update — feedback about product quality
+  if (/\b(too\s+(soft|hard|small|big|ripe|unripe|salty|bitter|sweet|dry|wet)|prefer\s+the|don'?t\s+send|not\s+the)\b/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'preference_update', confidence: 0.6, _fallback: true };
+  }
+
+  // Budget order — ordering by budget or "everything for" patterns
+  if (/\b(everything\s+for|build\s+me\s+a\s+cart|you\s+know\s+what\s+i\s+like)\b/i.test(lower)
+    || /£\d+\s*(worth|budget|spend)/i.test(lower)
+    || /\b(cart|budget)\s*(for|of)\s*£?\d+/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'budget_order', confidence: 0.6, _fallback: true };
   }
 
   // Price enquiry

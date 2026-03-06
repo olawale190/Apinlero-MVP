@@ -252,7 +252,7 @@ ${isOpen
     buttons: isOpen ? ['📦 Place Order'] : ['📋 View Catalog']
   }),
 
-  ORDER_STATUS: ({ orderId, status, total, createdAt }) => {
+  ORDER_STATUS: ({ orderId, status, total, createdAt, items, deliveryAddress }) => {
     const date = new Date(createdAt).toLocaleDateString('en-GB');
     const statusEmoji = {
       'Pending': '⏳',
@@ -262,13 +262,25 @@ ${isOpen
       'Cancelled': '❌'
     };
 
+    let itemsText = '';
+    if (items && Array.isArray(items) && items.length > 0) {
+      itemsText = '\nItems:\n' + items.map(i =>
+        `• ${i.quantity}x ${i.product_name || i.product}`
+      ).join('\n');
+    }
+
+    let deliveryText = '';
+    if (deliveryAddress) {
+      deliveryText = `\nDelivery: ${deliveryAddress}`;
+    }
+
     return {
       text: `📋 Order Status
 
 Order #: ${orderId.substring(0, 8).toUpperCase()}
 Status: ${statusEmoji[status] || '📋'} ${status}
 Total: £${total.toFixed(2)}
-Date: ${date}
+Date: ${date}${itemsText}${deliveryText}
 
 Questions about your order? Just reply here.`,
       buttons: ['💬 Contact Us']

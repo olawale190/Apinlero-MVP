@@ -364,6 +364,36 @@ export async function getOrderByPhone(phone, businessId) {
 }
 
 /**
+ * Get a single order by its numeric reference/ID number for a specific business
+ * @param {string} refNumber - The order reference number (numeric)
+ * @param {string} businessId - Business ID (required)
+ * @returns {Promise<Object|null>} Order object or null
+ */
+export async function getOrderByRef(refNumber, businessId) {
+  if (!businessId) {
+    throw new Error('businessId is required for getOrderByRef');
+  }
+
+  // Try matching against the id column (which may be a UUID or numeric)
+  // Use ilike to match the ref number anywhere in the order ID
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('business_id', businessId)
+    .or(`id.eq.${refNumber},id.ilike.%${refNumber}%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to fetch order by ref:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
  * Update order status
  */
 export async function updateOrderStatus(orderId, status) {

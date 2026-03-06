@@ -85,6 +85,10 @@ describe('INTENTS', () => {
       'GENERAL_INQUIRY',
       'GREETING',
       'REORDER',
+      'RELATIONSHIP_ORDER',
+      'RECOMMENDATION_RECALL',
+      'TIME_BASED_ORDER',
+      'PREFERENCE_UPDATE',
     ]);
   });
 });

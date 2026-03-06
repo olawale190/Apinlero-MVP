@@ -10,7 +10,8 @@ import {
   parseAddress,
   getDeliveryZone,
   isCompleteOrder,
-  parseMessage
+  parseMessage,
+  extractOrderRef
 } from '../../src/message-parser.js';
 
 describe('Message Parser - detectIntent', () => {
@@ -81,6 +82,89 @@ describe('Message Parser - detectIntent', () => {
 
   test('defaults to general inquiry for unknown messages', () => {
     expect(detectIntent('random text')).toBe('GENERAL_INQUIRY');
+  });
+});
+
+describe('Message Parser - detectIntent advanced intents', () => {
+  // RELATIONSHIP_ORDER
+  test('detects RELATIONSHIP_ORDER - sister will collect', () => {
+    expect(detectIntent('my sister will collect')).toBe('RELATIONSHIP_ORDER');
+  });
+
+  test('detects RELATIONSHIP_ORDER - husband picking up', () => {
+    expect(detectIntent('my husband is picking up the order')).toBe('RELATIONSHIP_ORDER');
+  });
+
+  test('detects RELATIONSHIP_ORDER - named person picking up', () => {
+    expect(detectIntent('Funke is picking up')).toBe('RELATIONSHIP_ORDER');
+  });
+
+  test('does NOT detect RELATIONSHIP_ORDER for unrelated message', () => {
+    expect(detectIntent('I want 2x palm oil')).not.toBe('RELATIONSHIP_ORDER');
+  });
+
+  // RECOMMENDATION_RECALL
+  test('detects RECOMMENDATION_RECALL - recommended', () => {
+    expect(detectIntent('that thing you recommended')).toBe('RECOMMENDATION_RECALL');
+  });
+
+  test('detects RECOMMENDATION_RECALL - suggested', () => {
+    expect(detectIntent('the rice Aunty Isha suggested')).toBe('RECOMMENDATION_RECALL');
+  });
+
+  test('detects RECOMMENDATION_RECALL - told me about', () => {
+    expect(detectIntent('the goat meat she told me about')).toBe('RECOMMENDATION_RECALL');
+  });
+
+  test('does NOT detect RECOMMENDATION_RECALL for plain order', () => {
+    expect(detectIntent('2 bags of rice')).not.toBe('RECOMMENDATION_RECALL');
+  });
+
+  // TIME_BASED_ORDER
+  test('detects TIME_BASED_ORDER - bought in January', () => {
+    expect(detectIntent('what I bought in January')).toBe('TIME_BASED_ORDER');
+  });
+
+  test('detects TIME_BASED_ORDER - ordered last week', () => {
+    expect(detectIntent('same as what I ordered last week')).toBe('TIME_BASED_ORDER');
+  });
+
+  test('does NOT detect TIME_BASED_ORDER for time without order verb', () => {
+    expect(detectIntent('I went shopping last week')).not.toBe('TIME_BASED_ORDER');
+  });
+
+  // PREFERENCE_UPDATE
+  test('detects PREFERENCE_UPDATE - too soft', () => {
+    expect(detectIntent('the yam was too soft')).toBe('PREFERENCE_UPDATE');
+  });
+
+  test('detects PREFERENCE_UPDATE - prefer the big ones', () => {
+    expect(detectIntent('I prefer the big ones')).toBe('PREFERENCE_UPDATE');
+  });
+
+  test('detects PREFERENCE_UPDATE - too small', () => {
+    expect(detectIntent("the garri was too small please fix")).toBe('PREFERENCE_UPDATE');
+  });
+
+  test('does NOT detect PREFERENCE_UPDATE for normal message', () => {
+    expect(detectIntent('hello how are you')).not.toBe('PREFERENCE_UPDATE');
+  });
+
+  // BUDGET_ORDER
+  test('detects BUDGET_ORDER - everything for egusi soup', () => {
+    expect(detectIntent('everything for egusi soup')).toBe('BUDGET_ORDER');
+  });
+
+  test('detects BUDGET_ORDER - build me a cart', () => {
+    expect(detectIntent('build me a cart for £30')).toBe('BUDGET_ORDER');
+  });
+
+  test('detects BUDGET_ORDER - £50 worth', () => {
+    expect(detectIntent('£50 worth of provisions')).toBe('BUDGET_ORDER');
+  });
+
+  test('does NOT detect BUDGET_ORDER for price enquiry', () => {
+    expect(detectIntent('how much is palm oil')).not.toBe('BUDGET_ORDER');
   });
 });
 
@@ -328,5 +412,65 @@ describe('Message Parser - parseMessage (full integration)', () => {
     expect(result.items.length).toBeGreaterThanOrEqual(2);
     expect(result.postcode).toBe('SE15 4AA');
     expect(result.isCompleteOrder).toBe(true);
+  });
+});
+
+describe('Message Parser - extractOrderRef', () => {
+  test('extracts ref with hash: "ref #1042"', () => {
+    expect(extractOrderRef('ref #1042')).toBe('1042');
+  });
+
+  test('extracts ref without hash: "ref 1042"', () => {
+    expect(extractOrderRef('ref 1042')).toBe('1042');
+  });
+
+  test('extracts "order 1042"', () => {
+    expect(extractOrderRef('order 1042')).toBe('1042');
+  });
+
+  test('extracts standalone "#1042"', () => {
+    expect(extractOrderRef('#1042')).toBe('1042');
+  });
+
+  test('extracts "where is 1042"', () => {
+    expect(extractOrderRef('where is 1042')).toBe('1042');
+  });
+
+  test('extracts ref from longer message', () => {
+    expect(extractOrderRef('I ordered yesterday, ref #1042. When is it arriving?')).toBe('1042');
+  });
+
+  test('does NOT false-positive on product quantities like "2 bags of rice"', () => {
+    expect(extractOrderRef('2 bags of rice')).toBeNull();
+  });
+
+  test('does NOT false-positive on "order palm oil"', () => {
+    expect(extractOrderRef('order palm oil')).toBeNull();
+  });
+
+  test('does NOT false-positive on "2x palm oil"', () => {
+    expect(extractOrderRef('2x palm oil')).toBeNull();
+  });
+
+  test('returns null when no ref present', () => {
+    expect(extractOrderRef('hello there')).toBeNull();
+  });
+});
+
+describe('Message Parser - detectIntent with order ref', () => {
+  test('detects ORDER_STATUS for "ref #1042"', () => {
+    expect(detectIntent('ref #1042')).toBe('ORDER_STATUS');
+  });
+
+  test('detects ORDER_STATUS for "#1042"', () => {
+    expect(detectIntent('#1042')).toBe('ORDER_STATUS');
+  });
+
+  test('detects ORDER_STATUS for "order 1042"', () => {
+    expect(detectIntent('order 1042')).toBe('ORDER_STATUS');
+  });
+
+  test('does NOT detect ORDER_STATUS for "2 bags of rice"', () => {
+    expect(detectIntent('2 bags of rice')).not.toBe('ORDER_STATUS');
   });
 });

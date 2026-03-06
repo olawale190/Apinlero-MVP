@@ -65,8 +65,8 @@ const INTENT_PATTERNS = {
   // Business hours
   HOURS: /(open|close|hours|time|when\s*(are\s*you|do\s*you))/i,
 
-  // Order status
-  ORDER_STATUS: /(track|where\s*is|status|my\s*order|order\s*status)/i,
+  // Order status (includes reference number patterns)
+  ORDER_STATUS: /(track|where\s*is|status|my\s*order|order\s*status|ref\s*#?\s*\d{3,}|(?<!\d)#\d{3,}|order\s+\d{3,})/i,
 
   // Cancellation
   CANCEL: /(cancel|refund|return|never\s*mind|forget\s*it)/i,
@@ -90,7 +90,23 @@ const INTENT_PATTERNS = {
   QUICK_ORDER: /^quick\s+/i,
 
   // Conversational/casual - for friendliness
-  CASUAL_INQUIRY: /(what'?s\s*up|how\s*are\s*you|you\s*there|hello\s*there|anyone\s*there)/i
+  CASUAL_INQUIRY: /(what'?s\s*up|how\s*are\s*you|you\s*there|hello\s*there|anyone\s*there)/i,
+
+  // Advanced intents (fallback when Claude API is down)
+  // Relationship order — someone else collecting/picking up
+  RELATIONSHIP_ORDER: /\b(sister|brother|husband|wife|friend|mum|mom|dad|uncle|aunty?|cousin)\b.*(collect|pick\s*up|come\s*for|picking)|\b(collect|pick\s*up|picking|come\s*for)\b.*(sister|brother|husband|wife|friend|mum|mom|dad|uncle|aunty?|cousin)|\b\w+\s+(is|will)\s+(pick|collect|come\s*for)/i,
+
+  // Recommendation recall — referencing past suggestions
+  RECOMMENDATION_RECALL: /\b(recommend(ed)?|suggest(ed)?|told\s+me\s+about)\b/i,
+
+  // Time-based order — reorder by time reference (needs both time + order verb)
+  TIME_BASED_ORDER: /(?=.*\b(last\s+(week|month|time|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|in\s+(january|february|march|april|may|june|july|august|september|october|november|december)|on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b)(?=.*\b(bought|ordered|got|order|same)\b)/i,
+
+  // Preference update — feedback about product quality
+  PREFERENCE_UPDATE: /\b(too\s+(soft|hard|small|big|ripe|unripe|salty|bitter|sweet|dry|wet)|prefer\s+the|don'?t\s+send|not\s+the)\b/i,
+
+  // Budget order — ordering by budget or "everything for" patterns
+  BUDGET_ORDER: /\b(everything\s+for|build\s+me\s+a\s+cart|you\s+know\s+what\s+i\s+like)\b|£\d+\s*(worth|budget|spend)|\b(cart|budget)\s*(for|of)\s*£?\d+/i
 };
 
 /**
@@ -135,6 +151,13 @@ export function detectIntent(message, conversationState = null) {
   if (INTENT_PATTERNS.ORDER_STATUS.test(text)) return 'ORDER_STATUS';
   if (INTENT_PATTERNS.CANCEL.test(text)) return 'CANCEL';
   if (INTENT_PATTERNS.THANKS.test(text)) return 'THANKS';
+
+  // Check advanced intents (fallback for when Claude classifier is unavailable)
+  if (INTENT_PATTERNS.RELATIONSHIP_ORDER.test(text)) return 'RELATIONSHIP_ORDER';
+  if (INTENT_PATTERNS.RECOMMENDATION_RECALL.test(text)) return 'RECOMMENDATION_RECALL';
+  if (INTENT_PATTERNS.TIME_BASED_ORDER.test(text)) return 'TIME_BASED_ORDER';
+  if (INTENT_PATTERNS.PREFERENCE_UPDATE.test(text)) return 'PREFERENCE_UPDATE';
+  if (INTENT_PATTERNS.BUDGET_ORDER.test(text)) return 'BUDGET_ORDER';
 
   // Check for implicit order intent (cooking/preparing + product mention)
   if (INTENT_PATTERNS.IMPLICIT_ORDER.test(text) && hasProductMentioned(text)) {
@@ -609,6 +632,37 @@ export function isBusinessHours() {
 }
 
 /**
+ * Extract an order reference number from a message.
+ * Matches patterns like: "ref #1042", "order 1042", "#1042", "where is 1042"
+ * Requires 3+ digits to avoid false positives on product quantities like "2 bags of rice".
+ *
+ * @param {string} message - The message text
+ * @returns {string|null} - The extracted reference number (digits only), or null
+ */
+export function extractOrderRef(message) {
+  // Order: patterns that clearly indicate a reference number (3+ digits)
+  // 1. "ref #1042" or "ref 1042"
+  // 2. "#1042" (standalone hash + 3+ digits, not preceded by another digit)
+  // 3. "order 1042" (word "order" followed by digits, not followed by unit words)
+  // 4. "where is 1042" or "track 1042"
+  const patterns = [
+    /ref\s*#?\s*(?<ref>\d{3,})/i,
+    /(?<!\d)#(?<ref>\d{3,})/,
+    /\border\s+(?<ref>\d{3,})(?!\s*(x|kg|bags?|bottles?|packs?|pieces?|tins?|cartons?))/i,
+    /(?:where\s*is|track|status\s*(?:of)?)\s+#?\s*(?<ref>\d{3,})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.groups?.ref) {
+      return match.groups.ref;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Check if this is a complete one-message order
  * (has products AND delivery address)
  * @param {Array} items - Parsed items
@@ -650,6 +704,7 @@ export async function parseMessage(message, conversationState = null) {
   const items = await parseOrderItems(message);
   const { address, postcode } = parseAddress(message);
   const deliveryZone = getDeliveryZone(postcode);
+  const orderRef = extractOrderRef(message);
 
   // Check if this is a complete one-message order
   const isComplete = isCompleteOrder(items, postcode);
@@ -664,6 +719,7 @@ export async function parseMessage(message, conversationState = null) {
     originalMessage: message,
     neo4jEnabled: isNeo4jAvailable(),
     isCompleteOrder: isComplete,
-    classifierResult
+    classifierResult,
+    orderRef
   };
 }

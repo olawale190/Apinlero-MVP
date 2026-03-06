@@ -17,6 +17,7 @@ import {
 } from './whatsapp-cloud-service.js';
 import { handleIncomingMessage } from './message-handler.js';
 import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
+import { checkKGDependencies } from './kg-preprocessor.js';
 
 dotenv.config();
 
@@ -24,6 +25,15 @@ dotenv.config();
 validateEnvironment();
 const whatsappProvider = getWhatsAppProvider();
 console.log(`📱 WhatsApp Provider: ${whatsappProvider || 'None configured'}`);
+
+// Check Knowledge-Graph pipeline availability
+const kgStatus = checkKGDependencies();
+if (kgStatus.available) {
+  console.log('🧠 Knowledge-Graph pre-processor: ENABLED (ANTHROPIC_API_KEY, NEO4J_URI, NEO4J_PASSWORD present)');
+} else {
+  console.warn(`⚠️ Knowledge-Graph pre-processor: DISABLED — missing: ${kgStatus.missing.join(', ')}`);
+  console.warn('   Bot will run in legacy mode (regex + Supabase only)');
+}
 
 // Default business ID for single-tenant mode (Twilio)
 const DEFAULT_BUSINESS_ID = process.env.DEFAULT_BUSINESS_ID || 'bf642ec5-8990-4581-bc1c-e4171d472007';
