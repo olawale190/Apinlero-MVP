@@ -13,6 +13,8 @@
  */
 
 import { matchProductFromGraph, isNeo4jAvailable } from './neo4j-matcher.js';
+import { classifyMessage } from './intent-classifier.js';
+import { normalizeIntent } from './intent-normalizer.js';
 
 // Fallback product catalog with aliases (used when Neo4j is unavailable)
 const PRODUCT_ALIASES = {
@@ -106,7 +108,11 @@ export function detectIntent(message, conversationState = null) {
     if (INTENT_PATTERNS.DECLINE.test(text)) return 'DECLINE';
   }
 
-  // Check for confirmation/decline first (exact matches)
+  // Check greetings BEFORE confirm/decline (to avoid "good morning" matching "good" in CONFIRM)
+  if (INTENT_PATTERNS.GREETING.test(text) && text.length < 30) return 'GREETING';
+  if (INTENT_PATTERNS.CASUAL_INQUIRY.test(text)) return 'GREETING';
+
+  // Check for confirmation/decline
   if (INTENT_PATTERNS.CONFIRM.test(text)) return 'CONFIRM';
   if (INTENT_PATTERNS.DECLINE.test(text)) return 'DECLINE';
 
@@ -118,10 +124,6 @@ export function detectIntent(message, conversationState = null) {
   if (INTENT_PATTERNS.PAYMENT_CASH.test(text)) return 'PAYMENT_CASH';
   if (INTENT_PATTERNS.PAYMENT_CARD.test(text)) return 'PAYMENT_CARD';
   if (INTENT_PATTERNS.PAYMENT_TRANSFER.test(text)) return 'PAYMENT_TRANSFER';
-
-  // Check greetings and casual inquiries
-  if (INTENT_PATTERNS.GREETING.test(text) && text.length < 30) return 'GREETING';
-  if (INTENT_PATTERNS.CASUAL_INQUIRY.test(text)) return 'GREETING';
 
   // Check other intents
   if (INTENT_PATTERNS.START_ORDER.test(text)) return 'START_ORDER';
@@ -624,7 +626,27 @@ export function isCompleteOrder(items, postcode) {
  * @returns {Promise<Object>} - Parsed message data
  */
 export async function parseMessage(message, conversationState = null) {
-  const intent = detectIntent(message, conversationState);
+  let intent = detectIntent(message, conversationState);
+  let classifierResult = null;
+
+  // If regex returns GENERAL_INQUIRY and message is non-trivial, try Claude classifier
+  if (intent === 'GENERAL_INQUIRY' && message.trim().length > 3) {
+    try {
+      const aiResult = await Promise.race([
+        classifyMessage(message),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude classifier timeout')), 3000))
+      ]);
+
+      if (aiResult && aiResult.confidence >= 0.6) {
+        intent = normalizeIntent(aiResult.intent);
+        classifierResult = aiResult;
+      }
+    } catch (err) {
+      // Claude timed out or failed — keep the regex result
+      console.warn('[message-parser] Claude classifier fallback skipped:', err.message);
+    }
+  }
+
   const items = await parseOrderItems(message);
   const { address, postcode } = parseAddress(message);
   const deliveryZone = getDeliveryZone(postcode);
@@ -641,6 +663,7 @@ export async function parseMessage(message, conversationState = null) {
     isBusinessHours: isBusinessHours(),
     originalMessage: message,
     neo4jEnabled: isNeo4jAvailable(),
-    isCompleteOrder: isComplete
+    isCompleteOrder: isComplete,
+    classifierResult
   };
 }

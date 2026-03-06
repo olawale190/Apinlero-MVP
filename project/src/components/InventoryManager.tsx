@@ -2209,13 +2209,11 @@ export default function InventoryManager({ products: initialProducts, onProductU
       {/* Bulk Image Upload Modal */}
       {showBulkImageUpload && (
         <BulkImageUpload
-          products={products}
           onComplete={() => {
             setShowBulkImageUpload(false);
             onProductUpdate();
           }}
           onClose={() => setShowBulkImageUpload(false)}
-          business={business}
         />
       )}
     </div>

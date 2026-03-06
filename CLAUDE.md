@@ -341,6 +341,26 @@ Available skills for common tasks:
 
 ## ⚠️ Critical Deployment Rules
 
+### TWO REPOS — Know which one is deployed!
+
+There are **two separate GitHub repos** for this project:
+
+| Repo | GitHub | Local Path | Deployed? |
+|------|--------|------------|-----------|
+| **`apinlero`** | `olawale190/apinlero` | `/tmp/apinlero` | **YES — this is what Vercel deploys** |
+| **`Apinlero-MVP`** | `olawale190/Apinlero-MVP` | `Apinlero_MVP/project/` | NO — development/reference only |
+
+**The Vercel project (`prj_WazInm2N080OJhBe8dKzRrm3su64`) deploys from `olawale190/apinlero`, NOT from `Apinlero-MVP`.** All domains (`app.apinlero.com`, `ishas-treat.apinlero.com`, `apinlero.com`, etc.) are served from the `apinlero` repo.
+
+**RULE**: When making changes that need to go live, you MUST edit files in `/tmp/apinlero` and push to `olawale190/apinlero`. Changes to `Apinlero_MVP/project/` will NOT be deployed.
+
+**RULE**: The `App.tsx` in `/tmp/apinlero/frontend/src/App.tsx` MUST include hostname-based routing:
+- `app.apinlero.com` → `SaaSDashboard` (login + dashboard)
+- Business subdomains → `IshasTreatStore` (storefront)
+- Root domain / localhost → `Landing` page + path-based `/app` route
+
+If hostname detection is removed or broken, `app.apinlero.com` will show the landing page instead of the dashboard.
+
 ### DO NOT add www ↔ root domain redirects in vercel.json
 
 Vercel's **domain settings** (configured in the Vercel dashboard) handle the `apinlero.com` → `www.apinlero.com` redirect automatically. Adding a competing redirect in `project/vercel.json` (e.g., `www.apinlero.com` → `apinlero.com`) will create an **infinite redirect loop** that breaks all JS/CSS asset loading, causing a blank white page.

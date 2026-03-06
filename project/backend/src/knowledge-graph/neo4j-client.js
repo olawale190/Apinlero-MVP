@@ -4,9 +4,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Neo4j Aura connection
+if (!process.env.NEO4J_URI || !process.env.NEO4J_USER || !process.env.NEO4J_PASSWORD) {
+  console.error('❌ [knowledge-graph] Missing Neo4j env vars: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD');
+}
+
 const driver = neo4j.driver(
-  process.env.NEO4J_URI,
-  neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD)
+  process.env.NEO4J_URI || 'bolt://localhost:7687',
+  neo4j.auth.basic(process.env.NEO4J_USER || 'neo4j', process.env.NEO4J_PASSWORD || '')
 );
 
 // Verify connection

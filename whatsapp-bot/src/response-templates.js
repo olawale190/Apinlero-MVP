@@ -111,6 +111,19 @@ Or browse everything: ishas-treat.apinlero.com`,
     buttons: ['📋 View Catalog', '💬 Help']
   }),
 
+  // Dynamic suggestions based on what user searched (replaces hardcoded suggestions)
+  PRODUCTS_NOT_FOUND_CONTEXTUAL: ({ products, suggestions }) => ({
+    text: `Hmm, I couldn't find these in our catalog:
+${products.map(p => `• ${p}`).join('\n')}
+
+${suggestions && suggestions.length > 0
+  ? `Did you mean one of these?\n${suggestions.map(s => `• ${s}`).join('\n')}`
+  : 'Try browsing our full catalog: ishas-treat.apinlero.com'}
+
+Or tell me what you're looking for and I'll help! 😊`,
+    buttons: ['📋 View Catalog', '💬 Help']
+  }),
+
   NO_PENDING_ORDER: () => ({
     text: `You don't have a pending order to confirm.
 
@@ -132,6 +145,19 @@ You can:
 • Update delivery address
 
 Just tell me what you'd like to change.`,
+    buttons: ['🔄 Start Over', '❌ Cancel Order']
+  }),
+
+  ORDER_EDIT_PROMPT_WITH_ITEMS: ({ items, total }) => ({
+    text: `No problem! Here's your current order:
+
+${items.map(item => `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`).join('\n')}
+Total: £${total.toFixed(2)}
+
+What would you like to change?
+• Add items: "add 2x plantain"
+• Remove items: "remove palm oil"
+• Start fresh: "start over"`,
     buttons: ['🔄 Start Over', '❌ Cancel Order']
   }),
 
@@ -529,7 +555,211 @@ Just say "yes" to confirm or "no" to cancel!`,
 
 Just say "cash" or "card"!`,
     buttons: ['💳 Pay Online', '💵 Cash on Delivery']
-  })
+  }),
+
+  // Modify order confirmation
+  MODIFY_ORDER_APPLIED: ({ items, removed, added, subtotal, deliveryFee, total, address }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    let changeText = '';
+    if (removed && removed.length > 0) changeText += `\n❌ Removed: ${removed.join(', ')}`;
+    if (added && added.length > 0) changeText += `\n✅ Added: ${added.join(', ')}`;
+
+    return {
+      text: `Got it! I've updated your order 😊${changeText}
+
+${itemList}
+
+${address ? `Delivery to ${address}: £${deliveryFee.toFixed(2)}` : ''}
+Total: £${total.toFixed(2)}
+
+Everything look good now?`,
+      buttons: ['✅ Yes', '✏️ Make Changes', '❌ Cancel']
+    };
+  },
+
+  MODIFY_ORDER_EMPTY: () => ({
+    text: `That would remove everything from your order! 😅
+
+Would you like to start a new order instead?`,
+    buttons: ['📦 New Order', '❌ Cancel']
+  }),
+
+  MODIFY_ORDER_NOT_FOUND: ({ target }) => ({
+    text: `I couldn't find "${target}" in your current order to change it.
+
+Your current items are shown above. What would you like to modify?`,
+    buttons: ['✏️ Make Changes', '❌ Cancel']
+  }),
+
+  // Meal order
+  MEAL_INGREDIENTS: ({ meal, items, subtotal, deliveryFee, total, address }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    return {
+      text: `🍲 *${meal} Ingredients*
+
+Here's what you need:
+${itemList}
+
+${address ? `Delivery: £${deliveryFee.toFixed(2)}` : ''}
+Total: £${total.toFixed(2)}
+
+Want me to add all of these to your order?`,
+      buttons: ['✅ Yes, order all', '✏️ Make Changes', '❌ No thanks']
+    };
+  },
+
+  MEAL_NOT_FOUND: ({ meal }) => ({
+    text: `I'm not sure what ingredients you need for "${meal}" 🤔
+
+I can help with popular meals like:
+• Jollof Rice
+• Egusi Soup
+• Pepper Soup
+• Fried Rice
+• Efo Riro
+
+Which one are you making?`,
+    buttons: ['📋 View Products', '💬 Help']
+  }),
+
+  // Budget order
+  BUDGET_SUGGESTION: ({ budget, items, total }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    return {
+      text: `💰 *£${budget.toFixed(2)} Provisions Bundle*
+
+Here's what I'd suggest:
+${itemList}
+
+Total: £${total.toFixed(2)}
+
+Want me to add all of these to your order?`,
+      buttons: ['✅ Yes, order all', '✏️ Make Changes', '❌ No thanks']
+    };
+  },
+
+  // Running total
+  RUNNING_TOTAL: ({ items, subtotal, deliveryFee, total, address }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    return {
+      text: `📋 *Your Current Order*
+
+${itemList}
+
+Subtotal: £${subtotal.toFixed(2)}
+${address ? `Delivery: £${deliveryFee.toFixed(2)}\nTotal: £${total.toFixed(2)}` : `(Delivery TBC - send your postcode)`}
+
+Want to add more or confirm?`,
+      buttons: ['✅ Confirm', '✏️ Add More', '❌ Cancel']
+    };
+  },
+
+  RUNNING_TOTAL_EMPTY: () => ({
+    text: `You don't have any items in your order yet! 😊
+
+Tell me what you need - like "2x palm oil and 1kg egusi"`,
+    buttons: ['📋 View Products', '📦 Place Order']
+  }),
+
+  // Address update
+  ADDRESS_UPDATED: ({ address, postcode, deliveryFee, deliveryZone }) => ({
+    text: `📍 Address updated!
+
+Delivering to: ${address}
+Zone: ${deliveryZone}
+Delivery fee: £${deliveryFee.toFixed(2)}
+
+${deliveryFee === 0 ? '🎉 Free delivery!' : ''}`,
+    buttons: ['📦 Place Order', '📋 View Products']
+  }),
+
+  ADDRESS_INVALID: () => ({
+    text: `I couldn't find a valid address or postcode in your message 😅
+
+Please send your full address with postcode, like:
+"45 High Street, London E1 4AA"`,
+    buttons: []
+  }),
+
+  // Auto-confirm fallback (when auto-confirm fails silently)
+  AUTO_CONFIRM_FALLBACK: ({ items, subtotal, deliveryFee, total, address }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    return {
+      text: `Almost there! Just need you to confirm this order 😊
+
+${itemList}
+
+Delivery to ${address}: £${deliveryFee.toFixed(2)}
+Total: £${total.toFixed(2)}
+
+Reply "yes" to confirm!`,
+      buttons: ['✅ Yes', '❌ Cancel']
+    };
+  },
+
+  // Editing order re-prompt
+  EDITING_ORDER_REPROMPT: ({ items, total }) => ({
+    text: `You're currently editing your order 📝
+
+${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+Total: £${total.toFixed(2)}
+
+You can:
+• Add items: "add 2x plantain"
+• Remove items: "remove the rice"
+• Change quantity: "change egusi to 3"
+• Confirm: say "done" or "confirm"`,
+    buttons: ['✅ Done', '❌ Cancel']
+  }),
+
+  // Product similarity suggestion
+  DID_YOU_MEAN: ({ query, suggestions }) => ({
+    text: `I'm not sure what "${query}" is 🤔
+
+Did you mean:
+${suggestions.map(s => `• ${s}`).join('\n')}
+
+Or browse all products: ishas-treat.apinlero.com`,
+    buttons: ['📋 View Products', '💬 Help']
+  }),
+
+  // Partial match - some items found, some not
+  PARTIAL_MATCH: ({ items, notFound, subtotal, deliveryFee, total, address, suggestions }) => {
+    const itemList = items.map(item =>
+      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+    ).join('\n');
+
+    let notFoundText = `\n\n⚠️ I couldn't find: ${notFound.join(', ')}`;
+    if (suggestions && suggestions.length > 0) {
+      notFoundText += `\nDid you mean: ${suggestions.join(', ')}?`;
+    }
+
+    return {
+      text: `I found some of your items! 😊
+
+${itemList}
+${address ? `\nDelivery: £${deliveryFee.toFixed(2)}` : ''}
+Subtotal: £${subtotal.toFixed(2)}${notFoundText}
+
+Want to confirm what I found, or tell me more about the items I missed?`,
+      buttons: ['✅ Confirm Found', '✏️ Help Me Find', '❌ Cancel']
+    };
+  }
 };
 
 /**

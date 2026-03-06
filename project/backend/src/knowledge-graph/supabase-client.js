@@ -4,9 +4,16 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Supabase client with service role key for full access
+// Accept both SUPABASE_SERVICE_ROLE_KEY (standard) and SUPABASE_SERVICE_KEY (legacy)
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+if (!process.env.SUPABASE_URL || !supabaseKey) {
+  console.error('❌ [knowledge-graph] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  supabaseKey
 );
 
 // Fetch all products

@@ -56,7 +56,60 @@ export const paymentsApi = {
 
 // Insights API
 export const insightsApi = {
-  get: () => apiCall<any>('/api/insights'),
+  get: (token?: string) =>
+    apiCall<any>('/api/insights', token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+};
+
+// Upload API (Cloudinary AI-powered bulk image upload)
+export const uploadApi = {
+  single: async (file: File, token: string) => {
+    const form = new FormData();
+    form.append('image', file);
+    const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Upload failed');
+    }
+    return response.json();
+  },
+
+  bulk: async (files: File[], token: string) => {
+    const form = new FormData();
+    files.forEach((f) => form.append('images', f));
+    const response = await fetch(`${API_BASE_URL}/api/upload/bulk`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Bulk upload failed' }));
+      throw new Error(err.error || 'Bulk upload failed');
+    }
+    return response.json();
+  },
+
+  bulkAssign: async (
+    assignments: Array<{ productId: string; imageUrl: string }>,
+    token: string,
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/api/upload/bulk-assign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ assignments }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Bulk assign failed' }));
+      throw new Error(err.error || 'Bulk assign failed');
+    }
+    return response.json();
+  },
 };
 
 export { API_BASE_URL };

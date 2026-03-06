@@ -33,6 +33,9 @@ import {
   extractBusinessContext,
   requireBusinessContext,
 } from './middleware/security.js';
+import createUploadRoutes from './routes/upload.routes.js';
+import createWhatsAppRoutes from './routes/whatsapp.routes.js';
+import { verifyConnection as verifyNeo4j } from './knowledge-graph/neo4j-client.js';
 
 dotenv.config();
 
@@ -79,6 +82,9 @@ app.use(cors(corsConfig()));
 
 // Parse JSON with size limit to prevent DoS
 app.use(express.json({ limit: '10kb' }));
+
+// Parse URL-encoded bodies (Twilio sends form data)
+app.use(express.urlencoded({ extended: false }));
 
 // Global rate limiting (100 requests per minute per IP)
 app.use(rateLimiter(100));
@@ -513,6 +519,18 @@ app.get('/api/insights', authenticateToken(supabaseAuth), async (req, res) => {
 });
 
 // ==============================================================================
+// UPLOAD ROUTES (Cloudinary AI image matching)
+// ==============================================================================
+
+app.use(createUploadRoutes(supabase, supabaseAuth));
+
+// ==============================================================================
+// WHATSAPP KNOWLEDGE GRAPH ROUTES
+// ==============================================================================
+
+app.use(createWhatsAppRoutes());
+
+// ==============================================================================
 // ERROR HANDLING
 // ==============================================================================
 
@@ -528,9 +546,16 @@ app.use(errorHandler);
 // SERVER STARTUP
 // ==============================================================================
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Àpínlẹ̀rọ Backend API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔒 Security: Rate limiting, CORS, Headers, Auth enabled`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Verify Knowledge Graph dependencies at startup
+  try {
+    await verifyNeo4j();
+  } catch (err) {
+    console.error('⚠️ Neo4j connection check failed at startup:', err.message);
+  }
 });

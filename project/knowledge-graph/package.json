@@ -9,9 +9,12 @@
     "setup": "node src/setup-neo4j.js",
     "query": "node src/query.js",
     "test": "node src/test-connection.js",
-    "match": "node src/match-product.js test"
+    "match": "node src/match-product.js test",
+    "test-flow": "node src/test-order-flow.js",
+    "test-integration": "node src/full-integration-test.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@supabase/supabase-js": "^2.57.4",
     "dotenv": "^16.3.1",
     "neo4j-driver": "^5.17.0"
