@@ -98,6 +98,62 @@ const TEMPLATES = {
 
   QUANTITY_UPDATED: (itemName, oldQty, newQty) =>
     `\u2705 Updated: ${itemName} changed from ${oldQty} to ${newQty}`,
+
+  // ---- Business info ----
+  BUSINESS_HOURS: `\u{1F55C} Isha's Treat & Groceries\n\nMon\u2013Fri: 9am \u2013 7pm\nSaturday: 9am \u2013 6pm\nSunday: 10am \u2013 4pm\n\n\u{1F4CD} East London\n\u{1F69A} We deliver! Just add your postcode to your order.\n\nAnything you'd like to order?`,
+
+  // ---- Order tracking ----
+  ORDER_TRACKING: (ref) =>
+    ref
+      ? `\u{1F4E6} Let me check on order ${ref} for you. I'm passing this to Isha \u2014 she'll update you shortly!`
+      : `\u{1F4E6} Let me find your most recent order. I'm passing this to Isha \u2014 she'll update you shortly!`,
+
+  // ---- Complaint / feedback ----
+  COMPLAINT_ACK: (product, feedback) =>
+    product
+      ? `I'm sorry to hear about the ${product}. I've noted your feedback${feedback ? ` ("${feedback}")` : ''} and flagged this for Isha. She'll sort this out for you \u{1F64F}`
+      : `I'm sorry about that. I've flagged this for Isha and she'll get back to you to sort it out \u{1F64F}`,
+
+  COMPLAINT_WITH_MEDIA: "I can see you've sent a photo \u2014 thanks for that. I've flagged this for Isha along with your message. She'll review it and get back to you shortly \u{1F64F}",
+
+  PREFERENCE_UPDATED: (prev, next) =>
+    `\u2705 Noted! I've updated your preference from ${prev} to ${next}. We'll remember this for future orders.`,
+
+  // ---- Collection delegate ----
+  COLLECTION_DELEGATE: (collector, relationship) =>
+    collector
+      ? `\u2705 No problem! I've noted that ${collector}${relationship ? ` (your ${relationship})` : ''} will be collecting. We'll let them know when it's ready.`
+      : `\u2705 Got it! I've noted someone else will be collecting. Just let us know their name so we can hand it over smoothly.`,
+
+  // ---- Cancel order (IDLE state) ----
+  NO_ACTIVE_ORDER: "You don't have an active order to cancel. Want to start a new order? Just tell me what you need!",
+
+  // ---- Graceful escalation for unsupported features ----
+  ESCALATE_RECURRING: "Weekly/recurring deliveries aren't set up in the system yet \u2014 but Isha can arrange this for you! I'll let her know you're interested. In the meantime, just message us each week and we'll have it ready \u{1F44D}",
+
+  ESCALATE_SPLIT_PAYMENT: "I can't split payments automatically yet, but Isha can arrange this for you. I'll flag your request \u2014 she'll sort it out \u{1F64F}",
+
+  ESCALATE_PRICE_MATCH: "I'm not able to match prices from other shops, but I can tell you our prices! Would you like me to look up anything?",
+
+  ESCALATE_RECOMMENDATION: "I don't have a record of that specific recommendation, but I can help you find it! Could you describe the product? e.g. 'goat meat' or 'spice mix'",
+
+  CLARIFY_LAST_DISCUSSED: (product) =>
+    `Did you mean ${product}? If so, how many would you like?`,
+
+  ESCALATE_RECURRING_WITH_ORDER: (items, total) => {
+    const lines = items.map(i => `  ${i.quantity}x ${i.name} \u2014 \u00A3${(i.price * i.quantity).toFixed(2)}`).join('\n');
+    return `Weekly deliveries aren't automated yet, but I can help! Here's what you usually order:\n${lines}\n\n\u{1F4B0} Total: \u00A3${total.toFixed(2)}\n\nWant me to place this order for Friday? Isha will set up the weekly schedule for you \u{1F44D}`;
+  },
+
+  ESCALATE_SPLIT_WITH_BREAKDOWN: (total, splitCount) => {
+    const perPerson = Math.round(total / splitCount * 100) / 100;
+    return `I can't split payments automatically, but here's the breakdown:\n  Your order total: \u00A3${total.toFixed(2)}\n  ${splitCount}-way split: \u00A3${perPerson.toFixed(2)} each\n\nI've flagged this for Isha \u2014 she'll arrange the split payment for you \u{1F64F}`;
+  },
+
+  ESCALATE_PRICE_MATCH_WITH_PRODUCT: (productName, price) =>
+    `I can't match other shops' prices, but our prices are very competitive!\n\n\u{1F4B7} ${productName}: \u00A3${Number(price).toFixed(2)}\n\nWould you like to add it to your order?`,
+
+  ESCALATE_PRICE_MATCH_ASK: "I can't match other shops' prices, but our prices are very competitive!\nWhat product are you looking for? I'll show you our price so you can compare.",
 };
 
 // ============================================================================
@@ -130,6 +186,24 @@ function isRejection(text) {
 function isCancellation(text) {
   const lower = text.toLowerCase().trim();
   return /^(cancel|cancel\s*order|cancel\s*everything|never\s*mind|forget\s*it)$/i.test(lower);
+}
+
+/** Detect recurring/subscription requests */
+function isRecurringRequest(text) {
+  const lower = text.toLowerCase().trim();
+  return /weekly\s*(delivery|order)|every\s*(week|friday|monday|saturday)|recurring|subscription|set\s*up.*regular/i.test(lower);
+}
+
+/** Detect split payment requests */
+function isSplitPayment(text) {
+  const lower = text.toLowerCase().trim();
+  return /split.*(bill|payment|pay)|half.*half|share.*cost/i.test(lower);
+}
+
+/** Detect price match requests */
+function isPriceMatch(text) {
+  const lower = text.toLowerCase().trim();
+  return /price\s*match|match.*(price|their)|other\s*shop.*price|competitor/i.test(lower);
 }
 
 /** Detect if the message is about identity/wrong number */
@@ -287,8 +361,19 @@ async function applyModification(cart, classification) {
 export async function processMessage(phone, messageText, mediaUrl = null) {
   try {
     // E10: Media message detection (voice notes, images)
-    if (mediaUrl && (!messageText || messageText.trim() === '')) {
-      return TEMPLATES.MEDIA_UNSUPPORTED;
+    if (mediaUrl) {
+      // If there's a text message with the media, treat as complaint with photo evidence
+      if (messageText && messageText.trim() !== '') {
+        // Process the text but note that media was attached (for complaint escalation)
+        const hasComplaintSignal = /missing|wrong|damaged|broken|bad|problem|issue|not right|messed up/i.test(messageText);
+        if (hasComplaintSignal) {
+          return TEMPLATES.COMPLAINT_WITH_MEDIA;
+        }
+        // Otherwise process the text normally (media ignored)
+      } else {
+        // Media only, no text
+        return TEMPLATES.MEDIA_UNSUPPORTED;
+      }
     }
 
     // Guard against empty messages
@@ -370,9 +455,82 @@ async function handleIdle(session, phone, messageText, intent, classification, c
     return TEMPLATES.PAYMENT_QUERY;
   }
 
+  // Graceful escalation checks (before intent switch)
+  if (isRecurringRequest(messageText)) {
+    return TEMPLATES.ESCALATE_RECURRING;
+  }
+  if (isSplitPayment(messageText)) {
+    // If there's a recent order in context, show breakdown
+    if (cart.length > 0) {
+      const total = calcTotal(cart);
+      const waysMatch = messageText.match(/(\d+)\s*ways?/i);
+      const splitCount = waysMatch ? parseInt(waysMatch[1]) : 2;
+      return TEMPLATES.ESCALATE_SPLIT_WITH_BREAKDOWN(total, splitCount);
+    }
+    return TEMPLATES.ESCALATE_SPLIT_PAYMENT;
+  }
+  if (isPriceMatch(messageText)) {
+    // Try to extract a product from the message and show our price
+    const pmMatch = messageText.match(/price.*(?:for|on|of)\s+(.+?)[\?\.]?\s*$/i) ||
+                     messageText.match(/match.*price.*(?:for|on|of)\s+(.+?)[\?\.]?\s*$/i);
+    if (pmMatch) {
+      try {
+        const results = await searchProduct(pmMatch[1].trim());
+        if (results.length > 0) {
+          return TEMPLATES.ESCALATE_PRICE_MATCH_WITH_PRODUCT(results[0].product, results[0].price);
+        }
+      } catch (err) {
+        console.error('[order-processor] Price match search failed:', err.message);
+      }
+    }
+    return TEMPLATES.ESCALATE_PRICE_MATCH_ASK;
+  }
+
   switch (intent) {
     case 'greeting':
       return TEMPLATES.GREETING;
+
+    // Cancel in IDLE = no active order
+    case 'cancel_order':
+      return TEMPLATES.NO_ACTIVE_ORDER;
+
+    // Business info -- shop hours, location, delivery
+    case 'business_info':
+      return TEMPLATES.BUSINESS_HOURS;
+
+    // Order tracking -- escalate to Isha
+    case 'order_tracking':
+      return TEMPLATES.ORDER_TRACKING(clues.order_reference || null);
+
+    // Complaint / feedback
+    case 'complaint': {
+      const product = clues.feedback_product || null;
+      const feedback = clues.feedback_text || null;
+
+      // Try to update preferences in the KG if we have product + feedback
+      if (product && feedback) {
+        try {
+          const result = await resolveContext(phone, {
+            feedback: feedback,
+            product: product,
+          });
+          if (result.updated) {
+            return TEMPLATES.PREFERENCE_UPDATED(result.previous.name, result.current.name);
+          }
+        } catch (err) {
+          console.error('[order-processor] Preference update failed:', err.message);
+        }
+      }
+
+      return TEMPLATES.COMPLAINT_ACK(product, feedback);
+    }
+
+    // Collection delegate
+    case 'collection_delegate': {
+      const collector = clues.collector_name || null;
+      const relationship = clues.references_person || null;
+      return TEMPLATES.COLLECTION_DELEGATE(collector, relationship);
+    }
 
     // E2: Running total in IDLE state
     case 'running_total':
@@ -399,12 +557,23 @@ async function handleIdle(session, phone, messageText, intent, classification, c
         return TEMPLATES.CANT_UNDERSTAND;
       }
 
+      // Save delivery address if provided alongside the order
+      const orderAddress = clues.delivery_address;
+      const sessionContext = { ...(session.context || {}) };
+      if (orderAddress) {
+        sessionContext.delivery_address = orderAddress;
+      }
+
       await updateSession(session.id, {
         state: 'ORDERING',
         current_order: found,
+        context: sessionContext,
       });
 
       let response = TEMPLATES.RUNNING_TOTAL(found, calcTotal(found));
+      if (orderAddress) {
+        response += `\n\n\u{1F4CD} Delivering to: ${orderAddress}`;
+      }
       if (notFound.length > 0) {
         response += `\n\n\u26A0\uFE0F Couldn't find: ${notFound.join(', ')}`;
       }
@@ -412,6 +581,12 @@ async function handleIdle(session, phone, messageText, intent, classification, c
     }
 
     case 'reorder': {
+      // Check for vague references that should use last discussed product
+      const vaguePattern = /\b(the thing|that one|that thing|you know|the one)\b/i;
+      if (vaguePattern.test(messageText) && session.context?.last_discussed_product) {
+        return TEMPLATES.CLARIFY_LAST_DISCUSSED(session.context.last_discussed_product);
+      }
+
       try {
         const result = await resolveContext(phone, clues);
         if (result.items.length === 0) {
@@ -427,6 +602,42 @@ async function handleIdle(session, phone, messageText, intent, classification, c
         return TEMPLATES.CONTEXT_SUMMARY(result.explanation, result.items, calcTotal(result.items));
       } catch (err) {
         console.error('[order-processor] Context resolve failed:', err.message);
+        return TEMPLATES.SERVICE_ERROR;
+      }
+    }
+
+    // Compound reorder + modify: "Same as last week but add palm oil"
+    case 'reorder_modify': {
+      try {
+        const result = await resolveContext(phone, clues);
+        if (result.items.length === 0) {
+          return "I don't have any previous orders on file for you yet. Just tell me what you'd like!";
+        }
+
+        // Apply modifications to the reordered items
+        let cart = result.items.map(i => ({ ...i }));
+        cart = await applyModification(cart, classification);
+
+        // Also add any new items from classification
+        const newItems = classification.items || [];
+        if (newItems.length > 0) {
+          const { found } = await resolveItems(newItems);
+          cart = [...cart, ...found];
+        }
+
+        await updateSession(session.id, {
+          state: 'CONFIRMING',
+          current_order: cart,
+          context: { source: result.source, explanation: result.explanation + ' (with changes)' },
+        });
+
+        return TEMPLATES.CONTEXT_SUMMARY(
+          result.explanation + ' with your changes',
+          cart,
+          calcTotal(cart)
+        );
+      } catch (err) {
+        console.error('[order-processor] Reorder+modify failed:', err.message);
         return TEMPLATES.SERVICE_ERROR;
       }
     }
@@ -507,6 +718,13 @@ async function handleIdle(session, phone, messageText, intent, classification, c
         return TEMPLATES.CANT_FIND(notFoundItems[0]);
       }
 
+      // Save last discussed product for vague follow-up references
+      if (allResults.length > 0) {
+        await updateSession(session.id, {
+          context: { ...(session.context || {}), last_discussed_product: allResults[0].product },
+        });
+      }
+
       let response = TEMPLATES.PRICE_RESPONSE(allResults);
       if (notFoundItems.length > 0) {
         response += `\n\nCouldn't find: ${notFoundItems.join(', ')}`;
@@ -514,11 +732,53 @@ async function handleIdle(session, phone, messageText, intent, classification, c
       return response;
     }
 
-    case 'general_query':
+    case 'general_query': {
       // Check specific sub-types before falling through
       if (isIdentityQuery(messageText)) return TEMPLATES.IDENTITY_CONFIRM;
       if (isPaymentQuery(messageText)) return TEMPLATES.PAYMENT_QUERY;
+
+      // Enhanced recurring request: show usual order alongside escalation
+      if (isRecurringRequest(messageText)) {
+        try {
+          const usualResult = await resolveContext(phone, { references_previous: true });
+          if (usualResult.items.length > 0) {
+            return TEMPLATES.ESCALATE_RECURRING_WITH_ORDER(usualResult.items, calcTotal(usualResult.items));
+          }
+        } catch (err) {
+          console.error('[order-processor] Usual order lookup for recurring failed:', err.message);
+        }
+        return TEMPLATES.ESCALATE_RECURRING;
+      }
+
+      // Enhanced split payment: show breakdown if there's an active order context
+      if (isSplitPayment(messageText)) return TEMPLATES.ESCALATE_SPLIT_PAYMENT;
+
+      // Enhanced price match: ask for or show product price
+      if (isPriceMatch(messageText)) {
+        // Try to extract a product from the message
+        const pmMatch = messageText.match(/price.*(?:for|on|of)\s+(.+?)[\?\.]?\s*$/i) ||
+                         messageText.match(/match.*price.*(?:for|on|of)\s+(.+?)[\?\.]?\s*$/i);
+        if (pmMatch) {
+          try {
+            const results = await searchProduct(pmMatch[1].trim());
+            if (results.length > 0) {
+              return TEMPLATES.ESCALATE_PRICE_MATCH_WITH_PRODUCT(results[0].product, results[0].price);
+            }
+          } catch (err) {
+            console.error('[order-processor] Price match search failed:', err.message);
+          }
+        }
+        return TEMPLATES.ESCALATE_PRICE_MATCH_ASK;
+      }
+
+      // Vague reference with last discussed product
+      const vaguePatternGQ = /\b(the thing|that one|that thing|you know|the one)\b/i;
+      if (vaguePatternGQ.test(messageText) && session.context?.last_discussed_product) {
+        return TEMPLATES.CLARIFY_LAST_DISCUSSED(session.context.last_discussed_product);
+      }
+
       return TEMPLATES.CANT_UNDERSTAND;
+    }
 
     default:
       return TEMPLATES.CANT_UNDERSTAND;
@@ -539,8 +799,8 @@ async function handleOrdering(session, phone, messageText, intent, classificatio
     return TEMPLATES.ORDER_SUMMARY(cart, calcTotal(cart));
   }
 
-  // Check for cancellation
-  if (isCancellation(messageText)) {
+  // Check for cancellation (both regex and intent)
+  if (isCancellation(messageText) || intent === 'cancel_order') {
     await clearSession(phone);
     return TEMPLATES.CANCELLED;
   }
@@ -553,6 +813,32 @@ async function handleOrdering(session, phone, messageText, intent, classificatio
   // E9: Payment query mid-order
   if (isPaymentQuery(messageText)) {
     return TEMPLATES.PAYMENT_QUERY + `\n\n\u{1F4CB} You still have ${cart.length} item(s) in your cart.`;
+  }
+
+  // Business info mid-order
+  if (intent === 'business_info') {
+    return TEMPLATES.BUSINESS_HOURS + `\n\n\u{1F4CB} You still have ${cart.length} item(s) in your cart.`;
+  }
+
+  // Order tracking mid-order
+  if (intent === 'order_tracking') {
+    const clues = classification.context_clues || {};
+    return TEMPLATES.ORDER_TRACKING(clues.order_reference || null) + `\n\n\u{1F4CB} You still have ${cart.length} item(s) in your cart.`;
+  }
+
+  // Complaint mid-order
+  if (intent === 'complaint') {
+    const clues = classification.context_clues || {};
+    return TEMPLATES.COMPLAINT_ACK(clues.feedback_product || null, clues.feedback_text || null) + `\n\n\u{1F4CB} You still have ${cart.length} item(s) in your cart.`;
+  }
+
+  // Collection delegate mid-order
+  if (intent === 'collection_delegate') {
+    const clues = classification.context_clues || {};
+    await updateSession(session.id, {
+      context: { ...(session.context || {}), collector: clues.collector_name, collector_relationship: clues.references_person },
+    });
+    return TEMPLATES.COLLECTION_DELEGATE(clues.collector_name || null, clues.references_person || null) + `\n\n\u{1F4CB} You still have ${cart.length} item(s) in your cart.`;
   }
 
   switch (intent) {
@@ -680,6 +966,15 @@ async function handleConfirming(session, phone, messageText, intent, classificat
     });
 
     return "No problem! Tell me what you'd like to change.";
+  }
+
+  // Split payment in CONFIRMING state: show order breakdown with split
+  if (isSplitPayment(messageText)) {
+    const total = calcTotal(cart);
+    // Try to extract split count from message (e.g. "three ways", "3 ways", "half" = 2)
+    const waysMatch = messageText.match(/(\d+)\s*ways?/i);
+    const splitCount = waysMatch ? parseInt(waysMatch[1]) : 2; // default to 2 (half-half)
+    return TEMPLATES.ESCALATE_SPLIT_WITH_BREAKDOWN(total, splitCount);
   }
 
   // E5: Address update during confirmation

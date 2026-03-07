@@ -181,8 +181,45 @@ export async function resolveUsualOrder(phone) {
  *
  * "Same as last week" / "Reorder from 2 weeks ago" / "Same event as December"
  */
-export async function resolveTimeBasedOrder(phone, timeRef) {
+export async function resolveTimeBasedOrder(phone, timeRef, productFilter = null) {
   const { start, end } = parseTimeWindow(timeRef);
+
+  // If a product filter is provided, search for that specific product in the time window
+  if (productFilter) {
+    const filterTerm = productFilter.toLowerCase().trim();
+    const records = await runQuery(`
+      MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order)
+      WHERE o.created_at >= $start AND o.created_at <= $end
+      WITH o ORDER BY o.created_at DESC
+      MATCH (o)-[r:CONTAINS]->(p:Product)
+      WHERE toLower(p.name) CONTAINS toLower($filterTerm)
+      RETURN o.id AS orderId, o.created_at AS orderDate,
+             p.name AS name, r.quantity AS quantity, r.price AS price,
+             p.stock_quantity AS stock
+      LIMIT 1
+    `, { phone, start, end, filterTerm });
+
+    if (records.length === 0) {
+      return { items: [], confidence: 0, source: 'date_lookup', explanation: `No "${productFilter}" found in your ${timeRef} orders` };
+    }
+
+    const item = {
+      name: records[0].get('name'),
+      quantity: toNum(records[0].get('quantity')),
+      unit: null,
+      price: toNum(records[0].get('price')),
+    };
+    const stock = toNum(records[0].get('stock'));
+    const orderDate = new Date(records[0].get('orderDate')).toLocaleDateString('en-GB');
+
+    return {
+      items: [item],
+      confidence: 0.85,
+      source: 'date_lookup',
+      explanation: `${item.name} from your order on ${orderDate}${stock > 0 ? ' (in stock)' : stock === 0 ? ' (currently out of stock)' : ''}`,
+      stock,
+    };
+  }
 
   const records = await runQuery(`
     MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order)
@@ -472,12 +509,12 @@ export async function resolvePreferenceUpdate(phone, productName, feedback) {
  *
  * Finds Meal node, follows REQUIRES -> Product, scales quantities.
  */
-export async function resolveMealOrder(mealName, servings) {
+export async function resolveMealOrder(mealName, servings, phone = null) {
   const records = await runQuery(`
     MATCH (m:Meal)-[r:REQUIRES]->(p:Product)
     WHERE toLower(m.name) = toLower($mealName)
     RETURN m.name AS meal, m.serves AS baseServings, m.emoji AS emoji,
-           p.name AS name, p.price AS price,
+           p.name AS name, p.price AS price, p.category AS category,
            r.quantity_per_serving AS qtyPerServing, r.unit AS unit, r.notes AS notes
   `, { mealName });
 
@@ -495,14 +532,53 @@ export async function resolveMealOrder(mealName, servings) {
     quantity: Math.round(toNum(r.get('qtyPerServing')) * scale * 100) / 100,
     unit: r.get('unit'),
     price: toNum(r.get('price')),
+    category: r.get('category'),
     notes: r.get('notes') || null,
   }));
 
+  // If phone provided, check for preference-based substitutions
+  let substitutions = [];
+  if (phone) {
+    const categories = [...new Set(items.map(i => i.category).filter(Boolean))];
+    if (categories.length > 0) {
+      const prefRecords = await runQuery(`
+        MATCH (c:Customer {phone: $phone})-[pref:PREFERS]->(p:Product)
+        WHERE p.category IN $categories
+        RETURN p.name AS name, p.price AS price, p.category AS category,
+               pref.preferred_size AS unit
+      `, { phone, categories });
+
+      // Substitute recipe ingredients with preferred products in same category
+      for (const pref of prefRecords) {
+        const prefCategory = pref.get('category');
+        const idx = items.findIndex(i => i.category === prefCategory);
+        if (idx >= 0) {
+          const original = items[idx].name;
+          items[idx] = {
+            ...items[idx],
+            name: pref.get('name'),
+            price: toNum(pref.get('price')),
+            unit: pref.get('unit') || items[idx].unit,
+          };
+          substitutions.push(`${original} -> ${pref.get('name')} (your preference)`);
+        }
+      }
+    }
+  }
+
+  // Remove category from final items (internal field)
+  const finalItems = items.map(({ category, ...rest }) => rest);
+
+  let explanation = `${emoji} ${meal} for ${servings} (scaled ${scale}x from ${baseServings} servings)`;
+  if (substitutions.length > 0) {
+    explanation += `\nSubstituted: ${substitutions.join(', ')}`;
+  }
+
   return {
-    items,
+    items: finalItems,
     confidence: 0.9,
     source: 'meal_recipe',
-    explanation: `${emoji} ${meal} for ${servings} (scaled ${scale}x from ${baseServings} servings)`,
+    explanation,
   };
 }
 
@@ -614,6 +690,50 @@ export async function resolveBudgetOrder(phone, budgetGBP) {
   };
 }
 
+/**
+ * resolveProductHistory(phone, productTerm)
+ *
+ * "The goat meat Aunty Isha recommended last time"
+ *
+ * Searches the customer's past orders for a product matching the term.
+ */
+export async function resolveProductHistory(phone, productTerm) {
+  const term = (productTerm || '').toLowerCase().trim();
+  if (!term) {
+    return { items: [], confidence: 0, source: 'product_history', explanation: 'No product term provided' };
+  }
+
+  const records = await runQuery(`
+    MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order)-[r:CONTAINS]->(p:Product)
+    WHERE toLower(p.name) CONTAINS toLower($term)
+    RETURN p.name AS name, p.price AS price, r.quantity AS quantity,
+           o.created_at AS orderDate, p.stock_quantity AS stock
+    ORDER BY o.created_at DESC LIMIT 1
+  `, { phone, term });
+
+  if (records.length === 0) {
+    return { items: [], confidence: 0, source: 'product_history', explanation: `No "${productTerm}" found in your order history` };
+  }
+
+  const item = {
+    name: records[0].get('name'),
+    quantity: toNum(records[0].get('quantity')),
+    unit: null,
+    price: toNum(records[0].get('price')),
+  };
+
+  const stock = toNum(records[0].get('stock'));
+  const orderDate = new Date(records[0].get('orderDate')).toLocaleDateString('en-GB');
+
+  return {
+    items: [item],
+    confidence: 0.75,
+    source: 'product_history',
+    explanation: `${item.name} from your order on ${orderDate}`,
+    stock,
+  };
+}
+
 // ============================================================================
 // MASTER ROUTER
 // ============================================================================
@@ -639,8 +759,12 @@ export async function resolveContext(phone, clues) {
   }
 
   // Meal order (check first - most specific)
+  // Accept both "servings" and "serving_size" for backwards compatibility
   if (clues.references_meal) {
-    return resolveMealOrder(clues.references_meal, clues.servings || 4);
+    const servings = clues.servings || clues.serving_size || 4;
+    // Pass phone for preference-aware substitutions when flagged
+    const mealPhone = clues.preference_aware ? phone : null;
+    return resolveMealOrder(clues.references_meal, servings, mealPhone);
   }
 
   // Budget order
@@ -662,9 +786,14 @@ export async function resolveContext(phone, clues) {
     return resolveCrossCustomerOrder(clues.references_person);
   }
 
-  // Time reference
+  // Product history reference (e.g. "the goat meat from last time")
+  if (clues.references_product && !clues.references_time) {
+    return resolveProductHistory(phone, clues.references_product);
+  }
+
+  // Time reference (optionally filtered by product)
   if (clues.references_time) {
-    return resolveTimeBasedOrder(phone, clues.references_time);
+    return resolveTimeBasedOrder(phone, clues.references_time, clues.references_product || null);
   }
 
   // Day pattern

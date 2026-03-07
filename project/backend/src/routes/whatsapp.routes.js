@@ -43,20 +43,25 @@ export default function createWhatsAppRoutes() {
       try {
         // Extract fields from Twilio form-encoded payload
         const from = req.body.From;         // "whatsapp:+447700000001"
-        const body = req.body.Body;         // The message text
+        const body = req.body.Body || '';   // The message text (may be empty for media-only)
         const profileName = req.body.ProfileName || null;
 
-        if (!from || !body) {
-          return res.status(400).json({ error: 'Missing From or Body' });
+        // Extract media URL from Twilio payload (images, voice notes, etc.)
+        const numMedia = parseInt(req.body.NumMedia || '0', 10);
+        const mediaUrl = numMedia > 0 ? req.body.MediaUrl0 : null;
+        const mediaType = numMedia > 0 ? req.body.MediaContentType0 : null;
+
+        if (!from || (!body && !mediaUrl)) {
+          return res.status(400).json({ error: 'Missing From, Body, or Media' });
         }
 
         // Normalise phone: strip "whatsapp:" prefix
         const phone = from.replace('whatsapp:', '');
 
-        console.log(`\u{1F4E9} [WhatsApp KG] From: ${phone} | Name: ${profileName} | Message: ${body}`);
+        console.log(`\u{1F4E9} [WhatsApp KG] From: ${phone} | Name: ${profileName} | Message: ${body}${mediaUrl ? ` | Media: ${mediaType}` : ''}`);
 
         // Process through Knowledge Graph order processor
-        const response = await processMessage(phone, body);
+        const response = await processMessage(phone, body, mediaUrl);
 
         console.log(`\u{1F4E4} [WhatsApp KG] Response (${Date.now() - startTime}ms): ${response.substring(0, 100)}...`);
 

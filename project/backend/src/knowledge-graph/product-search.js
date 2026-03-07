@@ -33,6 +33,15 @@ const EMOJI_MAP = {
   '\u{1F345}': 'tomato',     // 🍅
 };
 
+/** Pidgin/Yoruba cultural measurement units */
+const CULTURAL_UNITS = {
+  'derica': { unit: 'cup', quantity_multiplier: 1, notes: 'derica (~250ml measuring cup)' },
+  'mudu': { unit: 'cup', quantity_multiplier: 4, notes: 'mudu (~1L, 4 derica)' },
+  'congo': { unit: 'bag', quantity_multiplier: 1, notes: 'small bag' },
+  'paint': { unit: 'bucket', quantity_multiplier: 1, notes: 'paint bucket (~4L)' },
+  'custard bucket': { unit: 'bucket', quantity_multiplier: 1, notes: 'large bucket (~5L)' },
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -400,4 +409,4 @@ export async function searchProduct(query) {
   return [];
 }
 
-export { normalise, levenshtein, EMOJI_MAP };
+export { normalise, levenshtein, EMOJI_MAP, CULTURAL_UNITS };

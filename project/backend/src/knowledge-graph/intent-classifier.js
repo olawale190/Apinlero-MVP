@@ -83,6 +83,7 @@ Respond ONLY in JSON. No markdown, no explanation, no backticks.
 Intent types:
 - "new_order" — Customer wants to order specific items
 - "reorder" — References previous order ("the usual", "same as last week", "again")
+- "reorder_modify" — Reorder with modifications ("same as last week but add palm oil", "the usual but no onions")
 - "modify_order" — Change current order ("cancel the rice", "add beans", "remove last item", "I meant 2kg not 20kg")
 - "price_enquiry" — Asking about prices, NOT ordering
 - "meal_order" — Ordering by meal name ("jollof rice ingredients", "egusi soup ingredients")
@@ -90,7 +91,12 @@ Intent types:
 - "quantity_estimate" — Needs help with quantities ("enough for 20 people")
 - "running_total" — Asking what's in their cart or how much it costs ("how much is everything so far?", "what's my total?", "what have I ordered?")
 - "address_update" — Providing or changing delivery address ("deliver to 14 Market Street", "my address changed")
-- "general_query" — Not an order (wrong number, payment question, complaint, "can I pay tomorrow?", "is this still Isha's?")
+- "business_info" — Questions about shop hours, location, contact, services ("what time do you close?", "where are you located?", "do you deliver?")
+- "order_tracking" — Checking on a placed order ("where's my order?", "when is it arriving?", "order #1042 status")
+- "complaint" — Reporting a problem or giving feedback ("the yam was too soft", "1kg rice is missing", "wrong item delivered", "the quality was bad")
+- "collection_delegate" — Someone else will collect ("my sister Funke will collect", "my husband will pick it up")
+- "cancel_order" — Explicitly cancelling ("cancel my order", "cancel everything", "never mind")
+- "general_query" — Not an order (wrong number, payment question, "can I pay tomorrow?", "is this still Isha's?")
 - "greeting" — Just saying hello
 
 Response format:
@@ -106,7 +112,14 @@ Response format:
     "references_meal": null,
     "references_budget": null,
     "serving_size": null,
-    "delivery_address": null
+    "servings": null,
+    "delivery_address": null,
+    "order_reference": null,
+    "collector_name": null,
+    "feedback_product": null,
+    "feedback_text": null,
+    "references_product": null,
+    "preference_aware": false
   },
   "requires_knowledge_graph": false,
   "modification": null,
@@ -117,8 +130,11 @@ Rules:
 - "How much is X?" → ALWAYS price_enquiry, never new_order
 - "How much is everything so far?" / "What's my total?" → running_total
 - "The usual" / "same as" / "again" / "reorder" → reorder, requires_knowledge_graph: true
+- "Same as last week but add palm oil" / "the usual but no onions" → reorder_modify (reorder + modification in one message)
+  Set requires_knowledge_graph: true, include context_clues for the reorder part, AND include modification/modifications for the changes.
 - "My mum's order" → reorder, references_person: "mother"
 - "Jollof rice ingredients" → meal_order, references_meal: "Jollof Rice"
+- "Jollof rice for 50 people" → meal_order, references_meal: "Jollof Rice", servings: 50 (NOT serving_size)
 - "£50 worth" → budget_order, references_budget: 50
 - Ambiguous quantity → set to 1, add notes: "quantity unspecified"
 - For modifications: "modification": {"action": "cancel"|"add"|"remove_last"|"change_quantity", "target": "rice", "new_value": "beans"}
@@ -128,8 +144,32 @@ Rules:
 - QUANTITY CORRECTIONS: "I meant 2kg not 20kg" → modify_order, modification: {"action": "change_quantity", "target": "20kg item", "new_value": 2, "unit": "kg", "original_quantity": 20}
 - "Remove the last item" → modify_order, modification: {"action": "remove_last"}
 - "Deliver to <address>" / "My address changed to <address>" → address_update, context_clues.delivery_address: "<full address>"
+- If a new_order message ALSO contains a delivery address, extract BOTH: set intent to "new_order" with items AND set context_clues.delivery_address
+- "What time do you close?" / "opening hours" / "where are you?" / "do you deliver?" → business_info
+- "Where's my order?" / "order #1042" / "when is it arriving?" / "delivery status" → order_tracking, context_clues.order_reference: "#1042" (if given)
+- "The yam was too soft" / "wrong item" / "missing item" / "quality was bad" → complaint, context_clues.feedback_product: "yam", context_clues.feedback_text: "too soft"
+- "My sister Funke will collect" / "my husband will pick up" → collection_delegate, context_clues.collector_name: "Funke", context_clues.references_person: "sister"
+- "Cancel my order" / "cancel everything" / "never mind" → cancel_order
 - "Is this still Isha's?" / "wrong number" → general_query
 - "Can I pay tomorrow?" / "pay later" → general_query
+- "Set up weekly delivery" / "recurring order" / "every Friday" → general_query (not yet supported, flag for escalation)
+- "Split the bill" / "split payment" → general_query (not yet supported)
+- "Can you match their price?" / "price match" → general_query (not yet supported)
+
+PIDGIN / YORUBA:
+- Nigerian Pidgin: "abeg" = please, "wetin" = what, "how much" in Pidgin = price enquiry
+- "Abeg send me garri" / "Abeg give me rice" → new_order
+- Cultural measurement terms: "derica" = 1 cup (~250ml), "mudu" = 4 cups (~1L), "congo" = small bag, "paint" = bucket (~4L)
+- "two derica of crayfish" → new_order with product: "crayfish", quantity: 2, unit: "cup", notes: "derica (~250ml measuring cup)"
+- Parse these naturally alongside standard English
+
+RECOMMENDATION RECALL:
+- "The goat meat Aunty Isha recommended" / "that spice mix from last time" → reorder with context_clues.references_product: "goat meat"
+- When the message references a specific product from a past order or recommendation, set references_product to the product term
+
+PREFERENCE AWARENESS:
+- "You know what I like" / "the way I like it" / "my preference" → set context_clues.preference_aware: true
+- This can appear alongside meal_order or reorder intents
 
 CONVERSATION CONTEXT:
 You may receive a conversation context showing recent exchanges (e.g., what product was just discussed).
@@ -150,7 +190,14 @@ const FALLBACK_RESULT = {
     references_meal: null,
     references_budget: null,
     serving_size: null,
+    servings: null,
     delivery_address: null,
+    order_reference: null,
+    collector_name: null,
+    feedback_product: null,
+    feedback_text: null,
+    references_product: null,
+    preference_aware: false,
   },
   requires_knowledge_graph: false,
   modification: null,
@@ -174,6 +221,38 @@ export function regexFallbackClassify(messageText) {
     return { ...FALLBACK_RESULT, intent: 'greeting', confidence: 0.7 };
   }
 
+  // Cancel order
+  if (/^(cancel|cancel\s*(my\s*)?order|cancel\s*everything|never\s*mind|forget\s*it)$/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'cancel_order', confidence: 0.8 };
+  }
+
+  // Business info
+  if (/what time.*(close|open|shut)|opening hours|closing time|where (are|is) (you|the shop)|do you deliver|delivery area/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'business_info', confidence: 0.7 };
+  }
+
+  // Order tracking
+  if (/where.*(my|the) order|order.*(status|update|tracking)|when.*(arriving|delivered|ready)|ref\s*#?\d+/i.test(lower)) {
+    const refMatch = lower.match(/#?(\d{3,})/);
+    return {
+      ...FALLBACK_RESULT,
+      intent: 'order_tracking',
+      context_clues: { ...FALLBACK_RESULT.context_clues, order_reference: refMatch ? `#${refMatch[1]}` : null },
+      confidence: 0.7,
+    };
+  }
+
+  // Complaint
+  if (/missing|wrong item|too soft|too hard|bad quality|damaged|broken|not fresh|complaint|problem with/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'complaint', confidence: 0.6 };
+  }
+
+  // Collection delegate
+  if (/(sister|brother|wife|husband|friend|mum|mom|dad)\s+\w+\s+will\s+(collect|pick)/i.test(lower) ||
+      /will\s+(collect|pick\s*up)|someone.*(collect|pick)/i.test(lower)) {
+    return { ...FALLBACK_RESULT, intent: 'collection_delegate', confidence: 0.6 };
+  }
+
   // Running total
   if (/how much.*(so far|everything|total)|what('s| is) my total|what have i ordered/i.test(lower)) {
     return { ...FALLBACK_RESULT, intent: 'running_total', confidence: 0.7 };
@@ -189,6 +268,40 @@ export function regexFallbackClassify(messageText) {
       items: product ? [{ product, quantity: 1, unit: null }] : [],
       confidence: 0.6,
     };
+  }
+
+  // Pidgin order patterns: "abeg send me garri", "abeg give me 2 rice"
+  const pidginMatch = lower.match(/abeg\s+(?:send|give|bring)\s+(?:me\s+)?(?:(\d+)\s*(?:(?:derica|mudu|congo|paint)\s+(?:of\s+)?)?)?(.+)/i);
+  if (pidginMatch) {
+    const quantity = pidginMatch[1] ? parseInt(pidginMatch[1]) : 1;
+    const product = pidginMatch[2].replace(/please\s*$/, '').trim();
+    if (product) {
+      // Check for cultural unit in the original text
+      const unitMatch = lower.match(/(derica|mudu|congo|paint)/);
+      const unit = unitMatch ? unitMatch[1] : null;
+      return {
+        ...FALLBACK_RESULT,
+        intent: 'new_order',
+        items: [{ product, quantity, unit }],
+        confidence: 0.6,
+      };
+    }
+  }
+
+  // Pidgin with cultural units: "two derica of crayfish", "3 mudu of garri"
+  const culturalUnitMatch = lower.match(/(\d+)\s*(derica|mudu|congo|paint)\s+(?:of\s+)?(.+)/);
+  if (culturalUnitMatch) {
+    const quantity = parseInt(culturalUnitMatch[1]);
+    const unit = culturalUnitMatch[2];
+    const product = culturalUnitMatch[3].replace(/please\s*$/, '').trim();
+    if (product && quantity > 0) {
+      return {
+        ...FALLBACK_RESULT,
+        intent: 'new_order',
+        items: [{ product, quantity, unit }],
+        confidence: 0.6,
+      };
+    }
   }
 
   // Patterns: "I want/need X of Y", "Xkg Y", "X Y", "give me X Y"
