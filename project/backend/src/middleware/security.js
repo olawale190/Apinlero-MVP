@@ -21,11 +21,28 @@ const RATE_LIMIT_MAX_REQUESTS = 100; // requests per window
 const RATE_LIMIT_AUTH_MAX = 5; // auth attempts per window
 
 // Allowed origins for CORS
-const ALLOWED_ORIGINS = [
+const PRODUCTION_ORIGINS = [
   'https://project-apinlero.vercel.app',
   'https://apinlero.vercel.app',
+  'https://apinlero.co.uk',
+  'https://ishas-treat.apinlero.co.uk',
+  'https://apinlero-production.up.railway.app',
+];
+
+const DEV_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
+];
+
+// Allow override via ALLOWED_ORIGINS env var (comma-separated)
+const ENV_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [];
+
+const ALLOWED_ORIGINS = [
+  ...PRODUCTION_ORIGINS,
+  ...ENV_ORIGINS,
+  ...(process.env.NODE_ENV !== 'production' ? DEV_ORIGINS : []),
 ];
 
 // ==============================================================================

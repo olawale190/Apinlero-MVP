@@ -32,9 +32,32 @@ export default function createWhatsAppRoutes() {
     return twilioClient;
   }
 
+  // ── Twilio webhook signature verification (production only) ────────────
+  const validateTwilioSignature = (req, res, next) => {
+    if (process.env.NODE_ENV !== 'production') return next();
+
+    const signature = req.headers['x-twilio-signature'];
+    const webhookUrl = process.env.TWILIO_WEBHOOK_URL ||
+      `https://${req.headers.host}/api/whatsapp/webhook`;
+
+    const isValid = twilio.validateRequest(
+      process.env.TWILIO_AUTH_TOKEN,
+      signature,
+      webhookUrl,
+      req.body
+    );
+
+    if (!isValid) {
+      console.warn('[WhatsApp KG] Invalid Twilio signature - rejecting');
+      return res.status(403).send('<Response></Response>');
+    }
+    next();
+  };
+
   // ── POST /api/whatsapp/webhook ─────────────────────────────────────────
   router.post(
     '/api/whatsapp/webhook',
+    validateTwilioSignature,
     rateLimiter(60),
     async (req, res) => {
       const startTime = Date.now();
