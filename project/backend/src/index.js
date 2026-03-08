@@ -80,6 +80,75 @@ app.use(requestLogger);
 // Secure CORS configuration
 app.use(cors(corsConfig()));
 
+// Stripe Webhook (uses raw body for signature verification)
+// MUST be registered before express.json() consumes the body
+app.post('/api/webhook/stripe',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    // CRITICAL: Require webhook signature in production
+    if (!webhookSecret && process.env.NODE_ENV === 'production') {
+      console.error('CRITICAL: Stripe webhook secret not configured');
+      return res.status(500).json({ error: 'Webhook not configured' });
+    }
+
+    try {
+      let event;
+
+      if (webhookSecret) {
+        // Verify webhook signature (prevents forged webhooks)
+        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      } else if (process.env.NODE_ENV !== 'production') {
+        // Only allow unsigned webhooks in development
+        console.warn('WARNING: Processing unsigned webhook (dev mode only)');
+        event = JSON.parse(req.body);
+      } else {
+        return res.status(400).json({ error: 'Webhook signature required' });
+      }
+
+      // Handle the event
+      switch (event.type) {
+        case 'payment_intent.succeeded':
+          const paymentIntent = event.data.object;
+          console.log('Payment succeeded:', paymentIntent.id);
+
+          if (paymentIntent.metadata?.orderId) {
+            await supabase
+              .from('orders')
+              .update({
+                status: 'Confirmed',
+                payment_status: 'paid',
+              })
+              .eq('id', paymentIntent.metadata.orderId);
+          }
+          break;
+
+        case 'payment_intent.payment_failed':
+          const failedPayment = event.data.object;
+          console.log('Payment failed:', failedPayment.id);
+
+          if (failedPayment.metadata?.orderId) {
+            await supabase
+              .from('orders')
+              .update({ payment_status: 'failed' })
+              .eq('id', failedPayment.metadata.orderId);
+          }
+          break;
+
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('Webhook error:', error.message);
+      res.status(400).json({ error: 'Webhook processing failed' });
+    }
+  }
+);
+
 // Parse JSON with size limit to prevent DoS
 app.use(express.json({ limit: '10kb' }));
 
@@ -406,74 +475,6 @@ app.post('/api/create-payment-intent', rateLimiter(30), validatePaymentInput, as
     res.status(500).json({ error: 'Failed to create payment intent' });
   }
 });
-
-// Stripe Webhook (uses raw body for signature verification)
-app.post('/api/webhook/stripe',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    // CRITICAL: Require webhook signature in production
-    if (!webhookSecret && process.env.NODE_ENV === 'production') {
-      console.error('CRITICAL: Stripe webhook secret not configured');
-      return res.status(500).json({ error: 'Webhook not configured' });
-    }
-
-    try {
-      let event;
-
-      if (webhookSecret) {
-        // Verify webhook signature (prevents forged webhooks)
-        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-      } else if (process.env.NODE_ENV !== 'production') {
-        // Only allow unsigned webhooks in development
-        console.warn('WARNING: Processing unsigned webhook (dev mode only)');
-        event = JSON.parse(req.body);
-      } else {
-        return res.status(400).json({ error: 'Webhook signature required' });
-      }
-
-      // Handle the event
-      switch (event.type) {
-        case 'payment_intent.succeeded':
-          const paymentIntent = event.data.object;
-          console.log('Payment succeeded:', paymentIntent.id);
-
-          if (paymentIntent.metadata?.orderId) {
-            await supabase
-              .from('orders')
-              .update({
-                status: 'Confirmed',
-                payment_status: 'paid',
-              })
-              .eq('id', paymentIntent.metadata.orderId);
-          }
-          break;
-
-        case 'payment_intent.payment_failed':
-          const failedPayment = event.data.object;
-          console.log('Payment failed:', failedPayment.id);
-
-          if (failedPayment.metadata?.orderId) {
-            await supabase
-              .from('orders')
-              .update({ payment_status: 'failed' })
-              .eq('id', failedPayment.metadata.orderId);
-          }
-          break;
-
-        default:
-          console.log(`Unhandled event type: ${event.type}`);
-      }
-
-      res.json({ received: true });
-    } catch (error) {
-      console.error('Webhook error:', error.message);
-      res.status(400).json({ error: 'Webhook processing failed' });
-    }
-  }
-);
 
 // ==============================================================================
 // ANALYTICS ROUTES (Protected)
