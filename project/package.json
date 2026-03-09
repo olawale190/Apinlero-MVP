@@ -9,11 +9,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "cd backend && npm install",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "start": "node server.js",
+    "start": "cd backend && node src/index.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
