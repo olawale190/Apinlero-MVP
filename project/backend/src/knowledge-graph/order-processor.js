@@ -32,11 +32,52 @@
  *   - order-saver.js        -- Neo4j order persistence + preference updates
  */
 
+import Stripe from 'stripe';
 import { classifyMessage } from './intent-classifier.js';
 import { searchProduct } from './product-search.js';
 import { resolveContext } from './context-resolver.js';
 import { getOrCreateSession, updateSession, clearSession } from './session-manager.js';
 import { saveOrderToGraph, updateCustomerPreferences } from './order-saver.js';
+
+// Stripe client (only initialised if key is configured)
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+  : null;
+
+/**
+ * Generate a Stripe Payment Link for a WhatsApp order.
+ * Returns the URL string or null if Stripe is not configured / fails.
+ */
+async function createStripePaymentLink(orderId, items, totalGBP) {
+  if (!stripe) return null;
+  try {
+    // Build line items for checkout session
+    const lineItems = items.map(item => ({
+      price_data: {
+        currency: 'gbp',
+        unit_amount: Math.round(item.price * 100), // pence
+        product_data: { name: item.name },
+      },
+      quantity: item.quantity,
+    }));
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: lineItems,
+      metadata: { orderId, channel: 'whatsapp' },
+      payment_intent_data: {
+        metadata: { orderId, channel: 'whatsapp' },
+      },
+      success_url: `https://apinlero.com/order-success?order=${orderId}`,
+      cancel_url: `https://apinlero.com/order-cancelled?order=${orderId}`,
+    });
+
+    return session.url;
+  } catch (err) {
+    console.error('[order-processor] Stripe payment link failed:', err.message);
+    return null;
+  }
+}
 
 // ============================================================================
 // RESPONSE TEMPLATES
@@ -55,8 +96,10 @@ const TEMPLATES = {
     return `\u{1F4CB} Order summary:\n${lines}\n\n\u{1F4B0} Total: \u00A3${total.toFixed(2)}\n\nReply YES to confirm or tell me what to change.`;
   },
 
-  CONFIRMED: (orderId) =>
-    `\u2705 Order #${orderId} confirmed! We'll have it ready for you.`,
+  CONFIRMED: (orderId, paymentLink) =>
+    paymentLink
+      ? `\u2705 Order #${orderId} confirmed!\n\n\u{1F4B3} Pay securely here:\n${paymentLink}\n\nOnce payment is received we\u2019ll get it ready for you.`
+      : `\u2705 Order #${orderId} confirmed! We'll have it ready for you.`,
 
   CANCELLED: "\u274C Order cancelled. Send a message anytime to start a new order!",
 
@@ -606,6 +649,27 @@ async function handleIdle(session, phone, messageText, intent, classification, c
       }
     }
 
+    // Time-based order: "Same as last week" / "Reorder from 2 weeks ago"
+    case 'time_based_order': {
+      try {
+        const result = await resolveContext(phone, clues);
+        if (result.items.length === 0) {
+          return `I couldn't find any orders from "${clues.references_time || 'that time'}". Just tell me what you'd like!`;
+        }
+
+        await updateSession(session.id, {
+          state: 'CONFIRMING',
+          current_order: result.items,
+          context: { source: result.source, explanation: result.explanation },
+        });
+
+        return TEMPLATES.CONTEXT_SUMMARY(result.explanation, result.items, calcTotal(result.items));
+      } catch (err) {
+        console.error('[order-processor] Time-based resolve failed:', err.message);
+        return TEMPLATES.SERVICE_ERROR;
+      }
+    }
+
     // Compound reorder + modify: "Same as last week but add palm oil"
     case 'reorder_modify': {
       try {
@@ -939,6 +1003,10 @@ async function handleConfirming(session, phone, messageText, intent, classificat
       // Save to Neo4j
       const { orderId } = await saveOrderToGraph(phone, cart);
 
+      // Generate Stripe payment link (non-blocking if it fails)
+      const total = calcTotal(cart);
+      const paymentLink = await createStripePaymentLink(orderId, cart, total);
+
       // Update preferences in background (don't await to avoid delay)
       updateCustomerPreferences(phone, cart).catch(err =>
         console.error('[order-processor] Preference update failed:', err.message)
@@ -947,7 +1015,7 @@ async function handleConfirming(session, phone, messageText, intent, classificat
       // Clear session
       await clearSession(phone);
 
-      return TEMPLATES.CONFIRMED(orderId);
+      return TEMPLATES.CONFIRMED(orderId, paymentLink);
     } catch (err) {
       console.error('[order-processor] Order save failed:', err.message);
       return TEMPLATES.SERVICE_ERROR;
