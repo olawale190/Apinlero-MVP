@@ -44,12 +44,18 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
   : null;
 
+console.log(`[order-processor] Stripe client: ${stripe ? 'INITIALIZED' : 'NOT CONFIGURED (missing STRIPE_SECRET_KEY)'}`);
+
 /**
  * Generate a Stripe Payment Link for a WhatsApp order.
  * Returns the URL string or null if Stripe is not configured / fails.
  */
 async function createStripePaymentLink(orderId, items, totalGBP) {
-  if (!stripe) return null;
+  console.log(`[order-processor] createStripePaymentLink called — orderId: ${orderId}, items: ${items.length}, total: £${totalGBP}`);
+  if (!stripe) {
+    console.warn('[order-processor] Stripe client is null — skipping payment link');
+    return null;
+  }
   try {
     // Build line items for checkout session
     const lineItems = items.map(item => ({
