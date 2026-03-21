@@ -19,7 +19,7 @@ import { runWrite, runQuery } from './neo4j-client.js';
  * @param {Array<{name: string, quantity: number, unit?: string, price: number}>} items
  * @returns {{ orderId: string, itemCount: number }}
  */
-export async function saveOrderToGraph(phone, items) {
+export async function saveOrderToGraph(phone, items, collectorContext = {}) {
   const orderId = `WA-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
   const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -61,6 +61,24 @@ export async function saveOrderToGraph(phone, items) {
       quantity: item.quantity,
       unit: item.unit || null,
       price: item.price,
+    });
+  }
+
+  // If a collector was nominated, create AUTHORISED_FOR on the Customer→Order edge
+  const { collector, collector_relationship } = collectorContext;
+  if (collector) {
+    await runWrite(`
+      MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order {id: $orderId})
+      CREATE (c)-[:AUTHORISED_FOR {
+        collector_name: $collectorName,
+        collector_relationship: $collectorRelationship,
+        created_at: datetime()
+      }]->(o)
+    `, {
+      phone,
+      orderId,
+      collectorName: collector,
+      collectorRelationship: collector_relationship || null,
     });
   }
 

@@ -50,8 +50,38 @@ export async function runWrite(cypher, params = {}) {
   }
 }
 
+// Keep-alive ping to prevent AuraDB Free from pausing due to inactivity
+const KEEP_ALIVE_INTERVAL_MS = 4 * 60 * 60 * 1000; // every 4 hours
+let keepAliveTimer = null;
+
+async function neo4jKeepAlive() {
+  const session = driver.session();
+  try {
+    await session.run('RETURN 1');
+    console.log(`🏓 [Neo4j keep-alive] Ping OK at ${new Date().toISOString()}`);
+  } catch (error) {
+    console.error('🏓 [Neo4j keep-alive] Ping failed:', error.message);
+  } finally {
+    await session.close();
+  }
+}
+
+export function startKeepAlive() {
+  if (keepAliveTimer) return;
+  keepAliveTimer = setInterval(neo4jKeepAlive, KEEP_ALIVE_INTERVAL_MS);
+  console.log('🏓 [Neo4j keep-alive] Started — pinging every 4 hours');
+}
+
+export function stopKeepAlive() {
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+}
+
 // Close driver on shutdown
 export async function closeDriver() {
+  stopKeepAlive();
   await driver.close();
 }
 

@@ -10,7 +10,25 @@
  * - Request logging for audit trails
  * - Secure token generation for delivery links
  * - SQL injection prevention via parameterized queries
+ * - Sentry error monitoring (Layer 3)
+ * - Langfuse LLM observability (Layer 4)
  */
+
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'development',
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  beforeSend(event) {
+    // Strip sensitive fields before sending to Sentry
+    if (event.request?.headers) {
+      delete event.request.headers['authorization'];
+      delete event.request.headers['x-twilio-signature'];
+    }
+    return event;
+  },
+});
 
 import express from 'express';
 import cors from 'cors';
@@ -35,7 +53,7 @@ import {
 } from './middleware/security.js';
 import createUploadRoutes from './routes/upload.routes.js';
 import createWhatsAppRoutes from './routes/whatsapp.routes.js';
-import { verifyConnection as verifyNeo4j } from './knowledge-graph/neo4j-client.js';
+import { verifyConnection as verifyNeo4j, startKeepAlive as startNeo4jKeepAlive } from './knowledge-graph/neo4j-client.js';
 
 dotenv.config();
 
@@ -540,6 +558,9 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
+// Sentry error handler (must be before custom error handler)
+Sentry.setupExpressErrorHandler(app);
+
 // Global error handler (doesn't leak internal details)
 app.use(errorHandler);
 
@@ -556,7 +577,10 @@ app.listen(PORT, async () => {
   // Verify Knowledge Graph dependencies at startup
   try {
     await verifyNeo4j();
+    startNeo4jKeepAlive();
   } catch (err) {
     console.error('⚠️ Neo4j connection check failed at startup:', err.message);
+    // Start keep-alive anyway so it can reconnect when Neo4j comes back
+    startNeo4jKeepAlive();
   }
 });

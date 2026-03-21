@@ -1,7 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { Langfuse } from 'langfuse';
 import 'dotenv/config';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const langfuse = new Langfuse({
+  secretKey: process.env.LANGFUSE_SECRET_KEY,
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  baseUrl: process.env.LANGFUSE_BASEURL || 'https://cloud.langfuse.com',
+  flushAt: 1,
+});
 
 // ============================================================================
 // EMOJI PRE-PROCESSING
@@ -97,6 +105,7 @@ Intent types:
 - "collection_delegate" — Someone else will collect ("my sister Funke will collect", "my husband will pick it up")
 - "cancel_order" — Explicitly cancelling ("cancel my order", "cancel everything", "never mind")
 - "general_query" — Not an order (wrong number, payment question, "can I pay tomorrow?", "is this still Isha's?")
+- "time_based_order" — References a past order by time ("same as last week", "reorder from 2 weeks ago", "same as December")
 - "greeting" — Just saying hello
 
 Response format:
@@ -130,6 +139,7 @@ Rules:
 - "How much is X?" → ALWAYS price_enquiry, never new_order
 - "How much is everything so far?" / "What's my total?" → running_total
 - "The usual" / "same as" / "again" / "reorder" → reorder, requires_knowledge_graph: true
+- "Same as last week" / "reorder from 2 weeks ago" / "same as December" → time_based_order, requires_knowledge_graph: true, context_clues.references_time: "last week"
 - "Same as last week but add palm oil" / "the usual but no onions" → reorder_modify (reorder + modification in one message)
   Set requires_knowledge_graph: true, include context_clues for the reorder part, AND include modification/modifications for the changes.
 - "My mum's order" → reorder, references_person: "mother"
@@ -219,6 +229,20 @@ export function regexFallbackClassify(messageText) {
   // Greeting
   if (/^(hi|hello|hey|good\s*(morning|afternoon|evening)|yo|sup)\b/i.test(lower)) {
     return { ...FALLBACK_RESULT, intent: 'greeting', confidence: 0.7 };
+  }
+
+  // Time-based order: "same as last week", "reorder from 2 weeks ago"
+  const TIME_TERMS = /same as (last week|last month|yesterday|\d+ weeks? ago|january|february|march|april|may|june|july|august|september|october|november|december)|reorder from/i;
+  const timeMatch = lower.match(TIME_TERMS);
+  if (timeMatch) {
+    const timeRef = timeMatch[1] || 'last week';
+    return {
+      ...FALLBACK_RESULT,
+      intent: 'time_based_order',
+      context_clues: { ...FALLBACK_RESULT.context_clues, references_time: timeRef },
+      requires_knowledge_graph: true,
+      confidence: 0.7,
+    };
   }
 
   // Cancel order
@@ -344,7 +368,15 @@ export async function classifyMessage(messageText) {
   const { processed, hadEmoji } = preprocessMessage(messageText);
   const textToClassify = hadEmoji ? processed : messageText;
 
+  const trace = langfuse.trace({ name: 'intent-classification', input: textToClassify });
+
   try {
+    const generation = trace.generation({
+      name: 'classify-intent',
+      model: 'claude-sonnet-4-20250514',
+      input: [{ role: 'user', content: textToClassify }],
+    });
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
@@ -356,6 +388,15 @@ export async function classifyMessage(messageText) {
     const text = response.content[0].text.trim();
     const result = JSON.parse(text);
 
+    generation.end({
+      output: result,
+      usage: {
+        input: response.usage?.input_tokens,
+        output: response.usage?.output_tokens,
+      },
+    });
+    trace.update({ output: result.intent });
+
     // Tag if emoji preprocessing was used
     if (hadEmoji) {
       result._preprocessed = true;
@@ -364,6 +405,8 @@ export async function classifyMessage(messageText) {
 
     return result;
   } catch (err) {
+    trace.update({ output: err.message, level: 'ERROR' });
+
     if (err instanceof SyntaxError) {
       console.error('[intent-classifier] Malformed JSON from Claude:', err.message);
     } else {
@@ -374,6 +417,10 @@ export async function classifyMessage(messageText) {
     console.log('[intent-classifier] Falling back to regex classifier');
     const fallback = regexFallbackClassify(textToClassify);
     fallback._fallback = true;
+    // Tag rate-limit fallbacks so callers can retry
+    if (err.status === 429 || (err.message && err.message.includes('rate_limit_error'))) {
+      fallback._rateLimited = true;
+    }
     return fallback;
   }
 }

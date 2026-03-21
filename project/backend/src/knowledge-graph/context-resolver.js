@@ -189,7 +189,7 @@ export async function resolveTimeBasedOrder(phone, timeRef, productFilter = null
     const filterTerm = productFilter.toLowerCase().trim();
     const records = await runQuery(`
       MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order)
-      WHERE o.created_at >= $start AND o.created_at <= $end
+      WHERE o.created_at >= datetime($start) AND o.created_at <= datetime($end)
       WITH o ORDER BY o.created_at DESC
       MATCH (o)-[r:CONTAINS]->(p:Product)
       WHERE toLower(p.name) CONTAINS toLower($filterTerm)
@@ -223,7 +223,7 @@ export async function resolveTimeBasedOrder(phone, timeRef, productFilter = null
 
   const records = await runQuery(`
     MATCH (c:Customer {phone: $phone})-[:PLACED]->(o:Order)
-    WHERE o.created_at >= $start AND o.created_at <= $end
+    WHERE o.created_at >= datetime($start) AND o.created_at <= datetime($end)
     WITH o ORDER BY o.created_at DESC LIMIT 1
     MATCH (o)-[r:CONTAINS]->(p:Product)
     RETURN o.id AS orderId, o.created_at AS orderDate,
@@ -420,7 +420,79 @@ export async function resolvePreferenceUpdate(phone, productName, feedback) {
   `, { phone, term });
 
   if (prefRecords.length === 0) {
-    return { updated: false, explanation: `No preference found for "${productName}"` };
+    // No existing PREFERS edge — find the product and CREATE a new preference
+    const productRecords = await runQuery(`
+      MATCH (p:Product)
+      WHERE toLower(p.name) CONTAINS $term
+      RETURN p.id AS id, p.name AS name, p.price AS price, p.category AS category
+      ORDER BY p.price ASC LIMIT 1
+    `, { term });
+
+    if (productRecords.length === 0) {
+      return { updated: false, explanation: `No product found for "${productName}"` };
+    }
+
+    const product = {
+      id: productRecords[0].get('id'),
+      name: productRecords[0].get('name'),
+      price: toNum(productRecords[0].get('price')),
+      category: productRecords[0].get('category'),
+    };
+
+    // Determine direction from feedback to decide which size to prefer
+    const upgrading = /too small|too little|not enough|bigger|larger|more/.test(feedbackLower);
+    const downgrading = /too big|too much|too large|smaller|less/.test(feedbackLower);
+
+    // Find alternates sorted by price
+    let targetProduct = product;
+    if (upgrading || downgrading) {
+      const alternates = await runQuery(`
+        MATCH (p:Product)
+        WHERE p.category = $category AND toLower(p.name) CONTAINS $term
+        RETURN p.id AS id, p.name AS name, p.price AS price
+        ORDER BY p.price ASC
+      `, { category: product.category, term });
+
+      const sorted = alternates.map(r => ({
+        id: r.get('id'),
+        name: r.get('name'),
+        price: toNum(r.get('price')),
+      }));
+
+      const currentIdx = sorted.findIndex(p => p.id === product.id);
+      if (currentIdx >= 0) {
+        const targetIdx = upgrading ? currentIdx + 1 : currentIdx - 1;
+        if (targetIdx >= 0 && targetIdx < sorted.length) {
+          targetProduct = sorted[targetIdx];
+        }
+      }
+    }
+
+    // CREATE the PREFERS edge
+    const sizeMatch = targetProduct.name.match(/(\d+(?:\.\d+)?(?:kg|g|L|l|ml))/i);
+    const newSize = sizeMatch ? sizeMatch[1] : null;
+
+    await runWrite(`
+      MATCH (c:Customer {phone: $phone}), (p:Product {id: $productId})
+      MERGE (c)-[pref:PREFERS]->(p)
+      SET pref.frequency = 'monthly',
+          pref.typical_quantity = 1,
+          pref.preferred_size = $newSize,
+          pref.last_ordered = $now
+    `, {
+      phone,
+      productId: targetProduct.id,
+      newSize: newSize || null,
+      now: new Date().toISOString(),
+    });
+
+    return {
+      updated: true,
+      previous: { name: product.name, size: null, price: product.price },
+      current: { name: targetProduct.name, size: newSize, price: targetProduct.price },
+      source: 'preference_update',
+      explanation: `Created preference for ${targetProduct.name}`,
+    };
   }
 
   const current = {
@@ -523,13 +595,12 @@ export async function resolveMealOrder(mealName, servings, phone = null) {
   }
 
   const baseServings = toNum(records[0].get('baseServings'));
-  const scale = servings / baseServings;
   const emoji = records[0].get('emoji');
   const meal = records[0].get('meal');
 
   const items = records.map(r => ({
     name: r.get('name'),
-    quantity: Math.round(toNum(r.get('qtyPerServing')) * scale * 100) / 100,
+    quantity: Math.round(toNum(r.get('qtyPerServing')) * servings * 100) / 100,
     unit: r.get('unit'),
     price: toNum(r.get('price')),
     category: r.get('category'),
@@ -569,7 +640,7 @@ export async function resolveMealOrder(mealName, servings, phone = null) {
   // Remove category from final items (internal field)
   const finalItems = items.map(({ category, ...rest }) => rest);
 
-  let explanation = `${emoji} ${meal} for ${servings} (scaled ${scale}x from ${baseServings} servings)`;
+  let explanation = `${emoji} ${meal} for ${servings} (${servings} servings, base recipe serves ${baseServings})`;
   if (substitutions.length > 0) {
     explanation += `\nSubstituted: ${substitutions.join(', ')}`;
   }
@@ -761,7 +832,8 @@ export async function resolveContext(phone, clues) {
   // Meal order (check first - most specific)
   // Accept both "servings" and "serving_size" for backwards compatibility
   if (clues.references_meal) {
-    const servings = clues.servings || clues.serving_size || 4;
+    const rawServings = clues.servings || clues.serving_size || 4;
+    const servings = typeof rawServings === 'string' ? parseInt(rawServings, 10) || 4 : rawServings;
     // Pass phone for preference-aware substitutions when flagged
     const mealPhone = clues.preference_aware ? phone : null;
     return resolveMealOrder(clues.references_meal, servings, mealPhone);

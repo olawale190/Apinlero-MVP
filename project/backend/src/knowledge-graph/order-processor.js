@@ -1007,7 +1007,7 @@ async function handleConfirming(session, phone, messageText, intent, classificat
   if (isConfirmation(messageText)) {
     try {
       // Save to Neo4j
-      const { orderId } = await saveOrderToGraph(phone, cart);
+      const { orderId } = await saveOrderToGraph(phone, cart, session.context || {});
 
       // Generate Stripe payment link (non-blocking if it fails)
       const total = calcTotal(cart);

@@ -135,6 +135,36 @@ function sameWords(a, b) {
 }
 
 /**
+ * Step 1.5: Substring/contains match — product name starts with or contains the term
+ * Ordered: starts-with first (higher confidence), then contains.
+ */
+async function containsMatch(term) {
+  const records = await runQuery(`
+    MATCH (p:Product)
+    WHERE toLower(p.name) STARTS WITH $term
+       OR toLower(p.name) CONTAINS $term
+    RETURN p.name AS name,
+           p.price AS price,
+           p.category AS category,
+           p.stock_quantity AS stock,
+           CASE WHEN toLower(p.name) STARTS WITH $term THEN 'starts_with' ELSE 'contains' END AS match_sub
+  `, { term });
+
+  return records
+    .map(r => ({
+      product: r.get('name'),
+      price: r.get('price'),
+      category: r.get('category'),
+      stock: r.get('stock'),
+      match_type: 'contains',
+      matched_on: r.get('name'),
+      confidence: r.get('match_sub') === 'starts_with' ? 0.88 : 0.80,
+      _sub: r.get('match_sub'),
+    }))
+    .sort((a, b) => b.confidence - a.confidence);
+}
+
+/**
  * Step 2: Match on aliases array elements (exact or word-reordered)
  */
 async function aliasMatch(term) {
@@ -383,6 +413,10 @@ export async function searchProduct(query) {
   // Step 1: Exact name match
   const exact = await exactNameMatch(term);
   if (exact.length > 0) return exact;
+
+  // Step 1.5: Contains/substring match
+  const contains = await containsMatch(term);
+  if (contains.length > 0) return contains;
 
   // Step 2: Alias array match + Alias node match
   const aliases = await aliasMatch(term);
