@@ -66,7 +66,7 @@ export async function sendWhatsAppMessage(to, body) {
 export function parseTwilioWebhook(body) {
   // Extract phone number from From field (format: "whatsapp:+1234567890")
   const rawFrom = body.From || '';
-  const phoneNumber = rawFrom.replace('whatsapp:', '').trim();
+  const phoneNumber = rawFrom.replace('whatsapp:', '').replace(/\s/g, '').trim();
 
   return {
     from: body.From, // Format: whatsapp:+1234567890
@@ -76,7 +76,7 @@ export function parseTwilioWebhook(body) {
     numMedia: parseInt(body.NumMedia || '0'),
     profileName: body.ProfileName || null, // WhatsApp profile name
     // Clean phone number (keep + prefix, just remove 'whatsapp:')
-    phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`,
+    phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber.replace(/\s/g, '')}`,
     timestamp: new Date().toISOString()
   };
 }
