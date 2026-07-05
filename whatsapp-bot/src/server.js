@@ -18,7 +18,7 @@ import {
 import { handleIncomingMessage, handlePaymentSucceeded } from './message-handler.js';
 import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
 import { checkKGDependencies } from './kg-preprocessor.js';
-import { constructWebhookEvent, stripeEnabled } from './payments.js';
+import { constructWebhookEvent, peekEventBusinessId } from './payments.js';
 
 dotenv.config();
 
@@ -47,7 +47,11 @@ const app = express();
 // ============================================================================
 app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   const signature = req.headers['stripe-signature'];
-  const { event, error } = constructWebhookEvent(req.body, signature);
+
+  // Read the business_id from the (unverified) payload so we know whose
+  // webhook secret to verify against, then verify properly.
+  const businessId = peekEventBusinessId(req.body) || DEFAULT_BUSINESS_ID;
+  const { event, error } = await constructWebhookEvent(req.body, signature, businessId);
 
   if (error) {
     console.warn('[stripe] webhook verification failed:', error);

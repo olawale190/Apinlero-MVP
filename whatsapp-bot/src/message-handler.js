@@ -38,7 +38,7 @@ import {
   availabilityState
 } from './stock.js';
 import { getBusinessOwnerPhone, sendVendorMessage } from './vendor-notify.js';
-import { createCheckoutSession, stripeEnabled } from './payments.js';
+import { createCheckoutSession } from './payments.js';
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';

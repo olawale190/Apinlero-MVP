@@ -370,6 +370,35 @@ export async function getOrderByPhone(phone, businessId) {
  * @returns {Promise<Object|null>} Order object or null
  */
 /**
+ * Load a business's Stripe configuration (per-vendor keys).
+ * Each vendor's own Stripe keys live on their businesses row, so payments
+ * route to the correct merchant. Returns null if not configured.
+ *
+ * NOTE: stripe_secret_key_encrypted currently holds a PLAINTEXT key in the
+ * pilot data — see memory note. Read it as-is; encryption is a pre-live task.
+ */
+export async function getBusinessStripe(businessId) {
+  if (!businessId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('stripe_secret_key_encrypted, stripe_publishable_key, stripe_account_id, stripe_webhook_secret')
+      .eq('id', businessId)
+      .single();
+    if (error || !data) return null;
+    return {
+      secretKey: data.stripe_secret_key_encrypted || null,
+      publishableKey: data.stripe_publishable_key || null,
+      accountId: data.stripe_account_id || null,
+      webhookSecret: data.stripe_webhook_secret || null,
+    };
+  } catch (err) {
+    console.warn('[stripe] getBusinessStripe failed:', err.message);
+    return null;
+  }
+}
+
+/**
  * Fetch a single order by its internal id (uuid).
  */
 export async function getOrderById(orderId) {
