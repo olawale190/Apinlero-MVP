@@ -26,7 +26,8 @@ import {
   uploadMedia,
   logMediaFile,
   getRecentConversation,
-  transitionOrder
+  transitionOrder,
+  getTwilioNumberForBusiness
 } from './supabase-client.js';
 import { humanizeResponse } from './response-humanizer.js';
 import { STATUS, customerUpdateForStatus, statusLabel } from './order-status.js';
@@ -164,8 +165,18 @@ function getSessionKey(phone, businessId = null) {
  * @param {string|null} customerName - Customer name from WhatsApp profile
  * @param {string|null} businessId - Business ID for multi-tenant mode
  */
-async function getConversation(phone, customerName = null, businessId = null) {
+async function getConversation(phone, customerName = null, businessId = null, businessConfig = {}) {
   const cacheKey = getSessionKey(phone, businessId);
+
+  // Per-vendor branding — transient, always refreshed from the current request
+  // (never persisted in the session row). Defaults keep single-vendor behavior.
+  const brand = {
+    business: {
+      name: businessConfig.businessName || null,
+      storefrontUrl: businessConfig.storefrontUrl || null,
+    },
+    twilioNumber: businessConfig.twilioNumber || null,
+  };
 
   // Check cache first
   let conversation = sessionCache.get(cacheKey);
@@ -178,6 +189,8 @@ async function getConversation(phone, customerName = null, businessId = null) {
   if (conversation) {
     conversation.lastActivity = Date.now();
     conversation.businessId = businessId; // Ensure businessId is set
+    conversation.business = brand.business;
+    conversation.twilioNumber = brand.twilioNumber;
     sessionCache.set(cacheKey, conversation);
     return conversation;
   }
@@ -189,6 +202,8 @@ async function getConversation(phone, customerName = null, businessId = null) {
   conversation = {
     phone,
     businessId,
+    business: brand.business,
+    twilioNumber: brand.twilioNumber,
     state: 'INITIAL',
     pendingOrder: null,
     lastActivity: Date.now(),
@@ -347,6 +362,9 @@ async function handleIncomingMessageCore({
   messageId,
   provider = 'twilio',
   businessId = null,
+  businessName = null,
+  storefrontUrl = null,
+  twilioNumber = null,
   buttonId = null,
   listId = null,
   mediaId = null,
@@ -360,8 +378,12 @@ async function handleIncomingMessageCore({
   const sanitizedButtonId = buttonId ? sanitizeMessage(buttonId) : null;
   const sanitizedListId = listId ? sanitizeMessage(listId) : null;
 
-  // Get conversation with business context
-  const conversation = await getConversation(sanitizedFrom, sanitizedName, businessId);
+  // Get conversation with business context (name/storefront/sender for per-vendor branding)
+  const conversation = await getConversation(sanitizedFrom, sanitizedName, businessId, {
+    businessName,
+    storefrontUrl,
+    twilioNumber,
+  });
 
   // Handle media messages (images, audio, video, documents)
   let mediaResult = null;
@@ -539,22 +561,57 @@ async function handleIncomingMessageCore({
       return response;
     }
 
-    // AWAITING_PAYMENT: card only. The customer pays via the Stripe link;
-    // any message here just nudges them back to it (unless they start a new
-    // order or cancel, handled by normal routing below).
+    // AWAITING_PAYMENT: card only. The customer pays via the Stripe link.
+    // But they can also cancel the unpaid order, or just start a new one —
+    // in both cases we release the old order's stock and close its DB row.
     if (conversation.state === 'AWAITING_PAYMENT') {
-      // Let "cancel" / new order fall through to normal handling
-      if (!isPositiveResponse(text) && parsed.intent !== 'NEW_ORDER' && parsed.intent !== 'CANCEL') {
-        response = await handleReprompayPayment(from, conversation, businessId);
-        await logMessage(from, 'outbound', response.text, 'REPROMPT_PAY', conversation.lastOrderId, businessId);
+      // Cancel the unpaid order. Note: the bare word "cancel" is classified as
+      // DECLINE by the parser, so accept both intents plus explicit phrases.
+      const wantsCancel = parsed.intent === 'CANCEL'
+        || parsed.intent === 'DECLINE'
+        || /\b(cancel|forget it|never\s*mind|stop|abort|scrap (it|that))\b/i.test(messageText);
+
+      // Start a fresh order (new items, or an explicit "new order"/"start over")
+      const wantsNewOrder = (parsed.intent === 'NEW_ORDER' && parsed.items && parsed.items.length > 0)
+        || parsed.intent === 'START_ORDER'
+        || /\b(new order|start over|start again|order (something )?(else|new)|another order)\b/i.test(messageText);
+
+      if (wantsCancel && !wantsNewOrder) {
+        await releaseUnpaidOrder(conversation);
+        await clearConversation(from, businessId);
+        response = generateResponse('ORDER_CANCELLED');
+        await logMessage(from, 'outbound', response.text, 'CANCEL', conversation.lastOrderId, businessId);
         return response;
       }
-      // A bare "yes"/"ok" here means "yes I'll pay" → resend the link
-      if (isPositiveResponse(text)) {
-        response = await handleReprompayPayment(from, conversation, businessId);
-        await logMessage(from, 'outbound', response.text, 'REPROMPT_PAY', conversation.lastOrderId, businessId);
+
+      if (wantsNewOrder) {
+        // Free the old unpaid order, then start fresh from a clean slate.
+        await releaseUnpaidOrder(conversation);
+        await updateConversation(from, {
+          state: 'INITIAL',
+          pendingOrder: null,
+          lastOrderId: null,
+          lastOrderItems: null,
+          context: {
+            ...(conversation.context || {}),
+            unpaidOrderId: null,
+            unpaidOrderItems: null,
+          },
+        }, businessId);
+        const fresh = await getConversation(from, customerName, businessId);
+        if (parsed.intent === 'START_ORDER') {
+          response = await handleStartOrder(fresh);
+        } else {
+          response = await handleNewOrder(from, customerName, parsed, fresh);
+        }
+        await logMessage(from, 'outbound', response.text, 'NEW_ORDER', null, businessId);
         return response;
       }
+
+      // Anything else (incl. a bare "yes") → re-send the payment link.
+      response = await handleReprompayPayment(from, conversation, businessId);
+      await logMessage(from, 'outbound', response.text, 'REPROMPT_PAY', conversation.lastOrderId, businessId);
+      return response;
     }
 
     // AWAITING_ADDRESS: Accept the delivery address from any message.
@@ -1249,7 +1306,13 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
-      lastOrderId: createdOrder.id
+      lastOrderId: createdOrder.id,
+      lastOrderItems: pendingOrder.items,
+      context: {
+        ...(conversation.context || {}),
+        unpaidOrderId: createdOrder.id,
+        unpaidOrderItems: pendingOrder.items,
+      },
     }, conversation.businessId);
 
     if (!payUrl) return generateResponse('PAYMENT_LINK_FAILED', { ref });
@@ -1451,12 +1514,19 @@ async function handleConfirmation(phone, customerName, conversation) {
       customerPhone: phone,
     });
 
-    // Update conversation state
+    // Update conversation state. Persist the order id + items INSIDE context
+    // (context is saved to the DB; top-level fields are cache-only) so we can
+    // release stock / cancel the order even after a cache miss.
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
       lastOrderId: createdOrder.id,
-      lastOrderItems: order.items // kept so we can release stock if abandoned
+      lastOrderItems: order.items,
+      context: {
+        ...(conversation.context || {}),
+        unpaidOrderId: createdOrder.id,
+        unpaidOrderItems: order.items,
+      },
     }, conversation.businessId);
 
     if (!payUrl) {
@@ -1755,9 +1825,10 @@ export async function handlePaymentSucceeded({ orderId, ref, businessId, custome
     if (order.phone_number) {
       const to = order.phone_number.startsWith('whatsapp:')
         ? order.phone_number : `whatsapp:${order.phone_number}`;
-      const receipt = `Payment received — thank you! 💚 Order #${orderRef} is confirmed. Isha's getting it ready and I'll keep you posted every step of the way.`;
+      const vendorNumber = await getTwilioNumberForBusiness(order.business_id || businessId);
+      const receipt = `Payment received — thank you! 💚 Order #${orderRef} is confirmed. Your order is being prepared and I'll keep you posted every step of the way.`;
       try {
-        await sendWhatsAppMessage(to, receipt);
+        await sendWhatsAppMessage(to, receipt, vendorNumber || undefined);
         await logMessage(order.phone_number, 'outbound', receipt, 'PAYMENT_RECEIPT', order.id, order.business_id);
       } catch (err) {
         console.warn('[stripe] receipt send failed:', err.message);
@@ -1817,7 +1888,8 @@ export async function advanceOrderAndNotify(orderId, toStatus, opts = {}) {
       const to = order.phone_number.startsWith('whatsapp:')
         ? order.phone_number
         : `whatsapp:${order.phone_number}`;
-      await sendWhatsAppMessage(to, msg);
+      const vendorNumber = await getTwilioNumberForBusiness(order.business_id);
+      await sendWhatsAppMessage(to, msg, vendorNumber || undefined);
       await logMessage(order.phone_number, 'outbound', msg, `STATUS_${toStatus.toUpperCase()}`, order.id, order.business_id);
     } catch (err) {
       console.warn('[status-update] customer notify failed:', err.message);
@@ -1876,9 +1948,45 @@ async function handleOrderStatus(phone, businessId, orderRef = null) {
 }
 
 /**
- * Handle cancellation request
+ * Cleanly abandon the customer's current unpaid order:
+ *  - mark the DB order row `cancelled` (only if still pending — the state
+ *    machine rejects cancelling a paid/delivered order, so this is safe)
+ *  - return the reserved stock to the shelf
+ * Best-effort: any failure is logged but never blocks the customer.
+ */
+async function releaseUnpaidOrder(conversation) {
+  // Prefer the persisted context fields (survive a cache miss), fall back to
+  // the cache-only top-level fields.
+  const orderId = conversation.context?.unpaidOrderId || conversation.lastOrderId;
+  if (!orderId) return;
+
+  // Mark the order cancelled in the DB
+  try {
+    const result = await transitionOrder(orderId, STATUS.CANCELLED);
+    if (!result.ok && result.reason && !result.reason.startsWith('invalid_transition')) {
+      console.warn('[cancel] transitionOrder:', result.reason);
+    }
+  } catch (err) {
+    console.warn('[cancel] failed to cancel order row:', err.message);
+  }
+
+  // Return reserved stock
+  try {
+    const items = conversation.context?.unpaidOrderItems
+      || conversation.lastOrderItems
+      || [];
+    if (items.length > 0) await releaseStock(items);
+  } catch (err) {
+    console.warn('[cancel] failed to release stock:', err.message);
+  }
+}
+
+/**
+ * Handle cancellation request — releases stock + closes the pending order,
+ * then clears the conversation. Works from any state.
  */
 async function handleCancel(conversation) {
+  await releaseUnpaidOrder(conversation);
   await clearConversation(conversation.phone, conversation.businessId);
   return generateResponse('CANCELLED');
 }

@@ -157,9 +157,7 @@ What would you like to change?
   ORDER_CANCELLED: () => ({
     text: `No worries, I've cancelled that for you! 👍
 
-Feel free to place a new order whenever you're ready.
-
-Browse our products: ishas-treat.apinlero.com`,
+Want to order something else? Just tell me what you need — like "2 palm oil" or "do you have egusi?" 😊`,
     buttons: ['📦 New Order', '📋 View Catalog']
   }),
 
