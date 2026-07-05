@@ -24,9 +24,19 @@ import {
   getLastOrder,
   uploadMedia,
   logMediaFile,
-  getRecentConversation
+  getRecentConversation,
+  transitionOrder
 } from './supabase-client.js';
 import { humanizeResponse } from './response-humanizer.js';
+import { STATUS, customerUpdateForStatus, statusLabel } from './order-status.js';
+import { sendWhatsAppMessage } from './twilio-service.js';
+import {
+  checkStock,
+  reserveStock,
+  releaseStock,
+  availabilityState
+} from './stock.js';
+import { getBusinessOwnerPhone, sendVendorMessage } from './vendor-notify.js';
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';
@@ -547,20 +557,47 @@ async function handleIncomingMessageCore({
       return response;
     }
 
-    // AWAITING_ADDRESS: Try to extract address/postcode from any message
+    // AWAITING_ADDRESS: Accept the delivery address from any message.
+    // A UK postcode lets us price delivery exactly; without one we still
+    // accept a free-text address so the customer is never trapped in a loop.
     if (conversation.state === 'AWAITING_ADDRESS') {
       const { parseAddress } = await import('./message-parser.js');
       const addressParsed = parseAddress(text);
+      const cleanText = (text || '').trim();
+
+      // Case 1: we found a postcode → exact delivery zone, proceed normally
       if (addressParsed.postcode) {
-        // Has postcode - continue with order using existing pending order data
         parsed.postcode = addressParsed.postcode;
-        parsed.address = addressParsed.address || text;
+        parsed.address = addressParsed.address || cleanText;
         parsed.items = conversation.pendingOrder?.items || parsed.items;
         response = await handleNewOrder(from, customerName, parsed, conversation);
         await logMessage(from, 'outbound', response.text, 'ADDRESS_PROVIDED', conversation.lastOrderId, businessId);
         return response;
       }
-      // Re-prompt for address
+
+      // Case 2: no postcode, but the message looks like a real address
+      // (has a number + a few words) → accept it and confirm delivery cost later
+      const looksLikeAddress = /\d/.test(cleanText) && cleanText.split(/\s+/).length >= 3;
+      const addressAttempts = (conversation.context?.addressAttempts || 0) + 1;
+
+      if (looksLikeAddress || addressAttempts >= 2) {
+        parsed.postcode = null;
+        parsed.address = addressParsed.address || cleanText;
+        parsed.items = conversation.pendingOrder?.items || parsed.items;
+        parsed.deliveryZone = getDeliveryZone(null); // default/unknown zone
+        // Clear the attempt counter for a clean slate
+        await updateConversation(from, {
+          context: { ...(conversation.context || {}), addressAttempts: 0 }
+        }, businessId);
+        response = await handleNewOrder(from, customerName, parsed, conversation);
+        await logMessage(from, 'outbound', response.text, 'ADDRESS_PROVIDED', conversation.lastOrderId, businessId);
+        return response;
+      }
+
+      // Case 3: first vague attempt → ask once more, tracking the attempt
+      await updateConversation(from, {
+        context: { ...(conversation.context || {}), addressAttempts }
+      }, businessId);
       response = generateResponse('REPROMPT_ADDRESS', {
         items: conversation.pendingOrder?.items || [],
         subtotal: conversation.pendingOrder?.subtotal || 0
@@ -851,6 +888,8 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const orderItems = [];
   const notFound = [];
   const notFoundItems = [];
+  const outOfStock = [];   // products the customer asked for but we have none of
+  const capped = [];       // products where we reduced the qty to what's in stock
 
   for (const item of items) {
     const itemName = (item.product || item.name || '').toString().trim();
@@ -860,18 +899,46 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
                     products.find(p => p.name && p.name.toLowerCase().includes(itemName.toLowerCase()));
 
     if (product) {
+      // Stock enforcement (vendor sets stock up front; we never oversell)
+      const state = availabilityState(product);
+      const requestedQty = Number(item.quantity) || 1;
+      const inStock = Number(product.stock_quantity ?? 0);
+
+      if (state === 'out_of_stock') {
+        outOfStock.push(product.name);
+        continue; // don't add an unavailable item
+      }
+
+      let qty = requestedQty;
+      if (requestedQty > inStock) {
+        qty = inStock; // cap to what we actually have
+        capped.push({ name: product.name, requested: requestedQty, available: inStock });
+      }
+
       orderItems.push({
         product_id: product.id,
         product_name: product.name,
-        quantity: item.quantity,
+        quantity: qty,
         unit: item.unit,
         price: penceToPounds(product.price),
-        subtotal: penceToPounds(product.price) * item.quantity
+        subtotal: penceToPounds(product.price) * qty
       });
     } else {
       notFound.push(itemName);
       notFoundItems.push({ ...item, product: itemName });
     }
+  }
+
+  // If everything the customer asked for is out of stock, say so with alternatives
+  if (orderItems.length === 0 && outOfStock.length > 0) {
+    const alt = findClosestProduct(
+      products.filter(p => availabilityState(p) !== 'out_of_stock'),
+      outOfStock[0]
+    );
+    return generateResponse('OUT_OF_STOCK', {
+      products: outOfStock,
+      suggestion: alt ? alt.product.name : null
+    });
   }
 
   if (orderItems.length === 0) {
@@ -1077,6 +1144,9 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const suggestions = getSuggestedProducts(orderItems);
   const suggestionText = generateSuggestionMessage(suggestions);
 
+  // Build a stock note (quantity capped / some items out of stock)
+  const stockNote = buildStockNote(capped, outOfStock);
+
   // For complete orders, show quick confirmation
   if (isComplete) {
     return generateResponse('QUICK_CONFIRM', {
@@ -1086,7 +1156,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
       total: pendingOrder.total,
       address: finalAddress,
       deliveryZone: pendingOrder.deliveryZone,
-      suggestions: suggestionText
+      suggestions: (suggestionText || '') + stockNote
     });
   }
 
@@ -1099,8 +1169,37 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
     address: finalAddress,
     deliveryZone: pendingOrder.deliveryZone,
     notFound: notFound.length > 0 ? notFound : null,
-    suggestions: suggestionText
+    suggestions: (suggestionText || '') + stockNote
   });
+}
+
+/**
+ * Alert the vendor when products drop into low stock after an order.
+ */
+async function notifyVendorLowStock(businessId, lowStockItems) {
+  try {
+    const lines = lowStockItems
+      .map(i => `• ${i.name} — ${i.remaining} left`)
+      .join('\n');
+    const msg = `⚠️ *Low stock alert*\n\nThese are running low:\n${lines}\n\nReply "restock <product> <qty>" to top up, e.g. "restock palm oil 20".`;
+    await sendVendorMessage(businessId, msg);
+  } catch (err) {
+    console.warn('[low-stock] vendor alert failed:', err.message);
+  }
+}
+
+/**
+ * Build a short note about stock adjustments to append to a confirmation.
+ */
+function buildStockNote(capped = [], outOfStock = []) {
+  let note = '';
+  for (const c of capped) {
+    note += `\n\n⚠️ We only have ${c.available} of ${c.name} left, so I've set it to ${c.available}.`;
+  }
+  if (outOfStock.length > 0) {
+    note += `\n\n😔 Out of stock right now: ${outOfStock.join(', ')}.`;
+  }
+  return note;
 }
 
 /**
@@ -1118,7 +1217,7 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
       delivery_address: pendingOrder.address,
       delivery_method: 'delivery',
       channel: 'WhatsApp',
-      status: 'Pending',
+      status: STATUS.PENDING,
       payment_method: 'pending',
       notes: `Auto-confirmed | Postcode: ${pendingOrder.postcode || 'Saved'}`,
       customer_id: conversation.customerId
@@ -1281,6 +1380,20 @@ async function handleConfirmation(phone, customerName, conversation) {
   const order = conversation.pendingOrder;
 
   try {
+    // Reserve stock atomically BEFORE creating the order, so we never
+    // oversell the last unit while the customer is confirming/paying.
+    const reservation = await reserveStock(order.items);
+    if (!reservation.ok) {
+      // Something sold out between building and confirming the order
+      const soldOut = reservation.failed
+        .map(f => order.items.find(i => i.product_id === f.product_id)?.product_name)
+        .filter(Boolean);
+      return generateResponse('OUT_OF_STOCK', {
+        products: soldOut.length ? soldOut : ['one of your items'],
+        suggestion: null
+      });
+    }
+
     // Create order in Supabase
     const createdOrder = await createOrder({
       customer_name: customerName,
@@ -1292,28 +1405,36 @@ async function handleConfirmation(phone, customerName, conversation) {
       delivery_address: order.address,
       delivery_method: 'delivery',
       channel: 'WhatsApp',
-      status: 'Pending',
+      status: STATUS.PENDING,
       payment_method: 'pending',
       notes: `Postcode: ${order.postcode || 'Not provided'}`,
       customer_id: conversation.customerId
     }, conversation.businessId);
 
+    // Alert the vendor about any product that just crossed into "low stock"
+    if (reservation.lowStock.length > 0) {
+      await notifyVendorLowStock(conversation.businessId, reservation.lowStock);
+    }
+
     // Update conversation state
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
-      lastOrderId: createdOrder.id
+      lastOrderId: createdOrder.id,
+      lastOrderItems: order.items // kept so we can release stock if abandoned
     }, conversation.businessId);
 
     return generateResponse('ORDER_CONFIRMED', {
-      orderId: createdOrder.id,
+      orderId: createdOrder.order_number || createdOrder.id,
       total: order.total,
       address: order.address,
-      deliveryEstimate: order.deliveryZone.estimatedDelivery
+      deliveryEstimate: order.deliveryZone?.estimatedDelivery || '2-3 days'
     });
 
   } catch (error) {
     console.error('Failed to create order:', error);
+    // Best-effort: put reserved stock back if order creation failed
+    try { await releaseStock(order.items); } catch (_) {}
     return generateResponse('ORDER_FAILED');
   }
 }
@@ -1551,6 +1672,43 @@ function handleBusinessHours(isOpen) {
 }
 
 /**
+ * Advance an order to a new status and automatically notify the customer
+ * on WhatsApp. This is the single seam used by the vendor commands (3c),
+ * the Stripe payment webhook (3d), and any admin action.
+ *
+ * @param {string} orderId
+ * @param {string} toStatus - one of STATUS.*
+ * @param {Object} opts - { reason, eta } optional extras for the message
+ * @returns {Promise<{ok, order, reason}>}
+ */
+export async function advanceOrderAndNotify(orderId, toStatus, opts = {}) {
+  const result = await transitionOrder(orderId, toStatus);
+  if (!result.ok) return result;
+
+  const order = result.order;
+  const msg = customerUpdateForStatus(toStatus, {
+    orderRef: order.order_number || String(order.id).slice(0, 8).toUpperCase(),
+    eta: opts.eta || order.estimated_delivery || null,
+    customerName: order.customer_name || null,
+    reason: opts.reason || null,
+  });
+
+  if (msg && order.phone_number) {
+    try {
+      const to = order.phone_number.startsWith('whatsapp:')
+        ? order.phone_number
+        : `whatsapp:${order.phone_number}`;
+      await sendWhatsAppMessage(to, msg);
+      await logMessage(order.phone_number, 'outbound', msg, `STATUS_${toStatus.toUpperCase()}`, order.id, order.business_id);
+    } catch (err) {
+      console.warn('[status-update] customer notify failed:', err.message);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Handle order status check
  * @param {string} phone - Customer phone number
  * @param {string} businessId - Business ID
@@ -1563,12 +1721,13 @@ async function handleOrderStatus(phone, businessId, orderRef = null) {
       const order = await getOrderByRef(orderRef, businessId);
       if (order) {
         return generateResponse('ORDER_STATUS', {
-          orderId: order.id,
-          status: order.status,
+          orderId: order.order_number || order.id,
+          status: statusLabel(order.status),
           total: order.total,
           createdAt: order.created_at,
           items: order.items,
-          deliveryAddress: order.delivery_address
+          deliveryAddress: order.delivery_address,
+          eta: order.estimated_delivery || null
         });
       }
       // Ref not found — fall through to phone lookup
@@ -1583,12 +1742,13 @@ async function handleOrderStatus(phone, businessId, orderRef = null) {
 
     const latestOrder = orders[0];
     return generateResponse('ORDER_STATUS', {
-      orderId: latestOrder.id,
-      status: latestOrder.status,
+      orderId: latestOrder.order_number || latestOrder.id,
+      status: statusLabel(latestOrder.status),
       total: latestOrder.total,
       createdAt: latestOrder.created_at,
       items: latestOrder.items,
-      deliveryAddress: latestOrder.delivery_address
+      deliveryAddress: latestOrder.delivery_address,
+      eta: latestOrder.estimated_delivery || null
     });
   } catch (error) {
     console.error('Failed to get order status:', error);

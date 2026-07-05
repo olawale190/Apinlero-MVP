@@ -18,7 +18,7 @@ if (!SUPABASE_KEY) {
   console.warn('⚠️ SUPABASE_SERVICE_KEY not set - database features will be limited');
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder');
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY || 'placeholder');
 
 // Session timeout (30 minutes for single-tenant, 24 hours for multi-tenant)
 const SESSION_TIMEOUT = 30 * 60 * 1000;
@@ -410,6 +410,52 @@ export async function updateOrderStatus(orderId, status) {
   }
 
   return data;
+}
+
+/**
+ * Transition an order to a new status, validating the move against the
+ * order-status state machine. Stamps delivered_at on delivery.
+ * Returns { ok, order, reason }.
+ */
+export async function transitionOrder(orderId, toStatus) {
+  const { canTransition, normalizeStatus, STATUS } = await import('./order-status.js');
+
+  const { data: current, error: readErr } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+
+  if (readErr || !current) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const from = normalizeStatus(current.status);
+  const to = normalizeStatus(toStatus);
+
+  if (from === to) {
+    return { ok: true, order: current, reason: 'already_in_state' };
+  }
+  if (!canTransition(from, to)) {
+    return { ok: false, order: current, reason: `invalid_transition_${from}_to_${to}` };
+  }
+
+  const patch = { status: to, updated_at: new Date().toISOString() };
+  if (to === STATUS.DELIVERED) patch.delivered_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update(patch)
+    .eq('id', orderId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to transition order:', error);
+    return { ok: false, reason: error.message };
+  }
+
+  return { ok: true, order: data, previousStatus: from };
 }
 
 /**

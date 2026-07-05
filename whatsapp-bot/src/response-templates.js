@@ -252,12 +252,14 @@ ${isOpen
     buttons: isOpen ? ['📦 Place Order'] : ['📋 View Catalog']
   }),
 
-  ORDER_STATUS: ({ orderId, status, total, createdAt, items, deliveryAddress }) => {
+  ORDER_STATUS: ({ orderId, status, total, createdAt, items, deliveryAddress, eta }) => {
     const date = new Date(createdAt).toLocaleDateString('en-GB');
     const statusEmoji = {
-      'Pending': '⏳',
-      'Confirmed': '✅',
-      'Out for Delivery': '🚚',
+      'Awaiting payment': '⏳',
+      'Paid': '💳',
+      'Accepted': '✅',
+      'Being prepared': '👨‍🍳',
+      'Out for delivery': '🛵',
       'Delivered': '📦',
       'Cancelled': '❌'
     };
@@ -269,18 +271,17 @@ ${isOpen
       ).join('\n');
     }
 
-    let deliveryText = '';
-    if (deliveryAddress) {
-      deliveryText = `\nDelivery: ${deliveryAddress}`;
-    }
+    const deliveryText = deliveryAddress ? `\nDelivery: ${deliveryAddress}` : '';
+    const etaText = eta ? `\nETA: ${eta}` : '';
+    const ref = String(orderId).length >= 8 ? String(orderId).substring(0, 8).toUpperCase() : String(orderId);
 
     return {
       text: `📋 Order Status
 
-Order #: ${orderId.substring(0, 8).toUpperCase()}
+Order #: ${ref}
 Status: ${statusEmoji[status] || '📋'} ${status}
-Total: £${total.toFixed(2)}
-Date: ${date}${itemsText}${deliveryText}
+Total: £${(total || 0).toFixed(2)}
+Date: ${date}${etaText}${itemsText}${deliveryText}
 
 Questions about your order? Just reply here.`,
       buttons: ['💬 Contact Us']
@@ -514,6 +515,14 @@ Say "yes" if that's right, or tell me what you actually need!`,
 
 ${inStock ? `Say "yes" and I'll add ${quantity > 1 ? `${quantity} ` : ''}to your order, or tell me what you're after!` : `Want me to suggest something similar?`}`,
     buttons: inStock ? ['✅ Yes, add it', '❌ Not that one'] : ['📋 See Products']
+  }),
+
+  // Everything the customer asked for is out of stock
+  OUT_OF_STOCK: ({ products, suggestion }) => ({
+    text: `Ah, sorry! 😔 We're out of ${products.join(', ')} right now.${suggestion ? `\n\nWe do have *${suggestion}* if you'd like that instead?` : ''}
+
+Is there anything else I can get for you?`,
+    buttons: suggestion ? ['📋 See Products'] : ['📋 See Products']
   }),
 
   // Feedback / preference acknowledgment
