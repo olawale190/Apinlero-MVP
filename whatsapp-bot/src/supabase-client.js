@@ -292,7 +292,7 @@ export async function createOrder(orderData, businessId) {
       delivery_address: orderData.delivery_address,
       delivery_method: orderData.delivery_method || 'delivery',
       channel: orderData.channel || 'WhatsApp',
-      status: orderData.status || 'Pending',
+      status: orderData.status || 'pending',
       payment_method: orderData.payment_method || 'pending',
       notes: orderData.notes || null
     })
@@ -399,7 +399,7 @@ export async function getOrderByRef(refNumber, businessId) {
 export async function updateOrderStatus(orderId, status) {
   const { data, error } = await supabase
     .from('orders')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status })
     .eq('id', orderId)
     .select()
     .single();
@@ -440,7 +440,7 @@ export async function transitionOrder(orderId, toStatus) {
     return { ok: false, order: current, reason: `invalid_transition_${from}_to_${to}` };
   }
 
-  const patch = { status: to, updated_at: new Date().toISOString() };
+  const patch = { status: to };
   if (to === STATUS.DELIVERED) patch.delivered_at = new Date().toISOString();
 
   const { data, error } = await supabase
@@ -466,8 +466,7 @@ export async function updateOrderPayment(orderId, paymentMethod, paymentStatus =
     .from('orders')
     .update({
       payment_method: paymentMethod,
-      payment_status: paymentStatus,
-      updated_at: new Date().toISOString()
+      payment_status: paymentStatus
     })
     .eq('id', orderId)
     .select()
