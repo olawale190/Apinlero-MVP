@@ -117,19 +117,42 @@ export async function reserveStock(items) {
 
 /**
  * Put stock back (e.g. abandoned unpaid order, cancellation).
+ * Uses the atomic apl_increment_stock RPC when present, otherwise a
+ * read-then-write fallback (mirrors reserveStock's fallback path).
  */
 export async function releaseStock(items) {
   for (const item of items) {
     if (!item.product_id) continue;
     const qty = Number(item.quantity) || 1;
     try {
-      await supabase.rpc('apl_increment_stock', {
+      const { error } = await supabase.rpc('apl_increment_stock', {
         p_product_id: item.product_id,
         p_qty: qty,
       });
+      if (error) throw error;
     } catch (err) {
-      console.warn('[stock] releaseStock failed for', item.product_id, err.message);
+      // RPC missing/failed → non-atomic fallback so stock still returns
+      console.warn('[stock] apl_increment_stock failed, using fallback:', err.message);
+      await fallbackIncrement(item.product_id, qty);
     }
+  }
+}
+
+/**
+ * Non-atomic fallback increment used only if the RPC is missing.
+ */
+async function fallbackIncrement(productId, qty) {
+  try {
+    const { data } = await supabase
+      .from('products')
+      .select('stock_quantity')
+      .eq('id', productId)
+      .single();
+    if (!data) return;
+    const next = Number(data.stock_quantity ?? 0) + qty;
+    await supabase.from('products').update({ stock_quantity: next }).eq('id', productId);
+  } catch (err) {
+    console.warn('[stock] fallbackIncrement failed for', productId, err.message);
   }
 }
 
