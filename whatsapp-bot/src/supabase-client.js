@@ -680,17 +680,17 @@ export async function getRecentConversation(phone, businessId = null, limit = 6)
     if (businessId) {
       const { data, error } = await supabase
         .from('whatsapp_message_logs')
-        .select('direction, content, created_at')
+        .select('direction, content, timestamp')
         .eq('business_id', businessId)
         .eq('customer_phone', phone)
-        .order('created_at', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
       return (data || []).reverse().map(m => ({
         direction: m.direction,
         text: m.content,
-        created_at: m.created_at
+        created_at: m.timestamp
       }));
     }
 

@@ -1416,7 +1416,7 @@ async function suggestDidYouMean(text, phone, conversation, products) {
     }
   }, conversation.businessId);
 
-  return generateResponse('DID_YOU_MEAN', {
+  return generateResponse('ENQUIRY_DID_YOU_MEAN', {
     original: term,
     product: guess.product.name,
     price,

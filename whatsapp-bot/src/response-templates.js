@@ -509,7 +509,7 @@ Say "yes" if that's right, or tell me what you actually need!`,
   }),
 
   // Fuzzy enquiry clarification ("shey u get 2ltr palm oil" → closest product)
-  DID_YOU_MEAN: ({ original, product, price, quantity, inStock }) => ({
+  ENQUIRY_DID_YOU_MEAN: ({ original, product, price, quantity, inStock }) => ({
     text: `Do you mean *${product}*? 😊 ${inStock ? `We have it - £${price.toFixed(2)}` : `It's £${price.toFixed(2)} but out of stock right now`}
 
 ${inStock ? `Say "yes" and I'll add ${quantity > 1 ? `${quantity} ` : ''}to your order, or tell me what you're after!` : `Want me to suggest something similar?`}`,

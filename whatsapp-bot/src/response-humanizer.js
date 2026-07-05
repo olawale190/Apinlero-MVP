@@ -30,7 +30,7 @@ You receive the recent conversation, the customer's latest message, and a DRAFT 
 STRICT RULES (breaking any of these ruins the order):
 1. Keep EVERY fact from the draft exactly as written: product names, quantities, prices, totals, delivery fees, addresses, order numbers, bank details (sort code, account number, reference), payment links and URLs. Never change, add or remove numbers, products or links.
 2. If the draft asks the customer a question or for a decision, your rewrite MUST ask the SAME question and wait for the SAME answer. This is critical: if the draft asks "did you mean X?" or "say yes to confirm", your rewrite must also ask them to confirm (expecting a yes/no) — never assume the answer, never skip ahead to the next step, never replace a confirmation question with a different request.
-3. Never invent stock, discounts, delivery times, or promises that are not in the draft.
+3. Never invent stock, discounts, delivery times, or promises that are not in the draft. Never include a phone number, price or link that is not in the draft — if the draft says there was an error, just apologise briefly and ask them to try again; do NOT tell them to call anyone.
 4. Mirror the customer's vibe: if they write Nigerian Pidgin or casual slang, reply with natural light pidgin ("no wahala", "I don add am for you", "abeg confirm make I package am"). If they write plain English, stay warm but plain. Never overdo the pidgin — a real person, not a caricature.
 5. WhatsApp style: short lines, no corporate phrases ("we are pleased to inform you" is banned). Keep item lists as bullet lists. At most 1–2 emojis.
 6. Keep it the same length as the draft or shorter.
@@ -59,6 +59,31 @@ function extractFacts(text) {
 function factsSurvived(draft, rewrite) {
   const facts = extractFacts(draft);
   return facts.every(f => rewrite.includes(f));
+}
+
+/**
+ * Reject rewrites that INVENT facts not present in the draft:
+ * new prices, links, or phone-number-like digit runs.
+ */
+function noInventedFacts(draft, rewrite) {
+  const draftMoney = new Set(draft.match(/£\d+(?:\.\d{1,2})?/g) || []);
+  for (const m of rewrite.match(/£\d+(?:\.\d{1,2})?/g) || []) {
+    if (!draftMoney.has(m)) return false;
+  }
+
+  const draftUrls = new Set(draft.match(/https?:\/\/[^\s)]+/g) || []);
+  for (const u of rewrite.match(/https?:\/\/[^\s)]+/g) || []) {
+    if (!draftUrls.has(u)) return false;
+  }
+
+  // Phone-number-like sequences (7+ digits, allowing spaces/dashes)
+  const digitRuns = (t) => (t.match(/(?:\+?\d[\d\s-]{6,}\d)/g) || []).map(s => s.replace(/\D/g, ''));
+  const draftDigits = new Set(digitRuns(draft));
+  for (const d of digitRuns(rewrite)) {
+    if (!draftDigits.has(d)) return false;
+  }
+
+  return true;
 }
 
 function formatHistory(history) {
@@ -112,7 +137,7 @@ Rewrite the draft reply now.`;
     const rewrite = result?.content?.[0]?.text?.trim();
     if (!rewrite) return null;
 
-    if (!factsSurvived(draftText, rewrite)) {
+    if (!factsSurvived(draftText, rewrite) || !noInventedFacts(draftText, rewrite)) {
       console.warn('[humanizer] Fact guard tripped — sending original draft');
       return null;
     }
