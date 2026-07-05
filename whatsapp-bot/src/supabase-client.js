@@ -386,8 +386,13 @@ export async function getBusinessStripe(businessId) {
       .eq('id', businessId)
       .single();
     if (error || !data) return null;
+
+    // Decrypt the secret key (handles both plaintext and enc_v1: formats)
+    const { decryptStripeKey } = await import('./crypto.js');
+    const secretKey = await decryptStripeKey(data.stripe_secret_key_encrypted);
+
     return {
-      secretKey: data.stripe_secret_key_encrypted || null,
+      secretKey,
       publishableKey: data.stripe_publishable_key || null,
       accountId: data.stripe_account_id || null,
       webhookSecret: data.stripe_webhook_secret || null,
