@@ -369,6 +369,22 @@ export async function getOrderByPhone(phone, businessId) {
  * @param {string} businessId - Business ID (required)
  * @returns {Promise<Object|null>} Order object or null
  */
+/**
+ * Fetch a single order by its internal id (uuid).
+ */
+export async function getOrderById(orderId) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error) {
+    console.error('Failed to fetch order by id:', error);
+    return null;
+  }
+  return data;
+}
+
 export async function getOrderByRef(refNumber, businessId) {
   if (!businessId) {
     throw new Error('businessId is required for getOrderByRef');

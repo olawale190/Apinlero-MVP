@@ -15,9 +15,10 @@ import {
   verifyWebhook,
   cleanPhoneNumber
 } from './whatsapp-cloud-service.js';
-import { handleIncomingMessage } from './message-handler.js';
+import { handleIncomingMessage, handlePaymentSucceeded } from './message-handler.js';
 import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
 import { checkKGDependencies } from './kg-preprocessor.js';
+import { constructWebhookEvent, stripeEnabled } from './payments.js';
 
 dotenv.config();
 
@@ -39,6 +40,43 @@ if (kgStatus.available) {
 const DEFAULT_BUSINESS_ID = process.env.DEFAULT_BUSINESS_ID || 'bf642ec5-8990-4581-bc1c-e4171d472007';
 
 const app = express();
+
+// ============================================================================
+// STRIPE WEBHOOK — MUST come before the JSON body parser so we can verify the
+// signature against the RAW request body.
+// ============================================================================
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['stripe-signature'];
+  const { event, error } = constructWebhookEvent(req.body, signature);
+
+  if (error) {
+    console.warn('[stripe] webhook verification failed:', error);
+    return res.status(400).send(`Webhook Error: ${error}`);
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      // Only act on fully paid sessions
+      if (session.payment_status === 'paid') {
+        const md = session.metadata || {};
+        console.log(`💳 [Stripe] Payment completed for order ${md.order_ref || md.order_id}`);
+        await handlePaymentSucceeded({
+          orderId: md.order_id,
+          ref: md.order_ref,
+          businessId: md.business_id,
+          customerPhone: md.customer_phone,
+        });
+      }
+    }
+    // Always ack quickly so Stripe doesn't retry
+    res.json({ received: true });
+  } catch (err) {
+    console.error('[stripe] webhook handler error:', err.message);
+    // Ack anyway — we don't want infinite retries for a downstream failure
+    res.json({ received: true });
+  }
+});
 
 // Parse URL-encoded bodies (Twilio sends form data)
 app.use(express.urlencoded({ extended: false }));

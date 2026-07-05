@@ -13,6 +13,7 @@ import {
   createOrder,
   getOrderByPhone,
   getOrderByRef,
+  getOrderById,
   updateOrderPayment,
   getSession,
   saveSession,
@@ -37,6 +38,7 @@ import {
   availabilityState
 } from './stock.js';
 import { getBusinessOwnerPhone, sendVendorMessage } from './vendor-notify.js';
+import { createCheckoutSession, stripeEnabled } from './payments.js';
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';
@@ -537,24 +539,22 @@ async function handleIncomingMessageCore({
       return response;
     }
 
-    // AWAITING_PAYMENT: Accept flexible payment responses
+    // AWAITING_PAYMENT: card only. The customer pays via the Stripe link;
+    // any message here just nudges them back to it (unless they start a new
+    // order or cancel, handled by normal routing below).
     if (conversation.state === 'AWAITING_PAYMENT') {
-      if (isCashPayment(text)) {
-        response = await handlePaymentChoice(from, conversation, 'cash');
-        await logMessage(from, 'outbound', response.text, 'PAYMENT_CASH', conversation.lastOrderId, businessId);
+      // Let "cancel" / new order fall through to normal handling
+      if (!isPositiveResponse(text) && parsed.intent !== 'NEW_ORDER' && parsed.intent !== 'CANCEL') {
+        response = await handleReprompayPayment(from, conversation, businessId);
+        await logMessage(from, 'outbound', response.text, 'REPROMPT_PAY', conversation.lastOrderId, businessId);
         return response;
       }
-      if (isCardPayment(text)) {
-        response = await handlePaymentChoice(from, conversation, 'card');
-        await logMessage(from, 'outbound', response.text, 'PAYMENT_CARD', conversation.lastOrderId, businessId);
+      // A bare "yes"/"ok" here means "yes I'll pay" → resend the link
+      if (isPositiveResponse(text)) {
+        response = await handleReprompayPayment(from, conversation, businessId);
+        await logMessage(from, 'outbound', response.text, 'REPROMPT_PAY', conversation.lastOrderId, businessId);
         return response;
       }
-      // Re-prompt for payment method
-      response = generateResponse('REPROMPT_PAYMENT', {
-        orderId: conversation.lastOrderId?.substring(0, 8).toUpperCase() || 'your order'
-      });
-      await logMessage(from, 'outbound', response.text, 'REPROMPT', conversation.lastOrderId, businessId);
-      return response;
     }
 
     // AWAITING_ADDRESS: Accept the delivery address from any message.
@@ -741,15 +741,10 @@ async function handleIncomingMessageCore({
         break;
 
       case 'PAYMENT_CASH':
-        response = await handlePaymentChoice(from, conversation, 'cash');
-        break;
-
       case 'PAYMENT_CARD':
-        response = await handlePaymentChoice(from, conversation, 'card');
-        break;
-
       case 'PAYMENT_TRANSFER':
-        response = await handlePaymentChoice(from, conversation, 'bank_transfer');
+        // Card is the only payment method. Any payment intent → (re)send the link.
+        response = await handleReprompayPayment(from, conversation, businessId);
         break;
 
       case 'MODIFY_ORDER':
@@ -1209,6 +1204,18 @@ function buildStockNote(capped = [], outOfStock = []) {
  */
 async function processAutoConfirmOrder(phone, customerName, pendingOrder, conversation) {
   try {
+    // Reserve stock first (same guarantee as the manual path)
+    const reservation = await reserveStock(pendingOrder.items);
+    if (!reservation.ok) {
+      const soldOut = reservation.failed
+        .map(f => pendingOrder.items.find(i => i.product_id === f.product_id)?.product_name)
+        .filter(Boolean);
+      return generateResponse('OUT_OF_STOCK', {
+        products: soldOut.length ? soldOut : ['one of your items'],
+        suggestion: null
+      });
+    }
+
     const createdOrder = await createOrder({
       customer_name: customerName,
       phone_number: phone,
@@ -1225,18 +1232,32 @@ async function processAutoConfirmOrder(phone, customerName, pendingOrder, conver
       customer_id: conversation.customerId
     }, conversation.businessId);
 
+    if (reservation.lowStock.length > 0) {
+      await notifyVendorLowStock(conversation.businessId, reservation.lowStock);
+    }
+
+    const ref = createdOrder.order_number || String(createdOrder.id).slice(0, 8).toUpperCase();
+    const { url: payUrl } = await createCheckoutSession({
+      id: createdOrder.id,
+      ref,
+      items: pendingOrder.items,
+      deliveryFee: pendingOrder.deliveryFee,
+      businessId: conversation.businessId,
+      customerPhone: phone,
+    });
+
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
       pendingOrder: null,
       lastOrderId: createdOrder.id
     }, conversation.businessId);
 
+    if (!payUrl) return generateResponse('PAYMENT_LINK_FAILED', { ref });
+
     return generateResponse('AUTO_CONFIRMED', {
-      orderId: createdOrder.id,
-      items: pendingOrder.items,
+      ref,
       total: pendingOrder.total,
-      address: pendingOrder.address,
-      deliveryEstimate: pendingOrder.deliveryZone.estimatedDelivery
+      payUrl,
     });
 
   } catch (error) {
@@ -1418,6 +1439,18 @@ async function handleConfirmation(phone, customerName, conversation) {
       await notifyVendorLowStock(conversation.businessId, reservation.lowStock);
     }
 
+    const ref = createdOrder.order_number || String(createdOrder.id).slice(0, 8).toUpperCase();
+
+    // Create a Stripe Checkout session — card is the only way to pay.
+    const { url: payUrl } = await createCheckoutSession({
+      id: createdOrder.id,
+      ref,
+      items: order.items,
+      deliveryFee: order.deliveryFee,
+      businessId: conversation.businessId,
+      customerPhone: phone,
+    });
+
     // Update conversation state
     await updateConversation(phone, {
       state: 'AWAITING_PAYMENT',
@@ -1426,11 +1459,16 @@ async function handleConfirmation(phone, customerName, conversation) {
       lastOrderItems: order.items // kept so we can release stock if abandoned
     }, conversation.businessId);
 
+    if (!payUrl) {
+      // Stripe not configured / failed — don't strand the customer
+      console.warn('[order] no pay URL generated for order', ref);
+      return generateResponse('PAYMENT_LINK_FAILED', { ref });
+    }
+
     return generateResponse('ORDER_CONFIRMED', {
-      orderId: createdOrder.order_number || createdOrder.id,
+      ref,
       total: order.total,
-      address: order.address,
-      deliveryEstimate: order.deliveryZone?.estimatedDelivery || '2-3 days'
+      payUrl,
     });
 
   } catch (error) {
@@ -1442,35 +1480,53 @@ async function handleConfirmation(phone, customerName, conversation) {
 }
 
 /**
- * Handle payment method selection
+ * Re-send the Stripe payment link for the customer's current unpaid order.
+ * Card is the only payment method, so every payment-related message routes here.
  */
-async function handlePaymentChoice(phone, conversation, method) {
+async function handleReprompayPayment(phone, conversation, businessId) {
   const orderId = conversation.lastOrderId;
-
   if (!orderId) {
     return generateResponse('NO_PENDING_ORDER');
   }
 
   try {
-    await updateOrderPayment(orderId, method, method === 'cash' ? 'pending' : 'awaiting');
+    // Fetch the order so we can rebuild a fresh checkout link
+    const order = await getOrderById(orderId);
+    if (!order) return generateResponse('NO_PENDING_ORDER');
 
-    await updateConversation(phone, {
-      state: 'ORDER_COMPLETED'
-    }, conversation.businessId);
+    // Already paid? Reassure instead of re-charging.
+    const { normalizeStatus, STATUS } = await import('./order-status.js');
+    if (normalizeStatus(order.status) !== STATUS.PENDING) {
+      return generateResponse('ALREADY_PAID', {
+        ref: order.order_number || String(order.id).slice(0, 8).toUpperCase()
+      });
+    }
 
-    const methodLabels = {
-      'cash': 'Cash on Delivery',
-      'card': 'Card Payment',
-      'bank_transfer': 'Bank Transfer'
-    };
+    const ref = order.order_number || String(order.id).slice(0, 8).toUpperCase();
+    const items = (order.items || []).map(i => ({
+      product_name: i.product_name || i.product,
+      quantity: i.quantity,
+      price: i.price,
+    }));
 
-    return generateResponse('PAYMENT_CONFIRMED', {
-      method: methodLabels[method],
-      orderId: orderId.substring(0, 8).toUpperCase()
+    const { url: payUrl } = await createCheckoutSession({
+      id: order.id,
+      ref,
+      items,
+      deliveryFee: order.delivery_fee || 0,
+      businessId,
+      customerPhone: phone,
     });
 
+    if (!payUrl) return generateResponse('PAYMENT_LINK_FAILED', { ref });
+
+    return generateResponse('RESEND_PAYMENT_LINK', {
+      ref,
+      total: order.total,
+      payUrl,
+    });
   } catch (error) {
-    console.error('Failed to update payment:', error);
+    console.error('Failed to resend payment link:', error);
     return generateResponse('ERROR');
   }
 }
@@ -1674,6 +1730,67 @@ function handleBusinessHours(isOpen) {
 }
 
 /**
+ * Handle a successful Stripe payment (called from the webhook).
+ * Flips the order pending → paid, sends the customer a receipt, and
+ * alerts the vendor that a new paid order has arrived.
+ *
+ * @param {Object} args - { orderId, ref, businessId, customerPhone, amountTotal }
+ */
+export async function handlePaymentSucceeded({ orderId, ref, businessId, customerPhone }) {
+  try {
+    // Mark payment status paid + move order state to paid
+    try { await updateOrderPayment(orderId, 'card', 'paid'); } catch (_) {}
+    const result = await advanceOrderAndNotify(orderId, STATUS.PAID);
+
+    const order = result.order || await getOrderById(orderId);
+    if (!order) {
+      console.warn('[stripe] paid order not found:', orderId);
+      return { ok: false };
+    }
+
+    const orderRef = order.order_number || ref || String(order.id).slice(0, 8).toUpperCase();
+
+    // Customer receipt (PAID status has no auto-message in the state machine,
+    // so send an explicit thank-you here)
+    if (order.phone_number) {
+      const to = order.phone_number.startsWith('whatsapp:')
+        ? order.phone_number : `whatsapp:${order.phone_number}`;
+      const receipt = `Payment received — thank you! 💚 Order #${orderRef} is confirmed. Isha's getting it ready and I'll keep you posted every step of the way.`;
+      try {
+        await sendWhatsAppMessage(to, receipt);
+        await logMessage(order.phone_number, 'outbound', receipt, 'PAYMENT_RECEIPT', order.id, order.business_id);
+      } catch (err) {
+        console.warn('[stripe] receipt send failed:', err.message);
+      }
+    }
+
+    // Vendor alert: a new PAID order has landed
+    await notifyVendorNewOrder(order.business_id || businessId, order);
+
+    return { ok: true, order };
+  } catch (err) {
+    console.error('[stripe] handlePaymentSucceeded failed:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Alert the vendor on WhatsApp about a new paid order.
+ */
+async function notifyVendorNewOrder(businessId, order) {
+  try {
+    const ref = order.order_number || String(order.id).slice(0, 8).toUpperCase();
+    const items = (order.items || [])
+      .map(i => `• ${i.quantity}× ${i.product_name || i.product}`)
+      .join('\n');
+    const msg = `🛎️ *New paid order #${ref}*\n\n${order.customer_name || 'Customer'} — £${(order.total || 0).toFixed(2)}\n${items}\n\n📍 ${order.delivery_address || 'address on file'}\n\nOpen your dashboard to accept, or reply "accept ${ref}".`;
+    await sendVendorMessage(businessId, msg);
+  } catch (err) {
+    console.warn('[vendor] new-order alert failed:', err.message);
+  }
+}
+
+/**
  * Advance an order to a new status and automatically notify the customer
  * on WhatsApp. This is the single seam used by the vendor commands (3c),
  * the Stripe payment webhook (3d), and any admin action.
@@ -1792,7 +1909,7 @@ async function handleStartOrder(conversation) {
     text += `${i + 1}. ${p.name} - £${penceToPounds(p.price).toFixed(2)}\n`;
   });
 
-  text += `\n*To order:* Just type the number or name!\nExample: "1" or "Palm Oil" or "2x Egusi"\n\n💳 Pay online or Cash on Delivery`;
+  text += `\n*To order:* Just type the number or name!\nExample: "1" or "Palm Oil" or "2x Egusi"\n\n💳 Secure card payment`;
 
   await updateConversation(conversation.phone, { state: 'AWAITING_ORDER' }, conversation.businessId);
 
@@ -1848,9 +1965,7 @@ async function handleGeneralInquiry(text, parsed, conversation) {
       break;
 
     case 'AWAITING_PAYMENT':
-      return generateResponse('REPROMPT_PAYMENT', {
-        orderId: conversation.lastOrderId?.substring(0, 8).toUpperCase() || 'your order'
-      });
+      return await handleReprompayPayment(conversation.phone, conversation, conversation.businessId);
 
     case 'EDITING_ORDER':
       if (conversation.pendingOrder) {

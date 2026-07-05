@@ -39,24 +39,17 @@ Everything look good? Just say "yes" and I'll get it ready!`,
     };
   },
 
-  ORDER_CONFIRMED: ({ orderId, total, address, deliveryEstimate }) => ({
-    text: `✅ Perfect! Your order's confirmed!
+  ORDER_CONFIRMED: ({ ref, total, payUrl }) => ({
+    text: `Almost there! Just one step to lock in your order 👇
 
-Order #: ${orderId.substring(0, 8).toUpperCase()}
+Order #: ${ref}
 Total: £${total.toFixed(2)}
 
-You can pay:
-• 💳 Online: https://ishas-treat.apinlero.com/checkout?order=${orderId.substring(0, 8)}
-• 💵 Cash when it arrives
-• 🏦 Bank transfer:
-  Isha's Treat Ltd
-  Sort: 04-00-04
-  Acc: 12345678
-  Ref: ${orderId.substring(0, 8).toUpperCase()}
+💳 Tap to pay securely by card:
+${payUrl}
 
-Delivery: ${deliveryEstimate}
-I'll let you know when it's on the way! 📦`,
-    buttons: ['💳 Pay Now', '💵 Cash on Delivery']
+As soon as your payment goes through, I'll get Isha started and keep you posted every step of the way! 📦`,
+    buttons: []
   }),
 
   NEED_ADDRESS: ({ items, subtotal, notFound }) => {
@@ -372,30 +365,32 @@ Speak soon! 💚`,
     buttons: ['📋 View Catalog']
   }),
 
-  PAYMENT_CONFIRMED: ({ method, orderId }) => ({
-    text: `✅ Payment Method Confirmed!
+  // Re-send the Stripe payment link (card is the only way to pay)
+  RESEND_PAYMENT_LINK: ({ ref, total, payUrl }) => ({
+    text: `No problem! Here's your secure card payment link for order #${ref} 👇
 
-Order #: ${orderId}
-Payment: ${method}
+Total: £${(total || 0).toFixed(2)}
 
-${method === 'Cash on Delivery'
-  ? `💵 Please have the exact amount ready when your order arrives.`
-  : method === 'Bank Transfer'
-    ? `🏦 Please transfer to:
-  Isha's Treat Ltd
-  Sort: 04-00-04
-  Acc: 12345678
-  Ref: ${orderId}
+💳 ${payUrl}
 
-Once transferred, we'll confirm receipt and dispatch your order.`
-    : `💳 You can pay securely at:
-https://ishas-treat.apinlero.com/checkout?order=${orderId}`
-}
+As soon as it goes through I'll get Isha started on your order!`,
+    buttons: []
+  }),
 
-We'll notify you when your order is ready for delivery.
+  // Payment already completed
+  ALREADY_PAID: ({ ref }) => ({
+    text: `You're all paid up for order #${ref} — thank you! 💚
 
-Thank you for your order! 🙏`,
-    buttons: ['📍 Track Order', '💬 Contact Us']
+Isha's got it and I'll message you as it moves along. Nothing else to do 😊`,
+    buttons: []
+  }),
+
+  // Stripe couldn't produce a link (misconfig / outage)
+  PAYMENT_LINK_FAILED: ({ ref }) => ({
+    text: `Your order #${ref} is saved! 🙏
+
+I'm having a little trouble creating your payment link right now. Please give me a minute and say "pay" to try again, or message us and we'll sort it out.`,
+    buttons: []
   }),
 
   NO_PRODUCTS: () => ({
@@ -429,25 +424,16 @@ Reply YES to confirm`,
     };
   },
 
-  // Auto-confirmed order (for returning customers)
-  AUTO_CONFIRMED: ({ orderId, items, total, address, deliveryEstimate }) => {
-    const itemList = items.map(item =>
-      `${item.quantity}x ${item.product_name}`
-    ).join(', ');
+  // Auto-confirmed order (for returning customers) — card-only payment link
+  AUTO_CONFIRMED: ({ ref, total, payUrl }) => ({
+    text: `Got it — same as usual! ✅ Order #${ref}, total £${(total || 0).toFixed(2)}.
 
-    return {
-      text: `✅ *Order Confirmed!*
+Just tap to pay securely by card 👇
+💳 ${payUrl}
 
-#${orderId.substring(0, 8).toUpperCase()}
-${itemList}
-Total: £${total.toFixed(2)}
-📍 ${address}
-
-💳 Pay: bank transfer or cash
-Delivery: ${deliveryEstimate}`,
-      buttons: ['💵 Cash', '🏦 Bank Transfer']
-    };
-  },
+I'll get Isha started the moment it clears!`,
+    buttons: []
+  }),
 
   // Reorder confirmation
   REORDER_CONFIRM: ({ items, subtotal, deliveryFee, total, address, orderDate }) => {
@@ -548,15 +534,10 @@ Reply "yes" to confirm, "no" to cancel, or tell me what you'd like to change.`,
   }),
 
   REPROMPT_PAYMENT: ({ orderId }) => ({
-    text: `How would you like to pay for order #${orderId}? 💳
+    text: `Your order #${orderId} is waiting on payment 💳
 
-Just reply with:
-• "cash" - pay when it arrives
-• "card" - pay online now
-• "transfer" - bank transfer
-
-Or tap one of the buttons below!`,
-    buttons: ['💵 Cash', '💳 Card', '🏦 Transfer']
+Just tap the secure card link I sent to finish up — or say "pay" and I'll send it again!`,
+    buttons: []
   }),
 
   REPROMPT_ADDRESS: ({ items, subtotal }) => ({
@@ -587,13 +568,10 @@ Just say "yes" to confirm or "no" to cancel!`,
   },
 
   AWAITING_PAYMENT_REPROMPT: () => ({
-    text: `How would you like to pay for your order? 💰
+    text: `Just tap the secure card payment link I sent to finish your order 💳
 
-• 💳 Pay online (card/bank transfer)
-• 💵 Cash on delivery
-
-Just say "cash" or "card"!`,
-    buttons: ['💳 Pay Online', '💵 Cash on Delivery']
+Say "pay" if you'd like me to send it again!`,
+    buttons: []
   }),
 
   // Modify order confirmation
