@@ -23,8 +23,10 @@ import {
   updateCustomerAddress,
   getLastOrder,
   uploadMedia,
-  logMediaFile
+  logMediaFile,
+  getRecentConversation
 } from './supabase-client.js';
+import { humanizeResponse } from './response-humanizer.js';
 import { getMediaUrl, downloadMedia } from './whatsapp-cloud-service.js';
 import { generateResponse } from './response-templates.js';
 import { getSuggestedProducts, generateSuggestionMessage } from './smart-suggestions.js';
@@ -305,7 +307,28 @@ async function handleMediaMessage({ mediaId, messageType, from, accessToken, bus
  * @param {string} params.accessToken - Meta API access token (for media)
  * @returns {Object} - Response {text, buttons}
  */
-export async function handleIncomingMessage({
+export async function handleIncomingMessage(params) {
+  const response = await handleIncomingMessageCore(params);
+  if (!response || !response.text) return response;
+
+  try {
+    const phone = sanitizePhone(params.from);
+    const history = await getRecentConversation(phone, params.businessId || null, 6);
+    const humanized = await humanizeResponse({
+      draftText: response.text,
+      customerMessage: sanitizeMessage(params.text || ''),
+      customerName: sanitizeName(params.customerName) || null,
+      history
+    });
+    if (humanized) return { ...response, text: humanized };
+  } catch (error) {
+    console.warn('[humanizer] Using template reply:', error.message);
+  }
+
+  return response;
+}
+
+async function handleIncomingMessageCore({
   from,
   customerName,
   text,
@@ -653,11 +676,11 @@ export async function handleIncomingMessage({
         break;
 
       case 'PRICE_CHECK':
-        response = await handlePriceCheck(text, conversation.businessId);
+        response = await handlePriceCheck(text, from, conversation);
         break;
 
       case 'AVAILABILITY':
-        response = await handleAvailability(text, conversation.businessId);
+        response = await handleAvailability(text, from, conversation);
         break;
 
       case 'DELIVERY_INQUIRY':
@@ -712,6 +735,10 @@ export async function handleIncomingMessage({
         response = await handleAddressUpdate(from, parsed, conversation);
         break;
 
+      case 'PREFERENCE_UPDATE':
+        response = await handleFeedback(from, customerName, text, conversation);
+        break;
+
       default:
         response = await handleGeneralInquiry(text, parsed, conversation);
     }
@@ -759,6 +786,52 @@ function handleGreeting(customerName, conversation) {
 }
 
 /**
+ * Levenshtein distance for catalog fuzzy matching
+ */
+function levenshtein(a, b) {
+  const m = [];
+  for (let i = 0; i <= b.length; i++) m[i] = [i];
+  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      m[i][j] = b.charAt(i - 1) === a.charAt(j - 1)
+        ? m[i - 1][j - 1]
+        : Math.min(m[i - 1][j - 1] + 1, m[i][j - 1] + 1, m[i - 1][j] + 1);
+    }
+  }
+  return m[b.length][a.length];
+}
+
+/**
+ * Find the closest catalog product for a term the exact matcher missed.
+ * Compares against full names and individual words so "palm oyl" still
+ * finds "Palm Oil 5L". Returns { product, score } or null.
+ */
+function findClosestProduct(products, term) {
+  const t = (term || '').toLowerCase().trim();
+  if (t.length < 3) return null;
+
+  let best = null;
+  for (const p of products) {
+    const name = p.name.toLowerCase();
+    const nameTokens = name.split(/\s+/);
+
+    const fullRatio = 1 - levenshtein(t, name) / Math.max(t.length, name.length);
+
+    const words = t.split(/\s+/).filter(w => w.length > 2);
+    const matched = words.filter(w =>
+      nameTokens.some(tok => tok === w || (w.length > 3 && levenshtein(w, tok) <= 1) || tok.includes(w))
+    );
+    const wordRatio = words.length > 0 ? (matched.length / words.length) * 0.9 : 0;
+
+    const score = Math.max(fullRatio, wordRatio);
+    if (!best || score > best.score) best = { product: p, score };
+  }
+
+  return best && best.score >= 0.6 ? best : null;
+}
+
+/**
  * Handle new order requests
  * Supports one-message orders with auto-confirm for returning customers
  */
@@ -777,6 +850,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   // Build order with prices
   const orderItems = [];
   const notFound = [];
+  const notFoundItems = [];
 
   for (const item of items) {
     const product = productMap.get(item.product.toLowerCase()) ||
@@ -793,10 +867,58 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
       });
     } else {
       notFound.push(item.product);
+      notFoundItems.push(item);
     }
   }
 
   if (orderItems.length === 0) {
+    // Nothing matched exactly — try a "did you mean?" against the live catalog
+    const missedItem = notFoundItems[0];
+    const guess = findClosestProduct(products, missedItem.product);
+
+    if (guess) {
+      const price = penceToPounds(guess.product.price);
+      const quantity = missedItem.quantity || 1;
+      const proposedItems = [{
+        product_id: guess.product.id,
+        product_name: guess.product.name,
+        quantity,
+        unit: missedItem.unit,
+        price,
+        subtotal: price * quantity
+      }];
+      const subtotal = proposedItems[0].subtotal;
+      const deliveryFee = deliveryZone?.fee || 0;
+      const total = subtotal + deliveryFee;
+
+      await updateConversation(phone, {
+        state: 'AWAITING_TYPO_CONFIRMATION',
+        pendingOrder: {
+          items: proposedItems,
+          subtotal,
+          deliveryFee,
+          total,
+          address: address || null,
+          postcode: postcode || null,
+          deliveryZone,
+          customerName,
+          customerId: conversation.customerId,
+          notFoundProducts: notFound.slice(1),
+          typoItem: { originalText: missedItem.product, matchedText: guess.product.name }
+        }
+      }, conversation.businessId);
+
+      return generateResponse('TYPO_CONFIRMATION', {
+        items: proposedItems,
+        originalText: missedItem.product,
+        correctedText: guess.product.name,
+        subtotal,
+        deliveryFee,
+        total,
+        address: address || null
+      });
+    }
+
     return generateResponse('PRODUCTS_NOT_FOUND', { products: notFound });
   }
 
@@ -1244,10 +1366,70 @@ function handleDecline(conversation) {
 }
 
 /**
+ * Fuzzy "did you mean?" for enquiries (price/availability).
+ * Strips filler words, finds the closest catalog product, stores a
+ * pending 1-item order so a simple "yes" adds it to the cart.
+ * Returns a response object or null if no decent guess exists.
+ */
+async function suggestDidYouMean(text, phone, conversation, products) {
+  // Pull the product-ish part of the message (drop pidgin/English filler)
+  const cleaned = text.toLowerCase()
+    .replace(/\b(shey|abeg|una|u|you|dey|sell|get|do|have|got|any|still|is|it|the|of|for|please|pls|in|stock|available|how|much|price|cost|wetin|be)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+
+  // Quantity if the customer mentioned one ("2ltr", "3 bottles")
+  const qtyMatch = cleaned.match(/(\d+)/);
+  const quantity = qtyMatch ? Math.max(1, Math.min(99, parseInt(qtyMatch[1], 10))) : 1;
+  const term = cleaned.replace(/\d+\s*(x|ltr|lt|l|litres?|liters?|kg|g|bottles?|bags?|tins?|packs?|pcs?|pieces?)?/gi, ' ').replace(/\s+/g, ' ').trim();
+  if (term.length < 3) return null;
+
+  const guess = findClosestProduct(products, term);
+  if (!guess) return null;
+
+  const price = penceToPounds(guess.product.price);
+  const proposedItems = [{
+    product_id: guess.product.id,
+    product_name: guess.product.name,
+    quantity,
+    unit: guess.product.unit || null,
+    price,
+    subtotal: price * quantity
+  }];
+  const subtotal = proposedItems[0].subtotal;
+
+  await updateConversation(phone, {
+    state: 'AWAITING_TYPO_CONFIRMATION',
+    pendingOrder: {
+      items: proposedItems,
+      subtotal,
+      deliveryFee: 0,
+      total: subtotal,
+      address: null,
+      postcode: null,
+      deliveryZone: null,
+      customerName: conversation.customerName,
+      customerId: conversation.customerId,
+      notFoundProducts: [],
+      typoItem: { originalText: term, matchedText: guess.product.name }
+    }
+  }, conversation.businessId);
+
+  return generateResponse('DID_YOU_MEAN', {
+    original: term,
+    product: guess.product.name,
+    price,
+    quantity,
+    inStock: guess.product.is_active
+  });
+}
+
+/**
  * Handle price check requests
  */
-async function handlePriceCheck(text, businessId) {
-  const products = await getProducts(businessId);
+async function handlePriceCheck(text, phone, conversation) {
+  const products = await getProducts(conversation.businessId);
 
   // Try Neo4j matching first
   const matched = await matchProduct(text);
@@ -1276,14 +1458,18 @@ async function handlePriceCheck(text, businessId) {
     }
   }
 
+  // Fuzzy "did you mean?" before giving up
+  const suggestion = await suggestDidYouMean(text, phone, conversation, products);
+  if (suggestion) return suggestion;
+
   return generateResponse('PRICE_NOT_FOUND');
 }
 
 /**
  * Handle availability check
  */
-async function handleAvailability(text, businessId) {
-  const products = await getProducts(businessId);
+async function handleAvailability(text, phone, conversation) {
+  const products = await getProducts(conversation.businessId);
 
   // Try Neo4j matching first
   const matched = await matchProduct(text);
@@ -1310,7 +1496,31 @@ async function handleAvailability(text, businessId) {
     }
   }
 
+  // Fuzzy "did you mean?" before giving up
+  const suggestion = await suggestDidYouMean(text, phone, conversation, products);
+  if (suggestion) return suggestion;
+
   return generateResponse('PRODUCT_NOT_FOUND');
+}
+
+/**
+ * Handle customer feedback / preference updates
+ * ("the yam was too soft", "don't send the small garri next time")
+ * Stores the note on the conversation context so future orders can use it.
+ */
+async function handleFeedback(phone, customerName, text, conversation) {
+  try {
+    const context = conversation.context || {};
+    const feedback = context.feedback || [];
+    feedback.push({ note: text, date: new Date().toISOString() });
+    // Keep the most recent 20 notes
+    context.feedback = feedback.slice(-20);
+    await updateConversation(phone, { context }, conversation.businessId);
+  } catch (error) {
+    console.warn('Failed to store feedback:', error.message);
+  }
+
+  return generateResponse('FEEDBACK_ACK', { customerName });
 }
 
 /**

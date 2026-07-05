@@ -9,19 +9,31 @@
  * Helps increase basket size through friendly upselling
  */
 
-// Product pairing map - items that go well together
+// Product pairing map - keyword → items that go well together.
+// Keys are matched as substrings of the ordered product name (case-insensitive),
+// so "Palm Oil 2L", "Palm Oil 5L" and "Zomi Palm Oil" all trigger 'palm oil'.
 const PRODUCT_PAIRINGS = {
-  'Palm Oil 5L': ['Egusi Seeds', 'Stockfish', 'Dried Crayfish', 'Scotch Bonnet Peppers'],
-  'Jollof Rice Mix': ['Fresh Tomatoes', 'Scotch Bonnet Peppers', 'Red Onions'],
-  'Cassava Flour': ['Palm Oil 5L', 'Egusi Seeds', 'Stockfish'],
-  'Yam Flour': ['Palm Oil 5L', 'Egusi Seeds', 'Dried Crayfish'],
-  'Egusi Seeds': ['Palm Oil 5L', 'Stockfish', 'Dried Crayfish', 'Scotch Bonnet Peppers'],
-  'Rice': ['Jollof Rice Mix', 'Fresh Tomatoes', 'Scotch Bonnet Peppers'],
-  'Plantain (Green)': ['Palm Oil 5L', 'Scotch Bonnet Peppers'],
-  'Stockfish': ['Palm Oil 5L', 'Egusi Seeds', 'Dried Crayfish'],
-  'Scotch Bonnet Peppers': ['Fresh Tomatoes', 'Red Onions', 'Palm Oil 5L'],
-  'Fufu Flour': ['Palm Oil 5L', 'Egusi Seeds', 'Stockfish'],
-  'Maggi Seasoning': ['Fresh Tomatoes', 'Red Onions', 'Scotch Bonnet Peppers'],
+  'palm oil': ['Egusi Seeds', 'Stockfish', 'Dried Crayfish', 'Scotch Bonnet Peppers'],
+  'jollof': ['Fresh Tomatoes', 'Scotch Bonnet Peppers', 'Red Onions'],
+  'cassava': ['Palm Oil', 'Egusi Seeds', 'Stockfish'],
+  'yam': ['Palm Oil', 'Egusi Seeds', 'Dried Crayfish'],
+  'egusi': ['Palm Oil', 'Stockfish', 'Dried Crayfish', 'Scotch Bonnet Peppers'],
+  'rice': ['Fresh Tomatoes', 'Scotch Bonnet Peppers', 'Red Onions'],
+  'plantain': ['Palm Oil', 'Scotch Bonnet Peppers'],
+  'stockfish': ['Palm Oil', 'Egusi Seeds', 'Dried Crayfish'],
+  'scotch bonnet': ['Fresh Tomatoes', 'Red Onions', 'Palm Oil'],
+  'pepper': ['Fresh Tomatoes', 'Red Onions'],
+  'fufu': ['Palm Oil', 'Egusi Seeds', 'Stockfish'],
+  'maggi': ['Fresh Tomatoes', 'Red Onions', 'Scotch Bonnet Peppers'],
+  'garri': ['Groundnut', 'Sugar', 'Dried Fish'],
+  'semovita': ['Egusi Seeds', 'Palm Oil', 'Stockfish'],
+  'beans': ['Palm Oil', 'Plantain', 'Dried Crayfish'],
+  'crayfish': ['Palm Oil', 'Egusi Seeds'],
+  'tomato': ['Red Onions', 'Scotch Bonnet Peppers'],
+  'onion': ['Fresh Tomatoes', 'Scotch Bonnet Peppers'],
+  'chicken': ['Maggi Seasoning', 'Scotch Bonnet Peppers', 'Red Onions'],
+  'fish': ['Palm Oil', 'Scotch Bonnet Peppers'],
+  'egg': ['Bread', 'Fresh Tomatoes'],
 };
 
 /**
@@ -31,17 +43,19 @@ const PRODUCT_PAIRINGS = {
  */
 export function getSuggestedProducts(currentOrder) {
   const suggestions = new Set();
-  const alreadyOrdered = currentOrder.map(item => item.product_name);
+  const alreadyOrdered = currentOrder.map(item => (item.product_name || '').toLowerCase());
 
   for (const item of currentOrder) {
-    const pairings = PRODUCT_PAIRINGS[item.product_name];
+    const name = (item.product_name || '').toLowerCase();
 
-    if (pairings) {
-      // Add suggestions that aren't already in the order
+    for (const [keyword, pairings] of Object.entries(PRODUCT_PAIRINGS)) {
+      if (!name.includes(keyword)) continue;
+
       pairings.forEach(pairing => {
-        if (!alreadyOrdered.includes(pairing)) {
-          suggestions.add(pairing);
-        }
+        const alreadyIn = alreadyOrdered.some(ordered =>
+          ordered.includes(pairing.toLowerCase()) || pairing.toLowerCase().includes(ordered)
+        );
+        if (!alreadyIn) suggestions.add(pairing);
       });
     }
   }

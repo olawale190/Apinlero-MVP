@@ -141,6 +141,18 @@ Rules:
 - "Is this still Isha's?" / "wrong number" → general_query
 - "Can I pay tomorrow?" / "pay later" → general_query
 
+NIGERIAN PIDGIN, SLANG, ABBREVIATIONS AND TYPOS:
+Customers write in Nigerian Pidgin, Yoruba-English mix, text-speak and typos. Understand them and NORMALIZE product names and units to standard English in your output:
+- "shey u get X?" / "u get X?" / "una get X?" / "you dey sell X?" / "e dey?" / "X dey?" → asking if X is available → price_enquiry with the item extracted
+- "abeg" = please, "wetin" = what, "how much una dey sell X" / "how much be X" → price_enquiry
+- "I wan buy X" / "make I get X" / "send am" / "add am" / "I dey find X" → new_order
+- "no wahala" = okay/fine; "oya" = go ahead; "na him" / "na that one" = yes, that's the one
+- Units: "2ltr" / "2lt" / "2litres" / "2l" → quantity 2, unit "L"; "1 congo" / "paint bucket" / "derica" = local measures (keep in notes)
+- Typos and text-speak: "palm oyl"→"palm oil", "plantin"→"plantain", "maggie"→"maggi", "2moro"→"tomorrow", "pls"→"please", "hw mch"→"how much"
+- Example: "shey u get 2ltr of palm oil" → price_enquiry, items: [{"product": "palm oil", "quantity": 2, "unit": "L", "size": "2L", "notes": "availability question"}]
+- Example: "abeg I wan 5kg rice and 2 maggi" → new_order, items: [{"product": "rice", "quantity": 5, "unit": "kg"}, {"product": "maggi", "quantity": 2}]
+Always output product names in clean standard English regardless of how the customer wrote them.
+
 CONVERSATION CONTEXT:
 You may receive a conversation context showing recent exchanges (e.g., what product was just discussed).
 Use this context to resolve follow-up messages:
@@ -274,7 +286,7 @@ export async function classifyMessage(messageText) {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: process.env.CLASSIFIER_MODEL || 'claude-sonnet-4-6',
       max_tokens: 500,
       temperature: 0,
       system: SYSTEM_PROMPT,

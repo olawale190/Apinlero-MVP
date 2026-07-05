@@ -508,6 +508,24 @@ Say "yes" if that's right, or tell me what you actually need!`,
     buttons: ['✅ Yes, that\'s right', '✏️ Let me correct it']
   }),
 
+  // Fuzzy enquiry clarification ("shey u get 2ltr palm oil" → closest product)
+  DID_YOU_MEAN: ({ original, product, price, quantity, inStock }) => ({
+    text: `Do you mean *${product}*? 😊 ${inStock ? `We have it - £${price.toFixed(2)}` : `It's £${price.toFixed(2)} but out of stock right now`}
+
+${inStock ? `Say "yes" and I'll add ${quantity > 1 ? `${quantity} ` : ''}to your order, or tell me what you're after!` : `Want me to suggest something similar?`}`,
+    buttons: inStock ? ['✅ Yes, add it', '❌ Not that one'] : ['📋 See Products']
+  }),
+
+  // Feedback / preference acknowledgment
+  FEEDBACK_ACK: ({ customerName }) => ({
+    text: `Thank you for letting me know${customerName ? `, ${customerName}` : ''}! 🙏
+
+I've noted that down so we get it right for you next time. Your feedback really helps us serve you better.
+
+Anything else you need today?`,
+    buttons: ['📦 Order', '📋 See Products']
+  }),
+
   // Re-prompt templates for state-based conversations
   REPROMPT_CONFIRMATION: ({ items, total }) => ({
     text: `Sorry, I didn't quite catch that! 😅

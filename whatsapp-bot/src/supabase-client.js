@@ -669,6 +669,43 @@ export async function getMessageHistory(phone, limit = 20) {
   return data || [];
 }
 
+/**
+ * Get recent conversation messages for a phone number, oldest first.
+ * Reads whatsapp_message_logs in multi-tenant mode (businessId set),
+ * otherwise the legacy whatsapp_messages table.
+ * Returns [{direction, text, created_at}]
+ */
+export async function getRecentConversation(phone, businessId = null, limit = 6) {
+  try {
+    if (businessId) {
+      const { data, error } = await supabase
+        .from('whatsapp_message_logs')
+        .select('direction, content, created_at')
+        .eq('business_id', businessId)
+        .eq('customer_phone', phone)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return (data || []).reverse().map(m => ({
+        direction: m.direction,
+        text: m.content,
+        created_at: m.created_at
+      }));
+    }
+
+    const rows = await getMessageHistory(phone, limit);
+    return rows.reverse().map(m => ({
+      direction: m.direction,
+      text: m.message_text,
+      created_at: m.created_at
+    }));
+  } catch (error) {
+    console.warn('Failed to get recent conversation:', error.message);
+    return [];
+  }
+}
+
 // ============================================
 // MEDIA STORAGE
 // ============================================

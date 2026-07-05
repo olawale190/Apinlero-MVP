@@ -53,11 +53,11 @@ const INTENT_PATTERNS = {
   // Implicit order intent - cooking/preparing meals
   IMPLICIT_ORDER: /(cooking|making|preparing|recipe|need\s*for|running\s*low|ran\s*out|finishing|almost\s*out)/i,
 
-  // Price inquiries
-  PRICE_CHECK: /(how\s*much|price|cost|what('s)?\s*the\s*price|how\s*dear)/i,
+  // Price inquiries (incl. Nigerian Pidgin)
+  PRICE_CHECK: /(how\s*much|price|cost|what('s)?\s*the\s*price|how\s*dear|how\s*much\s*(una|you)\s*dey\s*sell|wetin\s*be\s*(the\s*)?price)/i,
 
-  // Availability checks
-  AVAILABILITY: /(do\s*you\s*have|available|in\s*stock|got\s*any|still\s*have|have\s*you\s*got)/i,
+  // Availability checks (incl. Nigerian Pidgin: "shey u get", "una get", "e dey")
+  AVAILABILITY: /(do\s*you\s*have|available|in\s*stock|got\s*any|still\s*have|have\s*you\s*got|shey\s*(u|you|una)?\s*(get|dey\s*sell)|\b(u|una)\s*get\b|you\s*dey\s*sell|e\s*dey\s*(remain|available)?\b|\bdem\s*dey\b)/i,
 
   // Delivery inquiries
   DELIVERY: /(deliver|delivery\s*info|shipping|ship\s*to|send\s*to|delivery\s*to|can\s*you\s*deliver)/i,
@@ -72,10 +72,10 @@ const INTENT_PATTERNS = {
   CANCEL: /(cancel|refund|return|never\s*mind|forget\s*it)/i,
 
   // Confirmation - more natural variations (flexible - allows trailing words like "yes please", "yeah sure")
-  CONFIRM: /^(yes|yeah|yep|yup|yh|ye|ya|yas|yass|yea|confirm|ok|okay|k|sure|correct|right|proceed|go\s*ahead|sounds\s*good|perfect|looks\s*good|that'?s\s*right|that'?s\s*correct|all\s*good|good|fine|great|absolutely|definitely|affirmative|👍|✅|same\s*address|yes\s*please|yep\s*please|please|do\s*it|let'?s\s*go|go\s*for\s*it)(\s|$|[!.,?]|please|thanks|thank\s*you|mate|bro|sis|sure|definitely)*/i,
+  CONFIRM: /^(yes|yeah|yep|yup|yh|ye|ya|yas|yass|yea|confirm|ok|okay|k|sure|correct|right|proceed|go\s*ahead|sounds\s*good|perfect|looks\s*good|that'?s\s*right|that'?s\s*correct|all\s*good|good|fine|great|absolutely|definitely|affirmative|👍|✅|same\s*address|yes\s*please|yep\s*please|please|do\s*it|let'?s\s*go|go\s*for\s*it|oya|na\s*(him|that\s*one|it|so)|e\s*correct|yes\s*na|abeg\s*(add|send)\s*am|no\s*wahala)(\s|$|[!.,?]|please|thanks|thank\s*you|mate|bro|sis|sure|definitely|o+|jare|abeg)*/i,
 
   // Decline - more natural variations (flexible - allows trailing words like "no thanks", "nope sorry")
-  DECLINE: /^(no|nope|nah|na|cancel|stop|wrong|no\s*way|noway|don'?t|not\s*now|never\s*mind|nevermind|forget\s*it|changed\s*my\s*mind|no\s*thanks|nah\s*thanks|👎|❌|x)(\s|$|[!.,?]|thanks|thank\s*you|sorry|mate|bro)*/i,
+  DECLINE: /^(no|nope|nah|na(?!\s*(him|that|it|so))|cancel|stop|wrong|no\s*way|noway|don'?t|not\s*now|never\s*mind|nevermind|forget\s*it|changed\s*my\s*mind|no\s*thanks|nah\s*thanks|no\s*be\s*(that|him|am)|not\s*that\s*one|👎|❌|x)(\s|$|[!.,?]|thanks|thank\s*you|sorry|mate|bro|o+|jare)*/i,
 
   // Thanks
   THANKS: /(thank|thanks|cheers|appreciate|ta\b)/i,
@@ -527,7 +527,7 @@ function matchProductLocal(text) {
 function normalizeUnit(unit) {
   const u = unit.toLowerCase();
   if (u.includes('bag')) return 'bag';
-  if (u.includes('bottle') || u.includes('liter') || u === 'l') return 'bottle';
+  if (u.includes('bottle') || u.includes('liter') || u.includes('litre') || u.includes('ltr') || u === 'l' || u === 'lt') return 'bottle';
   if (u.includes('kg')) return 'kg';
   if (u.includes('pack')) return 'pack';
   if (u.includes('piece')) return 'piece';
@@ -688,7 +688,7 @@ export async function parseMessage(message, conversationState = null) {
     try {
       const aiResult = await Promise.race([
         classifyMessage(message),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude classifier timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude classifier timeout')), 6000))
       ]);
 
       if (aiResult && aiResult.confidence >= 0.6) {
