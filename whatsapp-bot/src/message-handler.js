@@ -892,7 +892,9 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const capped = [];       // products where we reduced the qty to what's in stock
 
   for (const item of items) {
-    const itemName = (item.product || item.name || '').toString().trim();
+    // Accept both raw parsed items ({product}) and already-resolved order
+    // items ({product_name}) — the address flow re-enters with resolved items.
+    const itemName = (item.product || item.product_name || item.name || '').toString().trim();
     if (!itemName) continue; // skip malformed items with no product name
 
     const product = productMap.get(itemName.toLowerCase()) ||
@@ -944,7 +946,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   if (orderItems.length === 0) {
     // Nothing matched exactly — try a "did you mean?" against the live catalog
     const missedItem = notFoundItems[0];
-    const guess = findClosestProduct(products, missedItem.product);
+    const guess = missedItem ? findClosestProduct(products, missedItem.product) : null;
 
     if (guess) {
       const price = penceToPounds(guess.product.price);
