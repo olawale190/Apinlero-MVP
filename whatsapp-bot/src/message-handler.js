@@ -845,7 +845,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
 
   // Get product prices from database
   const products = await getProducts(conversation.businessId);
-  const productMap = new Map(products.map(p => [p.name.toLowerCase(), p]));
+  const productMap = new Map(products.filter(p => p.name).map(p => [p.name.toLowerCase(), p]));
 
   // Build order with prices
   const orderItems = [];
@@ -853,8 +853,11 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const notFoundItems = [];
 
   for (const item of items) {
-    const product = productMap.get(item.product.toLowerCase()) ||
-                    products.find(p => p.name.toLowerCase().includes(item.product.toLowerCase()));
+    const itemName = (item.product || item.name || '').toString().trim();
+    if (!itemName) continue; // skip malformed items with no product name
+
+    const product = productMap.get(itemName.toLowerCase()) ||
+                    products.find(p => p.name && p.name.toLowerCase().includes(itemName.toLowerCase()));
 
     if (product) {
       orderItems.push({
@@ -866,8 +869,8 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
         subtotal: penceToPounds(product.price) * item.quantity
       });
     } else {
-      notFound.push(item.product);
-      notFoundItems.push(item);
+      notFound.push(itemName);
+      notFoundItems.push({ ...item, product: itemName });
     }
   }
 
