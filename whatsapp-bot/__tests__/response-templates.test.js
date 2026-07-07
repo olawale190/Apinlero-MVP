@@ -1,4 +1,4 @@
-import { generateResponse } from '../src/response-templates.js';
+import { generateResponse, formatItemLine, formatItemLinePriced } from '../src/response-templates.js';
 
 // Shared test fixtures
 const mockItem = { quantity: 2, product_name: 'Palm Oil 5L', subtotal: 25.00 };
@@ -222,6 +222,79 @@ describe('Response Templates', () => {
     it('returns ERROR template for unknown template name', () => {
       const result = generateResponse('NONEXISTENT_TEMPLATE');
       expect(result.text).toContain('something went wrong');
+    });
+  });
+
+  describe('formatItemLine (grocery units)', () => {
+    it('pluralizes countable units', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Titus Sardine', product_unit: 'box' }))
+        .toBe('2 boxes of Titus Sardine');
+      expect(formatItemLine({ quantity: 3, product_name: 'Maggi', product_unit: 'pack' }))
+        .toBe('3 packs of Maggi');
+    });
+
+    it('keeps the singular when quantity is 1', () => {
+      expect(formatItemLine({ quantity: 1, product_name: 'Rice', product_unit: 'bag' }))
+        .toBe('1 bag of Rice');
+    });
+
+    it('maps "each" / "per piece" to "piece(s)"', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Gino Curry', product_unit: 'each' }))
+        .toBe('2 pieces of Gino Curry');
+      expect(formatItemLine({ quantity: 1, product_name: 'Gino Curry', product_unit: 'per piece' }))
+        .toBe('1 piece of Gino Curry');
+    });
+
+    it('treats weight/volume as measures (no pluralization)', () => {
+      expect(formatItemLine({ quantity: 5, product_name: 'Rice', product_unit: 'kg' }))
+        .toBe('5kg of Rice');
+      expect(formatItemLine({ quantity: 2, product_name: 'Palm Oil', product_unit: 'litre' }))
+        .toBe('2litre of Palm Oil');
+    });
+
+    it('handles irregular plurals', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Plantain', product_unit: 'per bunch' }))
+        .toBe('2 bunches of Plantain');
+    });
+
+    it('strips a leading "per " and still pluralizes correctly', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Sardines', product_unit: 'per tin' }))
+        .toBe('2 tins of Sardines');
+      expect(formatItemLine({ quantity: 2, product_name: 'Tomatoes', product_unit: 'per box' }))
+        .toBe('2 boxes of Tomatoes');
+      expect(formatItemLine({ quantity: 2, product_name: 'Yam', product_unit: 'per tuber' }))
+        .toBe('2 tubers of Yam');
+    });
+
+    it('never produces bad plurals like "boxs" for -x/-ch endings', () => {
+      expect(formatItemLine({ quantity: 3, product_name: 'X', product_unit: 'box' }))
+        .toBe('3 boxes of X');
+      expect(formatItemLine({ quantity: 3, product_name: 'X', product_unit: 'bunch' }))
+        .toBe('3 bunches of X');
+    });
+
+    it('renders size-qualified units safely without inventing grammar', () => {
+      expect(formatItemLine({ quantity: 3, product_name: 'Garri', product_unit: '2kg bag' }))
+        .toBe('3 × 2kg bag of Garri');
+    });
+
+    it('falls back to "Nx Name" when there is no unit', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Egusi' }))
+        .toBe('2x Egusi');
+      expect(formatItemLine({ quantity: 1, product_name: 'Egusi', product_unit: null }))
+        .toBe('1x Egusi');
+    });
+
+    it('prefers the customer-typed unit over the catalog unit', () => {
+      expect(formatItemLine({ quantity: 2, product_name: 'Rice', unit: 'kg', product_unit: 'bag' }))
+        .toBe('2kg of Rice');
+    });
+
+    it('formatItemLinePriced appends the price with and without a dash', () => {
+      expect(formatItemLinePriced({ quantity: 1, product_name: 'Rice', product_unit: 'bag', subtotal: 33 }))
+        .toBe('1 bag of Rice - £33.00');
+      expect(formatItemLinePriced({ quantity: 2, product_name: 'Maggi', product_unit: 'pack', subtotal: 2.25 }, { dash: false }))
+        .toBe('2 packs of Maggi £2.25');
     });
   });
 });

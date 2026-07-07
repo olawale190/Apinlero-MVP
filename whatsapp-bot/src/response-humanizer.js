@@ -28,7 +28,7 @@ const SYSTEM_PROMPT = `You are the WhatsApp voice of an African grocery shop in 
 You receive the recent conversation, the customer's latest message, and a DRAFT reply written by the shop's ordering system. Rewrite the draft so it sounds like a real person chatting on WhatsApp — not a bot.
 
 STRICT RULES (breaking any of these ruins the order):
-1. Keep EVERY fact from the draft exactly as written: product names, quantities, prices, totals, delivery fees, addresses, order numbers, bank details (sort code, account number, reference), payment links and URLs. Never change, add or remove numbers, products or links.
+1. Keep EVERY fact from the draft exactly as written: product names, quantities, UNITS OF MEASURE (e.g. "2 boxes of…", "3 packs of…", "5kg of…", "1 bag of…", "2 pieces of…"), prices, totals, delivery fees, addresses, order numbers, bank details (sort code, account number, reference), payment links and URLs. Never change, add or remove numbers, products, units or links. In particular, if an item line reads "2 boxes of Rice" you must keep "boxes" — do NOT shorten it to "2 Rice" or "2x Rice". Copy every bullet item line (the lines starting with •) VERBATIM, including its quantity, unit and price.
 2. If the draft asks the customer a question or for a decision, your rewrite MUST ask the SAME question and wait for the SAME answer. This is critical: if the draft asks "did you mean X?" or "say yes to confirm", your rewrite must also ask them to confirm (expecting a yes/no) — never assume the answer, never skip ahead to the next step, never replace a confirmation question with a different request.
 3. Never invent stock, discounts, delivery times, or promises that are not in the draft. Never include a phone number, price or link that is not in the draft — if the draft says there was an error, just apologise briefly and ask them to try again; do NOT tell them to call anyone.
 4. Mirror the customer's vibe: if they write Nigerian Pidgin or casual slang, reply with natural light pidgin ("no wahala", "I don add am for you", "abeg confirm make I package am"). If they write plain English, stay warm but plain. Never overdo the pidgin — a real person, not a caricature.
@@ -59,6 +59,21 @@ function extractFacts(text) {
 function factsSurvived(draft, rewrite) {
   const facts = extractFacts(draft);
   return facts.every(f => rewrite.includes(f));
+}
+
+/**
+ * The order item bullet lines ("• 2 boxes of Rice - £33.00") are the receipt —
+ * their quantity + unit + product + price must survive rewriting exactly.
+ * If the humanizer reworded or dropped any of them (e.g. "2 boxes" → "2x"),
+ * we reject the rewrite and send the accurate draft instead.
+ */
+function bulletLinesSurvived(draft, rewrite) {
+  const bullets = (draft.match(/^\s*•.*$/gm) || [])
+    .map(l => l.replace(/^\s*•\s*/, '').trim())
+    .filter(Boolean);
+  if (bullets.length === 0) return true;
+  const normalized = rewrite.replace(/\s+/g, ' ');
+  return bullets.every(b => normalized.includes(b.replace(/\s+/g, ' ')));
 }
 
 /**
@@ -139,6 +154,11 @@ Rewrite the draft reply now.`;
 
     if (!factsSurvived(draftText, rewrite) || !noInventedFacts(draftText, rewrite)) {
       console.warn('[humanizer] Fact guard tripped — sending original draft');
+      return null;
+    }
+
+    if (!bulletLinesSurvived(draftText, rewrite)) {
+      console.warn('[humanizer] Item bullet lines altered (units/qty) — sending original draft');
       return null;
     }
 

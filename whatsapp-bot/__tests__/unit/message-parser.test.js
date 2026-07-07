@@ -169,10 +169,13 @@ describe('Message Parser - detectIntent advanced intents', () => {
 });
 
 describe('Message Parser - parseOrderItems', () => {
+  // NOTE: the parser resolves to a search KEYWORD (e.g. "palm oil"), which the
+  // message-handler then fuzzy-matches against the shop's live catalogue. The
+  // parser is intentionally NOT hardcoded to specific product names anymore.
   test('parses quantity with x notation', async () => {
     const items = await parseOrderItems('2x palm oil');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Palm Oil 5L');
+    expect(items[0].product).toBe('palm oil');
     expect(items[0].quantity).toBe(2);
     expect(items[0].unit).toBe('Each');
   });
@@ -180,7 +183,7 @@ describe('Message Parser - parseOrderItems', () => {
   test('parses Yoruba product names', async () => {
     const items = await parseOrderItems('3x epo pupa');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Palm Oil 5L');
+    expect(items[0].product).toBe('palm oil');
     expect(items[0].quantity).toBe(3);
     expect(items[0].language).toBe('yoruba');
   });
@@ -188,7 +191,7 @@ describe('Message Parser - parseOrderItems', () => {
   test('parses quantity with unit notation', async () => {
     const items = await parseOrderItems('2 bags egusi');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Egusi Seeds');
+    expect(items[0].product).toBe('egusi');
     expect(items[0].quantity).toBe(2);
     expect(items[0].unit).toBe('bag');
   });
@@ -197,7 +200,7 @@ describe('Message Parser - parseOrderItems', () => {
     const items = await parseOrderItems('2x palm oil and 3x egusi');
     expect(items.length).toBeGreaterThanOrEqual(1);
 
-    const palmOil = items.find(i => i.product === 'Palm Oil 5L');
+    const palmOil = items.find(i => i.product === 'palm oil');
     expect(palmOil).toBeDefined();
     expect(palmOil.quantity).toBe(2);
   });
@@ -205,28 +208,28 @@ describe('Message Parser - parseOrderItems', () => {
   test('parses items with "to" delivery address', async () => {
     const items = await parseOrderItems('2x palm oil to SE15 4AA');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Palm Oil 5L');
+    expect(items[0].product).toBe('palm oil');
     expect(items[0].quantity).toBe(2);
   });
 
   test('parses plantain order', async () => {
     const items = await parseOrderItems('1x plantain');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Plantain (Green)');
+    expect(items[0].product).toBe('plantain');
     expect(items[0].quantity).toBe(1);
   });
 
   test('parses scotch bonnet peppers', async () => {
     const items = await parseOrderItems('2x scotch bonnet');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Scotch Bonnet Peppers');
+    expect(items[0].product).toBe('scotch bonnet');
     expect(items[0].quantity).toBe(2);
   });
 
   test('parses Yoruba name for scotch bonnet', async () => {
     const items = await parseOrderItems('3x ata rodo');
     expect(items).toHaveLength(1);
-    expect(items[0].product).toBe('Scotch Bonnet Peppers');
+    expect(items[0].product).toBe('scotch bonnet');
     expect(items[0].quantity).toBe(3);
     expect(items[0].language).toBe('yoruba');
   });
@@ -368,7 +371,7 @@ describe('Message Parser - parseMessage (full integration)', () => {
 
     expect(result.intent).toBe('NEW_ORDER');
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].product).toBe('Palm Oil 5L');
+    expect(result.items[0].product).toBe('palm oil');
     expect(result.items[0].quantity).toBe(2);
     expect(result.postcode).toBe('SE15 4AA');
     expect(result.deliveryZone.fee).toBe(5);
@@ -398,7 +401,7 @@ describe('Message Parser - parseMessage (full integration)', () => {
 
     expect(result.intent).toBe('NEW_ORDER');
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].product).toBe('Palm Oil 5L');
+    expect(result.items[0].product).toBe('palm oil');
     expect(result.items[0].language).toBe('yoruba');
     expect(result.postcode).toBe('E1 6AN');
     expect(result.deliveryZone.zone).toBe(1);

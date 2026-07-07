@@ -16,24 +16,29 @@ import { matchProductFromGraph, isNeo4jAvailable } from './neo4j-matcher.js';
 import { classifyMessage } from './intent-classifier.js';
 import { normalizeIntent } from './intent-normalizer.js';
 
-// Fallback product catalog with aliases (used when Neo4j is unavailable)
+// Yoruba / Pidgin / colloquial synonym layer. These map a local or informal
+// term to the ENGLISH keyword that appears in the real catalogue, so that a
+// message like "epo pupa" or "okporoko" still finds the right product. The
+// value is a search keyword, NOT a full product name — the handler fuzzy-matches
+// it against this shop's live catalogue (getProducts), which is the real source
+// of truth. Do NOT put invented product names here; they must resolve to real
+// catalogue items via substring/fuzzy match.
 const PRODUCT_ALIASES = {
-  'Palm Oil 5L': ['palm oil', 'red oil', 'zomi', 'epo pupa', 'adin'],
-  'Jollof Rice Mix': ['jollof', 'jollof rice', 'jollof mix', 'party jollof'],
-  'Rice': ['rice', 'long grain rice', 'iresi'],
-  'Plantain (Green)': ['plantain', 'green plantain', 'unripe plantain', 'ogede'],
-  'Egusi Seeds': ['egusi', 'melon seeds', 'agusi', 'egwusi'],
-  'Stockfish': ['stockfish', 'stock fish', 'okporoko', 'panla'],
-  'Scotch Bonnet Peppers': ['scotch bonnet', 'pepper', 'ata rodo', 'hot pepper', 'chili'],
-  'Yam Flour': ['yam flour', 'elubo', 'amala flour', 'amala'],
-  'Maggi Seasoning': ['maggi', 'seasoning', 'seasoning cubes', 'knorr'],
-  'Cassava Flour': ['cassava', 'garri', 'eba', 'gari', 'cassava flour'],
-  'Dried Crayfish': ['crayfish', 'dried crayfish', 'crawfish'],
-  'Garden Eggs': ['garden eggs', 'african eggplant', 'igba'],
-  'Fufu Flour': ['fufu', 'pounded yam', 'poundo', 'iyan'],
-  'Coconut Oil 1L': ['coconut oil', 'coconut'],
-  'Red Palm Oil': ['red palm oil', 'palm kernel oil'],
-  'African Nutmeg': ['nutmeg', 'ehuru', 'ariwo']
+  'palm oil': ['palm oil', 'red oil', 'zomi', 'epo pupa', 'adin'],
+  'rice': ['rice', 'long grain rice', 'basmati', 'iresi'],
+  'plantain': ['plantain', 'green plantain', 'unripe plantain', 'ripe plantain', 'ogede'],
+  'egusi': ['egusi', 'melon seeds', 'agusi', 'egwusi'],
+  'stockfish': ['stockfish', 'stock fish', 'okporoko', 'panla'],
+  'scotch bonnet': ['scotch bonnet', 'ata rodo', 'hot pepper', 'rodo'],
+  'yam flour': ['yam flour', 'elubo', 'amala', 'amala flour'],
+  'maggi': ['maggi', 'seasoning cube', 'seasoning cubes'],
+  'knorr': ['knorr'],
+  'garri': ['garri', 'gari', 'eba', 'cassava'],
+  'crayfish': ['crayfish', 'crawfish', 'dried crayfish'],
+  'beans': ['beans', 'brown beans', 'honey beans', 'ewa'],
+  'fufu': ['fufu', 'pounded yam', 'poundo', 'iyan'],
+  'coconut oil': ['coconut oil'],
+  'nutmeg': ['nutmeg', 'ehuru', 'ariwo']
 };
 
 // Intent keywords - expanded for natural language understanding
@@ -683,8 +688,27 @@ export async function parseMessage(message, conversationState = null) {
   let intent = detectIntent(message, conversationState);
   let classifierResult = null;
 
-  // If regex returns GENERAL_INQUIRY and message is non-trivial, try Claude classifier
-  if (intent === 'GENERAL_INQUIRY' && message.trim().length > 3) {
+  // Regex-parse items first so we can tell whether it did a good job.
+  let items = await parseOrderItems(message);
+
+  // The regex parser is weak at multi-item orders and mixed quantities
+  // ("2 Coaster Biscuit and 3 Knorr Beef Cube"). Use the Claude classifier when
+  // it's likely to do better: (a) regex couldn't classify the intent, or
+  // (b) it's an order-type message but regex found no items OR fewer items than
+  // the message clearly lists (multiple "and"/comma separators). This keeps the
+  // classifier off simple greetings/price checks while fixing real orders.
+  const looksLikeOrder = intent === 'NEW_ORDER' || intent === 'START_ORDER';
+  const hasSeparators = /\band\b|,|\+/i.test(message);            // multi-item order
+  // The regex parser mangles MULTI-item orders and mis-matches products
+  // ("Knorr Beef Cube" → "Maggi Beef Powder"). Prefer the Claude classifier for
+  // order messages that (a) it couldn't classify, (b) list multiple products, or
+  // (c) regex found nothing. Single-item orders stay on the fast regex+alias path
+  // (which already handles Yoruba synonyms and typos well).
+  const regexLikelyMissed = looksLikeOrder && (items.length === 0 || hasSeparators);
+  const shouldClassify = message.trim().length > 3 &&
+    (intent === 'GENERAL_INQUIRY' || regexLikelyMissed);
+
+  if (shouldClassify) {
     try {
       const aiResult = await Promise.race([
         classifyMessage(message),
@@ -692,8 +716,26 @@ export async function parseMessage(message, conversationState = null) {
       ]);
 
       if (aiResult && aiResult.confidence >= 0.6) {
-        intent = normalizeIntent(aiResult.intent);
+        if (intent === 'GENERAL_INQUIRY') intent = normalizeIntent(aiResult.intent);
         classifierResult = aiResult;
+        // Prefer the classifier's items when it extracted a real order AND the
+        // regex either found nothing or fewer items than the classifier — it
+        // handles multi-item + quantities far better. For single-item orders we
+        // keep the regex result (it carries Yoruba language + typo metadata).
+        if (Array.isArray(aiResult.items) && aiResult.items.length > 0 &&
+            aiResult.items.length >= items.length) {
+          items = aiResult.items.map(it => ({
+            product: it.product,
+            quantity: Number(it.quantity) || 1,
+            unit: it.unit || null,
+            originalText: it.product,
+            matchedText: it.product,
+            language: 'english',
+            confidence: aiResult.confidence,
+            source: 'ai_classifier',
+          }));
+          if (normalizeIntent(aiResult.intent) === 'NEW_ORDER') intent = 'NEW_ORDER';
+        }
       }
     } catch (err) {
       // Claude timed out or failed — keep the regex result
@@ -701,7 +743,6 @@ export async function parseMessage(message, conversationState = null) {
     }
   }
 
-  const items = await parseOrderItems(message);
   const { address, postcode } = parseAddress(message);
   const deliveryZone = getDeliveryZone(postcode);
   const orderRef = extractOrderRef(message);

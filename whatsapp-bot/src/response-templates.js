@@ -4,6 +4,88 @@
  * Pre-defined response templates for WhatsApp bot
  */
 
+// ---------------------------------------------------------------------------
+// Item line formatting — turn an order item into a human, grocery-style line
+// e.g. "2 boxes of Titus Sardine", "3 packs of Maggi", "5kg of Rice",
+// "2 pieces of Gino Curry". Units come from item.unit (what the customer
+// typed) or item.product_unit (the catalog unit). If there's no usable unit
+// we fall back to the old "2x Name" style so nothing ever breaks.
+// ---------------------------------------------------------------------------
+
+// Units you can count in whole pieces → get "N <unit>s of <name>".
+// Maps a couple of catalog synonyms onto a clean noun. A leading "per "
+// (e.g. "per tin", "per box") is stripped before lookup, so those all
+// resolve here too.
+const COUNTABLE_UNITS = {
+  box: 'box', bag: 'bag', pack: 'pack', carton: 'carton', tin: 'tin',
+  bottle: 'bottle', tub: 'tub', bar: 'bar', bunch: 'bunch',
+  piece: 'piece', each: 'piece', tuber: 'tuber',
+};
+
+// Weight / volume measures → "Nkg of <name>" (never pluralized).
+const MEASURE_UNITS = new Set(['kg', 'g', 'l', 'litre', 'liter', 'ltr', 'ml']);
+
+// Irregular plurals; everything else countable just takes a trailing "s".
+// (Words ending in -x/-ch/-sh/-s/-z take "es".)
+const IRREGULAR_PLURALS = { box: 'boxes', bunch: 'bunches' };
+
+function pluralizeUnit(noun, qty) {
+  if (qty === 1) return noun;
+  if (IRREGULAR_PLURALS[noun]) return IRREGULAR_PLURALS[noun];
+  // -x/-ch/-sh/-s/-z take "es" (box→boxes, bunch→bunches) so we never get "boxs".
+  if (/(x|ch|sh|s|z)$/.test(noun)) return `${noun}es`;
+  return `${noun}s`;
+}
+
+function itemName(item) {
+  return item.product_name || item.product || item.name || '';
+}
+
+/**
+ * Format the quantity + unit + name portion of an order line.
+ * @param {{quantity?: number, unit?: string, product_unit?: string,
+ *          product_name?: string, product?: string, name?: string}} item
+ * @returns {string} e.g. "2 boxes of Titus Sardine" or fallback "2x Titus Sardine"
+ */
+export function formatItemLine(item) {
+  const qty = Number(item.quantity) || 1;
+  const name = itemName(item);
+  let rawUnit = (item.unit || item.product_unit || '').toString().trim().toLowerCase();
+
+  if (!rawUnit) return `${qty}x ${name}`; // safe fallback — unchanged behaviour
+
+  // "per tin" / "per box" / "per bunch" → drop the "per " and treat the noun
+  // as countable, so we get "2 tins of…" not "2 per tins of…".
+  if (rawUnit.startsWith('per ')) rawUnit = rawUnit.slice(4).trim();
+
+  // Size-qualified free-text units (e.g. "2kg bag", "500g pack", "pack of 10").
+  // Too messy to pluralize reliably — render safely without inventing grammar.
+  if (/\d/.test(rawUnit)) return `${qty} × ${rawUnit} of ${name}`;
+
+  if (MEASURE_UNITS.has(rawUnit)) {
+    const u = rawUnit === 'liter' || rawUnit === 'ltr' ? 'litre' : rawUnit;
+    return `${qty}${u} of ${name}`;
+  }
+
+  const noun = COUNTABLE_UNITS[rawUnit];
+  if (noun) return `${qty} ${pluralizeUnit(noun, qty)} of ${name}`;
+
+  // Unknown but simple unit word → treat as a countable noun, still safe.
+  return `${qty} ${pluralizeUnit(rawUnit, qty)} of ${name}`;
+}
+
+/**
+ * Same as formatItemLine but with the price suffix "- £X.XX" appended.
+ * @param {object} item  order item with a numeric `subtotal`
+ * @param {{dash?: boolean}} [opts]  dash=false drops the "- " separator
+ *                                   (QUICK_CONFIRM shows just a space)
+ */
+export function formatItemLinePriced(item, opts = {}) {
+  const dash = opts.dash !== false;
+  const price = Number(item.subtotal || 0).toFixed(2);
+  return `${formatItemLine(item)}${dash ? ' - ' : ' '}£${price}`;
+}
+
 const TEMPLATES = {
   // Warm, friendly greeting
   GREETING: ({ customerName }) => ({
@@ -17,7 +99,7 @@ No rush, I'm here to help! 🙌`,
 
   ORDER_CONFIRMATION: ({ items, subtotal, deliveryFee, total, address, deliveryZone, notFound, suggestions }) => {
     let itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     let notFoundText = notFound && notFound.length > 0
@@ -54,7 +136,7 @@ As soon as your payment goes through, I'll get Isha started and keep you posted 
 
   NEED_ADDRESS: ({ items, subtotal, notFound }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     return {
@@ -144,7 +226,7 @@ Just tell me what you'd like to change.`,
   ORDER_EDIT_PROMPT_WITH_ITEMS: ({ items, total }) => ({
     text: `No problem! Here's your current order:
 
-${items.map(item => `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`).join('\n')}
+${items.map(item => `• ${formatItemLinePriced(item)}`).join('\n')}
 Total: £${total.toFixed(2)}
 
 What would you like to change?
@@ -258,7 +340,7 @@ ${isOpen
     let itemsText = '';
     if (items && Array.isArray(items) && items.length > 0) {
       itemsText = '\nItems:\n' + items.map(i =>
-        `• ${i.quantity}x ${i.product_name || i.product}`
+        `• ${formatItemLine(i)}`
       ).join('\n');
     }
 
@@ -405,7 +487,7 @@ Or contact us directly:
   // Quick confirmation for complete one-message orders
   QUICK_CONFIRM: ({ items, subtotal, deliveryFee, total, address, deliveryZone }) => {
     const itemList = items.map(item =>
-      `${item.quantity}x ${item.product_name} £${item.subtotal.toFixed(2)}`
+      `${formatItemLinePriced(item, { dash: false })}`
     ).join('\n');
 
     return {
@@ -436,7 +518,7 @@ I'll get Isha started the moment it clears!`,
   // Reorder confirmation
   REORDER_CONFIRM: ({ items, subtotal, deliveryFee, total, address, orderDate }) => {
     const itemList = items.map(item =>
-      `${item.quantity}x ${item.product_name}`
+      `${formatItemLine(item)}`
     ).join('\n');
     const date = new Date(orderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
@@ -484,7 +566,7 @@ Example: "quick palm oil" or "quick 2x egusi"`,
     text: `Just checking - did you mean *${correctedText}* (not "${originalText}")? 😊
 
 So that's:
-${items.map(item => `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`).join('\n')}
+${items.map(item => `• ${formatItemLinePriced(item)}`).join('\n')}
 
 ${address ? `Delivery to ${address}: £${deliveryFee.toFixed(2)}` : 'Send your postcode for delivery'}
 Total: £${total.toFixed(2)}
@@ -524,7 +606,7 @@ Anything else you need today?`,
     text: `Sorry, I didn't quite catch that! 😅
 
 Just to confirm your order:
-${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+${items.map(item => `• ${formatItemLine(item)}`).join('\n')}
 Total: £${total.toFixed(2)}
 
 Reply "yes" to confirm, "no" to cancel, or tell me what you'd like to change.`,
@@ -542,7 +624,7 @@ Just tap the secure card link I sent to finish up — or say "pay" and I'll send
     text: `I still need your delivery address to complete the order! 📍
 
 Your order so far:
-${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+${items.map(item => `• ${formatItemLine(item)}`).join('\n')}
 Subtotal: £${subtotal.toFixed(2)}
 
 Please send your full address with postcode, like:
@@ -553,7 +635,7 @@ Please send your full address with postcode, like:
   // NEW: State-first routing re-prompts
   AWAITING_CONFIRM_REPROMPT: ({ pendingOrder }) => {
     const items = pendingOrder?.items || [];
-    const itemList = items.map(i => `• ${i.quantity}x ${i.product_name}`).join('\n');
+    const itemList = items.map(i => `• ${formatItemLine(i)}`).join('\n');
     return {
       text: `Just checking - did you want to confirm this order? 😊
 
@@ -575,7 +657,7 @@ Say "pay" if you'd like me to send it again!`,
   // Modify order confirmation
   MODIFY_ORDER_APPLIED: ({ items, removed, added, subtotal, deliveryFee, total, address }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     let changeText = '';
@@ -612,7 +694,7 @@ Your current items are shown above. What would you like to modify?`,
   // Meal order
   MEAL_INGREDIENTS: ({ meal, items, subtotal, deliveryFee, total, address }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     return {
@@ -646,7 +728,7 @@ Which one are you making?`,
   // Budget order
   BUDGET_SUGGESTION: ({ budget, items, total }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     return {
@@ -665,7 +747,7 @@ Want me to add all of these to your order?`,
   // Running total
   RUNNING_TOTAL: ({ items, subtotal, deliveryFee, total, address }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     return {
@@ -711,7 +793,7 @@ Please send your full address with postcode, like:
   // Auto-confirm fallback (when auto-confirm fails silently)
   AUTO_CONFIRM_FALLBACK: ({ items, subtotal, deliveryFee, total, address }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     return {
@@ -731,7 +813,7 @@ Reply "yes" to confirm!`,
   EDITING_ORDER_REPROMPT: ({ items, total }) => ({
     text: `You're currently editing your order 📝
 
-${items.map(item => `• ${item.quantity}x ${item.product_name}`).join('\n')}
+${items.map(item => `• ${formatItemLine(item)}`).join('\n')}
 Total: £${total.toFixed(2)}
 
 You can:
@@ -756,7 +838,7 @@ Or browse all products: ishas-treat.apinlero.com`,
   // Partial match - some items found, some not
   PARTIAL_MATCH: ({ items, notFound, subtotal, deliveryFee, total, address, suggestions }) => {
     const itemList = items.map(item =>
-      `• ${item.quantity}x ${item.product_name} - £${item.subtotal.toFixed(2)}`
+      `• ${formatItemLinePriced(item)}`
     ).join('\n');
 
     let notFoundText = `\n\n⚠️ I couldn't find: ${notFound.join(', ')}`;
