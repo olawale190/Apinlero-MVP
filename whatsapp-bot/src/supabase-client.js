@@ -198,12 +198,15 @@ export async function deleteSession(phone, businessId = null) {
  * @returns {Promise<Array>} Array of product objects
  */
 export async function getProducts(businessId) {
-  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
-  // TODO: Add business_id column to products table for multi-tenant support
+  if (!businessId) {
+    console.warn('[products] getProducts called without businessId — returning empty to avoid cross-tenant leakage');
+    return [];
+  }
 
   const { data, error} = await supabase
     .from('products')
     .select('*')
+    .eq('business_id', businessId)
     .eq('is_active', true)
     .order('name');
 
@@ -222,14 +225,13 @@ export async function getProducts(businessId) {
  * @returns {Promise<Object|null>} Product object or null
  */
 export async function getProductById(id, businessId) {
-  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
-  // TODO: Add business_id column to products table for multi-tenant support
-
-  const { data, error } = await supabase
+  let query = supabase
     .from('products')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('id', id);
+  if (businessId) query = query.eq('business_id', businessId);
+
+  const { data, error } = await query.single();
 
   if (error) {
     console.error('Failed to fetch product:', error);
@@ -246,15 +248,13 @@ export async function getProductById(id, businessId) {
  * @returns {Promise<Object|null>} Product object or null
  */
 export async function getProductByName(name, businessId) {
-  // Note: businessId parameter kept for compatibility, but not used in single-tenant mode
-  // TODO: Add business_id column to products table for multi-tenant support
-
-  const { data, error } = await supabase
+  let query = supabase
     .from('products')
     .select('*')
-    .ilike('name', `%${name}%`)
-    .limit(1)
-    .single();
+    .ilike('name', `%${name}%`);
+  if (businessId) query = query.eq('business_id', businessId);
+
+  const { data, error } = await query.limit(1).single();
 
   if (error) {
     return null;
@@ -399,6 +399,83 @@ export async function getBusinessStripe(businessId) {
     };
   } catch (err) {
     console.warn('[stripe] getBusinessStripe failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Resolve which business owns an incoming WhatsApp message, keyed on the
+ * business's own Twilio number (the webhook's `To` field). Returns the
+ * whatsapp_configs row's business linkage, or null on miss (caller falls back
+ * to DEFAULT_BUSINESS_ID).
+ *
+ * `twilioNumber` should be canonical bare E.164 (e.g. "+447448682282").
+ * The stored column is `twilio_phone_number`; we match both the bare and the
+ * "whatsapp:"-prefixed form to tolerate however the row was seeded.
+ */
+export async function getBusinessByTwilioNumber(twilioNumber) {
+  if (!twilioNumber) return null;
+  try {
+    const bare = twilioNumber.replace('whatsapp:', '').trim();
+    const { data, error } = await supabase
+      .from('whatsapp_configs')
+      .select('business_id, business_name, twilio_phone_number, provider')
+      .eq('is_active', true)
+      .in('twilio_phone_number', [bare, `whatsapp:${bare}`])
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      businessId: data.business_id,
+      businessName: data.business_name || null,
+      twilioNumber: bare,
+    };
+  } catch (err) {
+    console.warn('[tenant] getBusinessByTwilioNumber failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Fetch the vendor's own WhatsApp sender number (bare E.164) by business id, so
+ * webhook-driven outbound messages (payment receipts, status updates) can be
+ * sent FROM the vendor's number. Returns null if not configured (caller falls
+ * back to the default TWILIO_WHATSAPP_NUMBER).
+ */
+export async function getTwilioNumberForBusiness(businessId) {
+  if (!businessId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('whatsapp_configs')
+      .select('twilio_phone_number')
+      .eq('business_id', businessId)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data || !data.twilio_phone_number) return null;
+    return data.twilio_phone_number.replace('whatsapp:', '').trim();
+  } catch (err) {
+    console.warn('[tenant] getTwilioNumberForBusiness failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Fetch a business's public identity (name + storefront slug) by id.
+ * Used to brand replies and the AI prompt per-vendor.
+ */
+export async function getBusinessIdentity(businessId) {
+  if (!businessId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('id, name, slug')
+      .eq('id', businessId)
+      .single();
+    if (error || !data) return null;
+    return { businessId: data.id, businessName: data.name || null, slug: data.slug || null };
+  } catch (err) {
+    console.warn('[tenant] getBusinessIdentity failed:', err.message);
     return null;
   }
 }

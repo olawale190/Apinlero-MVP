@@ -20,28 +20,67 @@ if (accountSid && authToken && twilioWhatsAppNumber) {
 }
 
 /**
- * Send WhatsApp message via Twilio
- * @param {string} to - Recipient WhatsApp number (format: whatsapp:+1234567890)
+ * Normalize a phone number to Twilio WhatsApp channel format: "whatsapp:+1234567890".
+ * Accepts bare E.164 (+44...), no-plus (44...), or an already-prefixed value.
+ * @param {string} num
+ * @returns {string}
+ */
+export function toWhatsAppAddress(num) {
+  if (!num) return num;
+  let n = String(num).trim();
+  if (n.startsWith('whatsapp:')) n = n.slice('whatsapp:'.length).trim();
+  n = n.replace(/\s/g, '');
+  if (!n.startsWith('+')) n = `+${n}`;
+  return `whatsapp:${n}`;
+}
+
+// Per-account client cache — only needed if a vendor's number lives in a Twilio
+// subaccount with its own auth token (ISV embedded signup). Mirrors the
+// per-business Stripe client cache in payments.js.
+const accountClientCache = new Map(); // `${accountSid}` → twilio client
+
+function getClientFor(sender) {
+  // sender may be a bare string (uses the default account client) or an object
+  // { number, accountSid, authToken } for a subaccount-scoped sender.
+  if (sender && typeof sender === 'object' && sender.accountSid && sender.authToken) {
+    const key = sender.accountSid;
+    if (!accountClientCache.has(key)) {
+      accountClientCache.set(key, twilio(sender.accountSid, sender.authToken));
+    }
+    return accountClientCache.get(key);
+  }
+  return client;
+}
+
+/** Clear a cached subaccount client (e.g. after the vendor rotates credentials). */
+export function invalidateTwilioClientCache(accountSid) {
+  accountClientCache.delete(accountSid);
+}
+
+/**
+ * Send WhatsApp message via Twilio.
+ * @param {string} to - Recipient WhatsApp number (any format; normalized here)
  * @param {string} body - Message text
+ * @param {string|Object} [from] - Sender. Either a number string (the vendor's
+ *   WhatsApp number) or `{ number, accountSid?, authToken? }` for a subaccount
+ *   sender. Defaults to the global TWILIO_WHATSAPP_NUMBER (backward compatible).
  * @returns {Promise<Object>} Twilio message response
  */
-export async function sendWhatsAppMessage(to, body) {
-  if (!client) {
+export async function sendWhatsAppMessage(to, body, from = twilioWhatsAppNumber) {
+  const fromNumber = (from && typeof from === 'object') ? from.number : from;
+  const sendingClient = getClientFor(from);
+
+  if (!sendingClient || !fromNumber) {
     console.warn('⚠️ Twilio not configured - message not sent');
     return { success: false, error: 'Twilio not configured' };
   }
 
   try {
-    // Ensure 'to' number is in correct format (whatsapp:+1234567890)
-    let formattedTo = to;
-    if (!formattedTo.startsWith('whatsapp:')) {
-      // Add + if missing
-      const phoneNum = formattedTo.startsWith('+') ? formattedTo : `+${formattedTo}`;
-      formattedTo = `whatsapp:${phoneNum}`;
-    }
+    const formattedTo = toWhatsAppAddress(to);
+    const formattedFrom = toWhatsAppAddress(fromNumber);
 
-    const message = await client.messages.create({
-      from: twilioWhatsAppNumber,
+    const message = await sendingClient.messages.create({
+      from: formattedFrom,
       to: formattedTo,
       body: body
     });
@@ -68,9 +107,20 @@ export function parseTwilioWebhook(body) {
   const rawFrom = body.From || '';
   const phoneNumber = rawFrom.replace('whatsapp:', '').replace(/\s/g, '').trim();
 
+  // Normalize the business's own number (To) to canonical bare E.164 for tenant
+  // lookup — strip the "whatsapp:" prefix and spaces, keep the leading +.
+  const rawTo = body.To || '';
+  const toNormalized = rawTo
+    ? (() => {
+        const t = rawTo.replace('whatsapp:', '').replace(/\s/g, '').trim();
+        return t.startsWith('+') ? t : `+${t}`;
+      })()
+    : null;
+
   return {
     from: body.From, // Format: whatsapp:+1234567890
     to: body.To,     // Format: whatsapp:+14155238886
+    toNormalized,    // Bare E.164 (+44...) — canonical key for tenant resolution
     body: body.Body, // Message text
     messageId: body.MessageSid,
     numMedia: parseInt(body.NumMedia || '0'),

@@ -6,7 +6,7 @@
  * vendor experience can grow here without touching customer flow.
  */
 
-import { supabase } from './supabase-client.js';
+import { supabase, getTwilioNumberForBusiness } from './supabase-client.js';
 import { sendWhatsAppMessage } from './twilio-service.js';
 
 /**
@@ -48,7 +48,8 @@ export async function sendVendorMessage(businessId, text) {
     return { success: false, reason: 'no_phone' };
   }
   try {
-    await sendWhatsAppMessage(`whatsapp:${phone}`, text);
+    const vendorNumber = await getTwilioNumberForBusiness(businessId);
+    await sendWhatsAppMessage(`whatsapp:${phone}`, text, vendorNumber || undefined);
     return { success: true };
   } catch (err) {
     console.warn('[vendor-notify] send failed:', err.message);

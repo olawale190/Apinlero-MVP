@@ -19,6 +19,7 @@ import { handleIncomingMessage, handlePaymentSucceeded } from './message-handler
 import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
 import { checkKGDependencies } from './kg-preprocessor.js';
 import { constructWebhookEvent, peekEventBusinessId } from './payments.js';
+import { resolveBusinessByTwilioNumber } from './tenant-resolver.js';
 
 dotenv.config();
 
@@ -134,21 +135,37 @@ app.post('/webhook/twilio', async (req, res) => {
 
   try {
     const incomingMessage = parseTwilioWebhook(req.body);
-    console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber}: ${incomingMessage.body}`);
+    console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber} → To=${incomingMessage.toNormalized}: ${incomingMessage.body}`);
 
-    // Process message through the full handler (single tenant mode with default business)
+    // Resolve which vendor this message is for by the business's own number (To).
+    // On a miss (number not yet seeded in whatsapp_configs), fall back to the
+    // default business so single-vendor operation keeps working.
+    const resolved = await resolveBusinessByTwilioNumber(incomingMessage.toNormalized);
+    const business = resolved || {
+      businessId: DEFAULT_BUSINESS_ID,
+      businessName: null,
+      storefrontUrl: null,
+      twilioNumber: null, // sendWhatsAppMessage defaults to TWILIO_WHATSAPP_NUMBER
+    };
+    if (!resolved) {
+      console.warn(`[Twilio] No vendor for To=${incomingMessage.toNormalized}; using DEFAULT_BUSINESS_ID`);
+    }
+
     const response = await handleIncomingMessage({
       from: incomingMessage.phoneNumber,
       customerName: incomingMessage.profileName || null,
       text: incomingMessage.body,
       messageId: incomingMessage.messageId,
       provider: 'twilio',
-      businessId: DEFAULT_BUSINESS_ID // Single tenant mode
+      businessId: business.businessId,
+      businessName: business.businessName,
+      storefrontUrl: business.storefrontUrl,
+      twilioNumber: business.twilioNumber,
     });
 
-    // Send response via Twilio
+    // Send response FROM the vendor's own number (falls back to default if null).
     if (response && response.text) {
-      await sendWhatsAppMessage(incomingMessage.from, response.text);
+      await sendWhatsAppMessage(incomingMessage.from, response.text, business.twilioNumber || undefined);
       console.log(`✅ [Twilio] Response sent to ${incomingMessage.phoneNumber}`);
     }
 
@@ -159,9 +176,12 @@ app.post('/webhook/twilio', async (req, res) => {
 
     try {
       const incomingMessage = parseTwilioWebhook(req.body);
+      // Best-effort error reply from the vendor's number if we can resolve it.
+      const resolved = await resolveBusinessByTwilioNumber(incomingMessage.toNormalized);
       await sendWhatsAppMessage(
         incomingMessage.from,
-        "Sorry, there was an error processing your message. Please try again or contact us directly."
+        "Sorry, there was an error processing your message. Please try again or contact us directly.",
+        resolved?.twilioNumber || undefined
       );
     } catch (e) {
       // Ignore send errors
@@ -421,21 +441,32 @@ app.post('/webhook', async (req, res) => {
 
     try {
       const incomingMessage = parseTwilioWebhook(req.body);
-      console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber}: ${incomingMessage.body}`);
+      console.log(`📩 [Twilio] Message from ${incomingMessage.phoneNumber} → To=${incomingMessage.toNormalized}: ${incomingMessage.body}`);
 
-      // Process message through the full handler
+      // Resolve vendor by the business's own number (To); fall back to default.
+      const resolved = await resolveBusinessByTwilioNumber(incomingMessage.toNormalized);
+      const business = resolved || {
+        businessId: DEFAULT_BUSINESS_ID,
+        businessName: null,
+        storefrontUrl: null,
+        twilioNumber: null,
+      };
+
       const response = await handleIncomingMessage({
         from: incomingMessage.phoneNumber,
         customerName: incomingMessage.profileName || null,
         text: incomingMessage.body,
         messageId: incomingMessage.messageId,
         provider: 'twilio',
-        businessId: DEFAULT_BUSINESS_ID // Use default business for legacy Twilio
+        businessId: business.businessId,
+        businessName: business.businessName,
+        storefrontUrl: business.storefrontUrl,
+        twilioNumber: business.twilioNumber,
       });
 
-      // Send response via Twilio
+      // Send response FROM the vendor's own number (falls back to default if null).
       if (response && response.text) {
-        await sendWhatsAppMessage(incomingMessage.from, response.text);
+        await sendWhatsAppMessage(incomingMessage.from, response.text, business.twilioNumber || undefined);
         console.log(`✅ [Twilio] Response sent to ${incomingMessage.phoneNumber}`);
       }
 

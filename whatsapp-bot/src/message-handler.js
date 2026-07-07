@@ -949,8 +949,26 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
     const itemName = (item.product || item.product_name || item.name || '').toString().trim();
     if (!itemName) continue; // skip malformed items with no product name
 
-    const product = productMap.get(itemName.toLowerCase()) ||
-                    products.find(p => p.name && p.name.toLowerCase().includes(itemName.toLowerCase()));
+    // Resolve against the REAL catalog. The parser/alias layer may hand us a
+    // name that doesn't exist in this shop's catalogue (e.g. a generic alias
+    // like "Maggi Seasoning"), so we always fall back to a fuzzy match against
+    // live products — using the customer's own words when we have them — before
+    // giving up. This keeps the catalogue (not the alias table) the source of truth.
+    let product = productMap.get(itemName.toLowerCase()) ||
+                  products.find(p => p.name && p.name.toLowerCase().includes(itemName.toLowerCase()));
+
+    if (!product) {
+      const rawText = (item.originalText || item.matchedText || itemName || '').toString().trim();
+      const guessName = findClosestProduct(products, itemName);
+      const guessRaw = rawText && rawText.toLowerCase() !== itemName.toLowerCase()
+        ? findClosestProduct(products, rawText)
+        : null;
+      // Prefer whichever fuzzy match scored higher.
+      const best = [guessName, guessRaw]
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score)[0];
+      if (best) product = best.product;
+    }
 
     if (product) {
       // Stock enforcement (vendor sets stock up front; we never oversell)
@@ -974,6 +992,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
         product_name: product.name,
         quantity: qty,
         unit: item.unit,
+        product_unit: product.unit || null,
         price: penceToPounds(product.price),
         subtotal: penceToPounds(product.price) * qty
       });
@@ -1008,6 +1027,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
         product_name: guess.product.name,
         quantity,
         unit: missedItem.unit,
+        product_unit: guess.product.unit || null,
         price,
         subtotal: price * quantity
       }];
@@ -1043,7 +1063,17 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
       });
     }
 
-    return generateResponse('PRODUCTS_NOT_FOUND', { products: notFound });
+    // Offer REAL catalogue suggestions (closest matches to what they asked for),
+    // never hardcoded example products that may not exist in this shop.
+    const suggestions = [];
+    for (const term of notFound) {
+      const g = findClosestProduct(products, term);
+      if (g && !suggestions.includes(g.product.name)) suggestions.push(g.product.name);
+    }
+    return generateResponse('PRODUCTS_NOT_FOUND_CONTEXTUAL', {
+      products: notFound,
+      suggestions: suggestions.slice(0, 5),
+    });
   }
 
   // Partial match: some items found, some not — accept found and suggest alternatives
@@ -2174,6 +2204,7 @@ async function handleModifyOrder(phone, customerName, parsed, conversation) {
           product_name: product.name,
           quantity: qty,
           unit: product.unit,
+          product_unit: product.unit || null,
           price: penceToPounds(product.price),
           subtotal: penceToPounds(product.price) * qty
         });
