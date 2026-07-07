@@ -193,7 +193,9 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
   if (!ready) return null;
 
   // Run the Claude AI classifier (already exists in the bot)
-  const classification = await classifyMessage(messageText);
+  const classification = await classifyMessage(messageText, {
+    businessName: conversation?.business?.name,
+  });
 
   // Only intercept if it's an advanced KG intent
   if (!classification || !KG_INTENTS.has(classification.intent)) {

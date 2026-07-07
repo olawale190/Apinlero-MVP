@@ -75,9 +75,9 @@ export function preprocessMessage(messageText) {
 // SYSTEM PROMPT
 // ============================================================================
 
-const SYSTEM_PROMPT = `You are the order processing AI for Isha's Treat & Groceries, an ethnic grocery shop in London serving the African diaspora community.
-
-Given a customer's WhatsApp message, classify the intent and extract structured data.
+// Kept as one static block (not per-vendor) so it stays a stable, cacheable
+// prompt prefix — only the identity line above it changes per business.
+const TAXONOMY_PROMPT = `Given a customer's WhatsApp message, classify the intent and extract structured data.
 Respond ONLY in JSON. No markdown, no explanation, no backticks.
 
 Intent types:
@@ -91,10 +91,10 @@ Intent types:
 - "running_total" — Asking what's in their cart or how much it costs ("how much is everything so far?", "what's my total?", "what have I ordered?")
 - "address_update" — Providing or changing delivery address ("deliver to 14 Market Street", "my address changed")
 - "relationship_order" — Someone else will collect or receive the order ("my sister will collect", "Funke is picking up", "my husband will come for it")
-- "recommendation_recall" — Referencing a past recommendation or suggestion ("that thing you recommended", "what Aunty Isha suggested last time", "the goat meat she told me about")
+- "recommendation_recall" — Referencing a past recommendation or suggestion ("that thing you recommended", "what the owner suggested last time", "the goat meat she told me about")
 - "time_based_order" — Reordering based on a specific time reference ("what I bought in January", "same as last week", "what did I order on Monday")
 - "preference_update" — Feedback about product quality or preference change ("the yam was too soft", "I prefer the big ones", "don't send the small garri next time")
-- "general_query" — Not an order (wrong number, payment question, complaint, "can I pay tomorrow?", "is this still Isha's?")
+- "general_query" — Not an order (wrong number, payment question, complaint, "can I pay tomorrow?", "is this still {{BUSINESS_NAME}}'s?")
 - "greeting" — Just saying hello
 
 Response format:
@@ -134,11 +134,11 @@ Rules:
 - "Remove the last item" → modify_order, modification: {"action": "remove_last"}
 - "Deliver to <address>" / "My address changed to <address>" → address_update, context_clues.delivery_address: "<full address>"
 - "My sister will collect" / "Funke is picking up" → relationship_order, references_person: "sister" / "Funke"
-- "That thing you recommended" / "what Aunty Isha suggested" → recommendation_recall, context_clues.references_recommendation: true
+- "That thing you recommended" / "what the owner suggested" → recommendation_recall, context_clues.references_recommendation: true
 - "What I bought in January" / "same as last week" → time_based_order, references_time: "January" / "last week"
 - "The yam was too soft" / "I prefer the big ones" → preference_update, context_clues.product: "yam", context_clues.feedback: "too soft"
 - "Build me a cart for £30" / "everything for egusi soup, you know what I like" → budget_order
-- "Is this still Isha's?" / "wrong number" → general_query
+- "Is this still {{BUSINESS_NAME}}'s?" / "wrong number" → general_query
 - "Can I pay tomorrow?" / "pay later" → general_query
 
 NIGERIAN PIDGIN, SLANG, ABBREVIATIONS AND TYPOS:
@@ -161,6 +161,21 @@ Use this context to resolve follow-up messages:
 - "yes add it" after discussing palm oil → new_order with product: "palm oil", quantity: 1
 - "how about 5kg?" after discussing rice → new_order with product: "rice", quantity: 5, unit: "kg"
 Set context_clues.references_previous = true when the product is inferred from conversation context.`;
+
+const DEFAULT_BUSINESS_NAME = "Isha's Treat & Groceries";
+
+/**
+ * Build the full system prompt for a given vendor. The identity line and the
+ * one {{BUSINESS_NAME}} placeholder inside TAXONOMY_PROMPT are the only parts
+ * that vary per business — everything else stays byte-identical across
+ * vendors so it remains a stable, cacheable prompt prefix.
+ * @param {{businessName?: string}} [business]
+ */
+export function buildSystemPrompt({ businessName } = {}) {
+  const name = businessName || DEFAULT_BUSINESS_NAME;
+  const identity = `You are the order processing AI for ${name}, an ethnic grocery shop in London serving the African diaspora community.\n\n`;
+  return identity + TAXONOMY_PROMPT.split('{{BUSINESS_NAME}}').join(name);
+}
 
 const FALLBACK_RESULT = {
   intent: 'general_query',
@@ -279,7 +294,7 @@ export function regexFallbackClassify(messageText) {
 // MAIN CLASSIFIER
 // ============================================================================
 
-export async function classifyMessage(messageText) {
+export async function classifyMessage(messageText, business = {}) {
   // Pre-process emoji messages
   const { processed, hadEmoji } = preprocessMessage(messageText);
   const textToClassify = hadEmoji ? processed : messageText;
@@ -289,7 +304,7 @@ export async function classifyMessage(messageText) {
       model: process.env.CLASSIFIER_MODEL || 'claude-sonnet-4-6',
       max_tokens: 500,
       temperature: 0,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(business),
       messages: [{ role: 'user', content: textToClassify }],
     });
 

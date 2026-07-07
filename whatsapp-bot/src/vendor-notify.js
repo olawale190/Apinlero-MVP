@@ -1,7 +1,7 @@
 /**
  * Vendor notifications.
  *
- * Sends WhatsApp messages to the business owner (Isha) — low-stock alerts now,
+ * Sends WhatsApp messages to the business owner — low-stock alerts now,
  * and new-order alerts / status prompts in Phase 3c. Kept separate so the
  * vendor experience can grow here without touching customer flow.
  */

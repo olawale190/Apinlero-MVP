@@ -18,11 +18,13 @@
  */
 
 import Stripe from 'stripe';
-import { getBusinessStripe } from './supabase-client.js';
+import { getBusinessStripe, getBusinessIdentity } from './supabase-client.js';
 
-const BASE = process.env.PUBLIC_BASE_URL || 'https://ishas-treat.apinlero.com';
-const SUCCESS_URL = BASE + '/order-complete';
-const CANCEL_URL = BASE + '/order-cancelled';
+// Fallback storefront for the pilot vendor, used only if a business has no
+// slug on file yet (should not happen once whatsapp_configs/businesses rows
+// are seeded for every vendor).
+const DEFAULT_BASE = process.env.PUBLIC_BASE_URL || 'https://ishas-treat.apinlero.com';
+const STOREFRONT_BASE_HOST = process.env.STOREFRONT_BASE_HOST || 'apinlero.com';
 
 // Small cache so we don't re-query the business row on every call
 const clientCache = new Map(); // businessId → { stripe, config }
@@ -98,12 +100,15 @@ export async function createCheckoutSession(order) {
     });
   }
 
+  const identity = await getBusinessIdentity(order.businessId);
+  const base = identity?.slug ? `https://${identity.slug}.${STOREFRONT_BASE_HOST}` : DEFAULT_BASE;
+
   try {
     const params = {
       mode: 'payment',
       line_items,
-      success_url: `${SUCCESS_URL}?ref=${encodeURIComponent(order.ref)}`,
-      cancel_url: `${CANCEL_URL}?ref=${encodeURIComponent(order.ref)}`,
+      success_url: `${base}/order-complete?ref=${encodeURIComponent(order.ref)}`,
+      cancel_url: `${base}/order-cancelled?ref=${encodeURIComponent(order.ref)}`,
       metadata: {
         order_id: order.id,
         order_ref: String(order.ref),

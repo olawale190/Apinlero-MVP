@@ -682,9 +682,10 @@ export function isCompleteOrder(items, postcode) {
  * Parse the full message and return structured data (async for Neo4j)
  * @param {string} message - The message text
  * @param {string|null} conversationState - Current conversation state for context-aware parsing
+ * @param {{businessName?: string}} [business] - Vendor identity, passed through to the AI classifier
  * @returns {Promise<Object>} - Parsed message data
  */
-export async function parseMessage(message, conversationState = null) {
+export async function parseMessage(message, conversationState = null, business = {}) {
   let intent = detectIntent(message, conversationState);
   let classifierResult = null;
 
@@ -711,7 +712,7 @@ export async function parseMessage(message, conversationState = null) {
   if (shouldClassify) {
     try {
       const aiResult = await Promise.race([
-        classifyMessage(message),
+        classifyMessage(message, business),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Claude classifier timeout')), 6000))
       ]);
 

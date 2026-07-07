@@ -334,25 +334,60 @@ async function handleMediaMessage({ mediaId, messageType, from, accessToken, bus
  * @param {string} params.accessToken - Meta API access token (for media)
  * @returns {Object} - Response {text, buttons}
  */
+// Templates were originally written for a single pilot vendor (Isha's Treat)
+// and still contain that name + storefront URL as literal text in some
+// strings. Rather than thread a `business` object through every one of the
+// ~80 generateResponse call sites, we rebrand the fully-assembled reply once,
+// here, right before it goes out — this is the single choke point every
+// response passes through regardless of which branch produced it.
+const DEFAULT_BUSINESS_NAME = "Isha's Treat";
+const DEFAULT_STOREFRONT_URL = 'ishas-treat.apinlero.com';
+
+function rebrandResponse(text, { businessName, storefrontUrl } = {}) {
+  if (!text) return text;
+  let out = text;
+  if (storefrontUrl && storefrontUrl !== DEFAULT_STOREFRONT_URL) {
+    // Templates reference the bare host (no https://) inline in sentences.
+    const bareUrl = storefrontUrl.replace(/^https?:\/\//, '');
+    out = out.split(DEFAULT_STOREFRONT_URL).join(bareUrl);
+  }
+  if (businessName && businessName !== DEFAULT_BUSINESS_NAME) {
+    out = out
+      .split("Isha's Treat & Groceries").join(businessName)
+      .split("Isha's Treat").join(businessName)
+      // Mid-sentence mentions like "I'll get Isha started" / "Isha's got it"
+      .split('Isha').join(businessName);
+  }
+  return out;
+}
+
 export async function handleIncomingMessage(params) {
   const response = await handleIncomingMessageCore(params);
   if (!response || !response.text) return response;
+
+  const branded = {
+    ...response,
+    text: rebrandResponse(response.text, {
+      businessName: params.businessName,
+      storefrontUrl: params.storefrontUrl,
+    }),
+  };
 
   try {
     const phone = sanitizePhone(params.from);
     const history = await getRecentConversation(phone, params.businessId || null, 6);
     const humanized = await humanizeResponse({
-      draftText: response.text,
+      draftText: branded.text,
       customerMessage: sanitizeMessage(params.text || ''),
       customerName: sanitizeName(params.customerName) || null,
       history
     });
-    if (humanized) return { ...response, text: humanized };
+    if (humanized) return { ...branded, text: humanized };
   } catch (error) {
     console.warn('[humanizer] Using template reply:', error.message);
   }
 
-  return response;
+  return branded;
 }
 
 async function handleIncomingMessageCore({
@@ -466,7 +501,7 @@ async function handleIncomingMessageCore({
   // Resolve button ID to intent before parsing
   const resolvedIntent = resolveButtonId(sanitizedButtonId);
 
-  const parsed = await parseMessage(messageText, conversation.state);
+  const parsed = await parseMessage(messageText, conversation.state, conversation.business);
 
   // Override parsed intent if button was resolved
   if (resolvedIntent) {
@@ -1421,7 +1456,7 @@ async function handleReorder(phone, customerName, conversation) {
 async function handleQuickOrder(phone, customerName, text, conversation) {
   // Parse the product part (remove "quick" prefix)
   const productText = text.replace(/^quick\s+/i, '');
-  const parsed = await parseMessage(productText);
+  const parsed = await parseMessage(productText, null, conversation.business);
 
   if (parsed.items.length === 0) {
     return generateResponse('QUICK_ORDER_UNCLEAR');
