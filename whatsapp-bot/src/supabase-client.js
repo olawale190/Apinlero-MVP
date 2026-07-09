@@ -648,18 +648,32 @@ export async function getOrCreateCustomer(phone, name, businessId) {
   }
 
   // Create new customer in THIS business
-  const { data: newCustomer, error } = await supabase
+  const baseRow = {
+    phone: normalizedPhone,
+    name: name || 'WhatsApp Customer',
+    channel: 'WhatsApp',
+    total_orders: 0,
+    total_spent: 0
+  };
+
+  let { data: newCustomer, error } = await supabase
     .from('customers')
-    .insert({
-      business_id: businessId,
-      phone: normalizedPhone,
-      name: name || 'WhatsApp Customer',
-      channel: 'WhatsApp',
-      total_orders: 0,
-      total_spent: 0
-    })
+    .insert({ ...baseRow, business_id: businessId })
     .select()
     .single();
+
+  // Schema-cache error (PGRST204) means the `business_id` column doesn't
+  // exist yet on this table (pre-migration). Retry without it so the
+  // customer record is still saved — cross-tenant scoping is lost until
+  // the migration runs, but we don't silently drop the customer entirely.
+  if (error && error.code === 'PGRST204' && /business_id/.test(error.message || '')) {
+    console.warn('[customers] business_id column missing — saving customer WITHOUT tenant scoping. Run the customers-business-id migration.');
+    ({ data: newCustomer, error } = await supabase
+      .from('customers')
+      .insert(baseRow)
+      .select()
+      .single());
+  }
 
   if (error) {
     console.error('Failed to create customer:', error);
