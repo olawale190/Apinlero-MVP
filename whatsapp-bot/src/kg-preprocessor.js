@@ -4,8 +4,13 @@
  * Injects the KG pipeline (intent classifier + context resolver) into the
  * existing WhatsApp bot message handler.
  *
- * This module is an ADDITION — if any KG dependency is unavailable (Claude API,
- * Neo4j, missing env vars), it silently falls through to the legacy handler.
+ * This module is an ADDITION — if any KG dependency is unavailable (Claude
+ * API, missing env vars), it silently falls through to the legacy handler.
+ *
+ * The context resolver runs entirely against Supabase (src/context-resolver.js)
+ * — no separate graph database. Previously backed by Neo4j Aura; retired
+ * (free-tier paywall + broken cross-repo import in production) in favor of
+ * SQL against data the bot already has.
  *
  * Advanced intents routed through KG:
  *   reorder              → resolveContext
@@ -20,11 +25,8 @@
 
 import { classifyMessage } from './intent-classifier.js';
 import { penceToPounds } from './currency.js';
+import * as contextResolver from './context-resolver.js';
 
-// Lazy-loaded KG modules — resolved on first use so the bot can start
-// even if the KG source files are missing.
-let contextResolver = null;
-let productSearch = null;
 let kgLoadAttempted = false;
 let kgAvailable = false;
 
@@ -49,14 +51,15 @@ const KG_INTENTS = new Set([
  * Returns { available: boolean, missing: string[] }
  */
 export function checkKGDependencies() {
-  const required = ['ANTHROPIC_API_KEY', 'NEO4J_URI', 'NEO4J_PASSWORD'];
+  const required = ['ANTHROPIC_API_KEY'];
   const missing = required.filter(k => !process.env[k]);
   return { available: missing.length === 0, missing };
 }
 
 /**
- * Attempt to load the KG context-resolver and product-search modules.
- * Only tries once — if it fails, kgAvailable stays false forever.
+ * Confirm the KG pipeline can run. The resolver is a plain local module
+ * (statically imported above, backed by Supabase) — nothing to lazy-load
+ * or fail to reach, unlike the old Neo4j path.
  */
 async function ensureKGModules() {
   if (kgLoadAttempted) return kgAvailable;
@@ -68,17 +71,7 @@ async function ensureKGModules() {
     return false;
   }
 
-  try {
-    const kgBasePath = '../../project/knowledge-graph/src';
-    contextResolver = await import(`${kgBasePath}/context-resolver.js`);
-    productSearch = await import(`${kgBasePath}/product-search.js`);
-    kgAvailable = true;
-    console.log('[kg-preprocessor] KG modules loaded successfully');
-  } catch (err) {
-    console.warn('[kg-preprocessor] Could not load KG modules:', err.message);
-    kgAvailable = false;
-  }
-
+  kgAvailable = true;
   return kgAvailable;
 }
 
@@ -192,6 +185,11 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
   const ready = await ensureKGModules();
   if (!ready) return null;
 
+  // Every resolver query is tenant-scoped — without a businessId we cannot
+  // safely look anything up (would risk leaking another vendor's data).
+  const businessId = conversation?.businessId;
+  if (!businessId) return null;
+
   // Run the Claude AI classifier (already exists in the bot)
   const classification = await classifyMessage(messageText, {
     businessName: conversation?.business?.name,
@@ -223,27 +221,27 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
       if (clues.references_time) resolverClues.references_time = clues.references_time;
       if (clues.references_person) resolverClues.references_person = clues.references_person;
 
-      result = await contextResolver.resolveContext(phone, resolverClues);
+      result = await contextResolver.resolveContext(businessId, phone, resolverClues);
       break;
     }
 
     case 'meal_order': {
       if (!clues.references_meal) return null;
       const servings = clues.serving_size || 4;
-      result = await contextResolver.resolveMealOrder(clues.references_meal, servings);
+      result = await contextResolver.resolveMealOrder(businessId, clues.references_meal, servings);
       break;
     }
 
     case 'budget_order': {
       if (!clues.references_budget) return null;
-      result = await contextResolver.resolveBudgetOrder(phone, clues.references_budget);
+      result = await contextResolver.resolveBudgetOrder(businessId, phone, clues.references_budget);
       break;
     }
 
     case 'quantity_estimate': {
       // "enough for 20 people" — treat as meal_order if meal referenced, else fall through
       if (clues.references_meal && clues.serving_size) {
-        result = await contextResolver.resolveMealOrder(clues.references_meal, clues.serving_size);
+        result = await contextResolver.resolveMealOrder(businessId, clues.references_meal, clues.serving_size);
       } else {
         return null; // Fall through — can't estimate without meal context
       }
@@ -252,7 +250,7 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
 
     case 'preference_update': {
       if (!clues.product || !clues.feedback) return null;
-      result = await contextResolver.resolvePreferenceUpdate(phone, clues.product, clues.feedback);
+      result = await contextResolver.resolvePreferenceUpdate(businessId, phone, clues.product, clues.feedback);
       const response = formatPreferenceResponse(result);
       response._kgHandled = true;
       return response;
@@ -264,7 +262,7 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
         references_person: clues.references_person || null,
         relationship_collect: true,
       };
-      result = await contextResolver.resolveContext(phone, resolverClues);
+      result = await contextResolver.resolveContext(businessId, phone, resolverClues);
       break;
     }
 
@@ -273,7 +271,7 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
         references_previous: true,
         references_recommendation: true,
       };
-      result = await contextResolver.resolveContext(phone, resolverClues);
+      result = await contextResolver.resolveContext(businessId, phone, resolverClues);
       break;
     }
 
@@ -282,7 +280,7 @@ export async function tryKGPreprocess(phone, messageText, customerName, conversa
         references_previous: true,
         references_time: clues.references_time || null,
       };
-      result = await contextResolver.resolveContext(phone, resolverClues);
+      result = await contextResolver.resolveContext(businessId, phone, resolverClues);
       break;
     }
 

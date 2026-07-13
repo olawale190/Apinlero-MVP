@@ -31,7 +31,7 @@ console.log(`📱 WhatsApp Provider: ${whatsappProvider || 'None configured'}`);
 // Check Knowledge-Graph pipeline availability
 const kgStatus = checkKGDependencies();
 if (kgStatus.available) {
-  console.log('🧠 Knowledge-Graph pre-processor: ENABLED (ANTHROPIC_API_KEY, NEO4J_URI, NEO4J_PASSWORD present)');
+  console.log('🧠 Knowledge-Graph pre-processor: ENABLED (Supabase-backed context resolver, ANTHROPIC_API_KEY present)');
 } else {
   console.warn(`⚠️ Knowledge-Graph pre-processor: DISABLED — missing: ${kgStatus.missing.join(', ')}`);
   console.warn('   Bot will run in legacy mode (regex + Supabase only)');

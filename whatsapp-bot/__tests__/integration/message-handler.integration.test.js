@@ -2,7 +2,6 @@ import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globa
 
 // Import mocks BEFORE the actual modules
 import { seedTestData, clearTestData, getTestData } from '../mocks/supabase.mock.js';
-import '../mocks/neo4j.mock.js';
 import '../mocks/twilio.mock.js';
 
 // Import test data
@@ -13,7 +12,7 @@ import { testProducts, testBusinesses, testWhatsAppConfigs } from '../fixtures/p
 
 describe('Message Handler Integration Tests', () => {
   const testBusinessId = 'test-business-001';
-  const testPhone = '447448682282';
+  const testPhone = '447935238972';
   const testCustomerName = 'Test Customer';
 
   beforeEach(() => {

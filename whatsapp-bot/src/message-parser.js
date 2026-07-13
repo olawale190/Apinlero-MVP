@@ -7,12 +7,12 @@
  * - Delivery address
  * - Customer preferences
  *
- * Now powered by Neo4j Knowledge Graph for Yoruba + English matching!
+ * Yoruba + English product matching via local alias table (PRODUCT_ALIASES
+ * below) with Levenshtein typo tolerance — see matchProductLocal.
  *
  * SECURITY: All inputs should be pre-sanitized before reaching this module
  */
 
-import { matchProductFromGraph, isNeo4jAvailable } from './neo4j-matcher.js';
 import { classifyMessage } from './intent-classifier.js';
 import { normalizeIntent } from './intent-normalizer.js';
 
@@ -207,7 +207,7 @@ function hasOrderIndicators(text) {
 }
 
 /**
- * Parse order items from message (async for Neo4j matching)
+ * Parse order items from message
  * @param {string} message - The message text
  * @returns {Promise<Array>} - Array of {product, quantity, unit, matched, language, confidence}
  */
@@ -355,40 +355,14 @@ export async function parseOrderItems(message) {
 }
 
 /**
- * Match product text to catalog product using Neo4j Knowledge Graph
- * Falls back to local aliases if Neo4j is unavailable
+ * Match product text to a catalog product using local aliases + Levenshtein
+ * typo tolerance (PRODUCT_ALIASES, matchProductLocal below).
  *
  * @param {string} text - Product text from message
  * @returns {Promise<Object|null>} - Matched product info or null
  */
 export async function matchProduct(text) {
   const normalizedText = text.toLowerCase().trim();
-
-  // Try Neo4j Knowledge Graph first (Yoruba + English aliases)
-  if (isNeo4jAvailable()) {
-    try {
-      const graphMatch = await matchProductFromGraph(normalizedText);
-      if (graphMatch) {
-        console.log(`🧠 Neo4j matched "${normalizedText}" → ${graphMatch.product} (${graphMatch.language}, ${graphMatch.confidence * 100}%)`);
-        return {
-          name: graphMatch.product,
-          price: graphMatch.price,
-          category: graphMatch.category,
-          alias: graphMatch.alias,
-          matchedText: graphMatch.alias || graphMatch.product,
-          originalText: text,
-          language: graphMatch.language,
-          confidence: graphMatch.confidence,
-          source: graphMatch.source,
-          typoDetected: false  // Neo4j matches are exact
-        };
-      }
-    } catch (error) {
-      console.warn('Neo4j matching failed, using fallback:', error.message);
-    }
-  }
-
-  // Fallback to local matching
   return matchProductLocal(normalizedText);
 }
 
@@ -679,7 +653,7 @@ export function isCompleteOrder(items, postcode) {
 }
 
 /**
- * Parse the full message and return structured data (async for Neo4j)
+ * Parse the full message and return structured data
  * @param {string} message - The message text
  * @param {string|null} conversationState - Current conversation state for context-aware parsing
  * @param {{businessName?: string}} [business] - Vendor identity, passed through to the AI classifier
@@ -759,7 +733,6 @@ export async function parseMessage(message, conversationState = null, business =
     deliveryZone,
     isBusinessHours: isBusinessHours(),
     originalMessage: message,
-    neo4jEnabled: isNeo4jAvailable(),
     isCompleteOrder: isComplete,
     classifierResult,
     orderRef

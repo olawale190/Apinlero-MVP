@@ -448,9 +448,9 @@ async function handleIncomingMessageCore({
   // ============================================================
   // KNOWLEDGE-GRAPH PRE-PROCESSOR
   // Attempts to handle advanced intents (reorder, meal_order,
-  // budget_order, etc.) via the KG context resolver + Neo4j.
-  // If KG is unavailable or the intent is not advanced, falls
-  // through silently to the legacy parseMessage() flow below.
+  // budget_order, etc.) via the SQL-backed context resolver.
+  // If the intent is not advanced, falls through silently to the
+  // legacy parseMessage() flow below.
   // ============================================================
   if (!sanitizedButtonId && !sanitizedListId && messageText.trim()) {
     try {
@@ -517,7 +517,6 @@ async function handleIncomingMessageCore({
     provider,
     messageType,
     mediaReceived: mediaResult?.success ? '📸 Stored' : (mediaId ? '❌ Failed' : 'None'),
-    neo4j: parsed.neo4jEnabled ? '🧠 Active' : '⚠️ Fallback'
   });
 
   // Log inbound message (with business context)
@@ -1748,7 +1747,6 @@ async function suggestDidYouMean(text, phone, conversation, products) {
 async function handlePriceCheck(text, phone, conversation) {
   const products = await getProducts(conversation.businessId);
 
-  // Try Neo4j matching first
   const matched = await matchProduct(text);
   if (matched) {
     const product = products.find(p => p.name.toLowerCase() === matched.name.toLowerCase());
@@ -1788,7 +1786,6 @@ async function handlePriceCheck(text, phone, conversation) {
 async function handleAvailability(text, phone, conversation) {
   const products = await getProducts(conversation.businessId);
 
-  // Try Neo4j matching first
   const matched = await matchProduct(text);
   if (matched) {
     const product = products.find(p => p.name.toLowerCase() === matched.name.toLowerCase());

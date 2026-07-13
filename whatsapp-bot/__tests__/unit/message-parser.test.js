@@ -1,8 +1,5 @@
 import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 
-// Import mocks BEFORE the actual modules
-import '../mocks/neo4j.mock.js';
-
 // Now import the functions to test
 import {
   detectIntent,

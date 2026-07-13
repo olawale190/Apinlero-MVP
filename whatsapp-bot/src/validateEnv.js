@@ -63,17 +63,6 @@ export function validateEnvironment() {
     );
   }
 
-  // Check Neo4j configuration (optional but recommended for product matching)
-  const hasNeo4j =
-    process.env.NEO4J_URI &&
-    process.env.NEO4J_USER &&
-    process.env.NEO4J_PASSWORD;
-  if (!hasNeo4j) {
-    warnings.push(
-      'Neo4j not configured. Product alias matching will use fallback logic. Set NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD for enhanced matching.'
-    );
-  }
-
   // Log results
   if (errors.length > 0) {
     console.error('❌ Environment validation failed:');
@@ -112,15 +101,4 @@ export function getWhatsAppProvider() {
     return 'twilio';
   }
   return null;
-}
-
-/**
- * Check if Neo4j is configured
- */
-export function isNeo4jConfigured() {
-  return !!(
-    process.env.NEO4J_URI &&
-    process.env.NEO4J_USER &&
-    process.env.NEO4J_PASSWORD
-  );
 }

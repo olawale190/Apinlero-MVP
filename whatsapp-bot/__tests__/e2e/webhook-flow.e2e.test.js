@@ -4,7 +4,6 @@ import request from 'supertest';
 // Import mocks
 import { seedTestData, clearTestData, getTestData } from '../mocks/supabase.mock.js';
 import { resetTwilioMocks, mockMessageCreate } from '../mocks/twilio.mock.js';
-import '../mocks/neo4j.mock.js';
 
 // Import test fixtures
 import { twilioWebhookFixtures, createTwilioWebhook } from '../fixtures/webhooks.js';
@@ -15,7 +14,7 @@ import { testProducts, testBusinesses, testWhatsAppConfigs } from '../fixtures/p
 
 describe('E2E Webhook Flow Tests', () => {
   const testBusinessId = 'test-business-001';
-  const testPhone = '447448682282';
+  const testPhone = '447935238972';
 
   beforeEach(() => {
     // Reset all mocks
@@ -463,7 +462,7 @@ describe('E2E Webhook Flow Tests', () => {
 
   describe('Multi-tenant Isolation', () => {
     test('should keep business data isolated', async () => {
-      const business1Phone = '447448682282';
+      const business1Phone = '447935238972';
       const business2Phone = '447700900123';
 
       // Business 1 order
