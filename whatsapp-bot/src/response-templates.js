@@ -372,7 +372,7 @@ Would you like to place a new order?`,
     text: `Sorry, I couldn't retrieve your order status right now.
 
 Please try again later or contact us directly:
-📞 07448 682282`,
+📞 07935 238972`,
     buttons: ['💬 Contact Us']
   }),
 
@@ -380,7 +380,7 @@ Please try again later or contact us directly:
     text: `Sorry, there was an error processing your order. 😔
 
 Please try again or contact us directly:
-📞 07448 682282
+📞 07935 238972
 📧 WhatsApp this number
 
 We apologize for the inconvenience.`,
@@ -414,7 +414,7 @@ You can:
 
 Just chat with me like normal, I'll understand! 💬
 
-Need to speak to someone? Call 07448 682282
+Need to speak to someone? Call 07935 238972
 
 Or browse everything: ishas-treat.apinlero.com`,
     buttons: ['📋 View Products', '📦 Place Order', '💬 Contact Us']
@@ -424,7 +424,7 @@ Or browse everything: ishas-treat.apinlero.com`,
     text: `Sorry, something went wrong. 😔
 
 Please try again or contact us:
-📞 07448 682282
+📞 07935 238972
 
 We apologize for the inconvenience.`,
     buttons: ['🔄 Try Again', '💬 Contact Us']
@@ -480,7 +480,7 @@ Please try again in a moment or browse our website:
 ishas-treat.apinlero.com
 
 Or contact us directly:
-📞 07448 682282`,
+📞 07935 238972`,
     buttons: ['🔄 Try Again', '💬 Contact Us']
   }),
 

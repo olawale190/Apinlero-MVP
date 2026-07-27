@@ -14,7 +14,7 @@ New Order → Pending → Confirmed → Delivered
 
 | Channel | Source | Typical Volume | Delivery Fee |
 |---------|--------|----------------|--------------|
-| **WhatsApp** | +44 7448 682282 | 40% of orders | £5.00 |
+| **WhatsApp** | +44 7935 238972 | 40% of orders | £5.00 |
 | **Web** | apinlero.vercel.app | 30% of orders | £5.00 |
 | **Phone** | Direct calls | 20% of orders | £5.00 |
 | **Walk-in** | In-store | 10% of orders | £0.00 |

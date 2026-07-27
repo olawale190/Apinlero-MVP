@@ -32,7 +32,7 @@ export async function validateTenantIsolation(businessId) {
   // Test 1: Multiple customers for same business
   console.log('Test 1: Multiple customers for same business');
   try {
-    const phone1 = '447448682282';
+    const phone1 = '447935238972';
     const phone2 = '447123456789';
 
     const result1 = await testMessage({
@@ -80,7 +80,7 @@ export async function validateTenantIsolation(businessId) {
   // Test 2: Same customer across different businesses (tenant isolation)
   console.log('Test 2: Same customer across different businesses (should be isolated)');
   try {
-    const phone = '447448682282';
+    const phone = '447935238972';
     const businessId2 = `${businessId}-alt`;
 
     const result1 = await testMessage({
@@ -126,7 +126,7 @@ export async function validateTenantIsolation(businessId) {
   // Test 3: Session cache key formatting
   console.log('Test 3: Session cache key formatting');
   try {
-    const phone = '447448682282';
+    const phone = '447935238972';
 
     // Test that session keys include business ID
     // This is a heuristic check - we verify that sessions are created

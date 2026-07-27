@@ -190,7 +190,7 @@ async function testMissingBody(businessId) {
 
   try {
     await handleIncomingMessage({
-      from: '447448682282',
+      from: '447935238972',
       customerName: 'Test Customer',
       text: null, // Missing message text
       messageId: 'test-msg-002',
@@ -252,7 +252,7 @@ async function testInvalidBusinessId() {
 
   try {
     await handleIncomingMessage({
-      from: '447448682282',
+      from: '447935238972',
       customerName: 'Test Customer',
       text: 'Hi',
       messageId: 'test-msg-004',
@@ -277,7 +277,7 @@ async function testSessionCacheMiss(businessId) {
   // For now, we just test that a new session can be created
   try {
     const response = await handleIncomingMessage({
-      from: '447448682282',
+      from: '447935238972',
       customerName: 'Test Customer',
       text: 'Hi',
       messageId: 'test-msg-005',

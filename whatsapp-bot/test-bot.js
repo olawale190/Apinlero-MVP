@@ -131,7 +131,7 @@ async function runTests() {
     console.log(`Customer: "${msg.text}" (${msg.description})`);
     try {
       const response = await handleIncomingMessage({
-        from: '+447448682282',
+        from: '+447935238972',
         customerName: 'Test Customer',
         text: msg.text,
         messageId: 'test-' + Date.now()

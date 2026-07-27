@@ -20,8 +20,8 @@ export function PlatformFooter() {
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                <a href="tel:+447448682282" className="hover:text-blue-400 transition-colors">
-                  +44 7448 682282
+                <a href="tel:+447935238972" className="hover:text-blue-400 transition-colors">
+                  +44 7935 238972
                 </a>
               </div>
               <div className="flex items-center gap-2">

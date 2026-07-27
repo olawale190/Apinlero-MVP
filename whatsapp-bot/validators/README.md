@@ -29,10 +29,10 @@ Tests phone number normalization across different formats.
 - `generatePhoneFormats(basePhone)` - Generate format variations
 
 **Tested Formats:**
-- E.164 (+447448682282)
-- International without + (447448682282)
-- WhatsApp format (whatsapp:+447448682282)
-- UK national format (07448682282)
+- E.164 (+447935238972)
+- International without + (447935238972)
+- WhatsApp format (whatsapp:+447935238972)
+- UK national format (07935238972)
 
 ## Usage
 
@@ -45,6 +45,6 @@ const result = await validateTenantIsolation('test-business-001');
 console.log(generateTenantValidationReport(result));
 
 // Test phone formats
-const phoneResult = await testPhoneFormats('447448682282', 'test-business-001');
+const phoneResult = await testPhoneFormats('447935238972', 'test-business-001');
 console.log(generatePhoneFormatReport(phoneResult));
 ```

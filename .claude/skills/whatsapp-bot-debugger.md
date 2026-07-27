@@ -18,13 +18,13 @@ Test a single message through the bot's message handling pipeline.
 
 **Options:**
 - `--business-id <id>` - Business ID for multi-tenant context (default: test-business-001)
-- `--phone <number>` - Customer phone number (default: 447448682282)
+- `--phone <number>` - Customer phone number (default: 447935238972)
 - `--provider <twilio|meta>` - WhatsApp provider (default: twilio)
 - `--session-state <state>` - Initial session state (default: none)
 
 **Example:**
 ```bash
-/whatsapp-debug test-message "2x palm oil to SE15 4AA" --business-id test-001 --phone 447448682282
+/whatsapp-debug test-message "2x palm oil to SE15 4AA" --business-id test-001 --phone 447935238972
 ```
 
 ### validate-tenant
@@ -56,14 +56,14 @@ Test phone number normalization and customer matching across formats.
 ```
 
 **Tests:**
-- E.164 format (+447448682282)
-- National format (07448682282)
-- WhatsApp format (whatsapp:+447448682282)
+- E.164 format (+447935238972)
+- National format (07935238972)
+- WhatsApp format (whatsapp:+447935238972)
 - Ensures single customer match across all formats
 
 **Example:**
 ```bash
-/whatsapp-debug check-phone-formats 447448682282
+/whatsapp-debug check-phone-formats 447935238972
 ```
 
 ### replay-conversation
@@ -137,7 +137,7 @@ Generate mock webhook payload for testing.
 
 **Example:**
 ```bash
-/whatsapp-debug generate-mock-webhook meta --message "Hi" --phone 447448682282 --output webhook.json
+/whatsapp-debug generate-mock-webhook meta --message "Hi" --phone 447935238972 --output webhook.json
 ```
 
 ## Implementation Details

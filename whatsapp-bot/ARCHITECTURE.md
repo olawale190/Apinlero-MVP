@@ -356,7 +356,7 @@ NEO4J_PASSWORD=xxx
 ### Default Values
 ```javascript
 const DEFAULT_BUSINESS_ID = 'test-business-001';
-const DEFAULT_PHONE = '447448682282';
+const DEFAULT_PHONE = '447935238972';
 const DEFAULT_PROVIDER = 'twilio';
 ```
 

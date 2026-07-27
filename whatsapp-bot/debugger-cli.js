@@ -36,7 +36,7 @@ import path from 'path';
 
 // Default values
 const DEFAULT_BUSINESS_ID = 'test-business-001';
-const DEFAULT_PHONE = '447448682282';
+const DEFAULT_PHONE = '447935238972';
 const DEFAULT_PROVIDER = 'twilio';
 
 /**
@@ -88,7 +88,7 @@ Commands:
 
       Options:
         --business-id <id>    Business ID (default: test-business-001)
-        --phone <number>      Customer phone number (default: 447448682282)
+        --phone <number>      Customer phone number (default: 447935238972)
         --provider <provider> WhatsApp provider: twilio|meta (default: twilio)
 
       Example:
@@ -112,7 +112,7 @@ Commands:
         --business-id <id>    Business ID
 
       Example:
-        node debugger-cli.js check-phone-formats 447448682282
+        node debugger-cli.js check-phone-formats 447935238972
 
   replay-conversation <fixture-file>
       Replay a recorded conversation from a JSON fixture

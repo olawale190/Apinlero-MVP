@@ -9,7 +9,7 @@ node debugger-cli.js test-message "2x palm oil to SE15 4AA"
 # With options
 node debugger-cli.js test-message "Hi" \
   --business-id test-business-001 \
-  --phone 447448682282 \
+  --phone 447935238972 \
   --provider twilio
 ```
 
@@ -32,10 +32,10 @@ node debugger-cli.js validate-tenant test-business-001
 
 ### 5. Test Phone Format Normalization
 ```bash
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 
 # With business context
-node debugger-cli.js check-phone-formats 447448682282 --business-id test-001
+node debugger-cli.js check-phone-formats 447935238972 --business-id test-001
 ```
 **Tests**: E.164, international, WhatsApp, national formats
 
@@ -70,13 +70,13 @@ node debugger-cli.js replay-conversation fixtures/complete-order.json --business
 # Twilio format
 node debugger-cli.js generate-mock-webhook twilio \
   --message "Test message" \
-  --phone 447448682282 \
+  --phone 447935238972 \
   --output webhook-twilio.json
 
 # Meta format
 node debugger-cli.js generate-mock-webhook meta \
   --message "Test message" \
-  --phone 447448682282
+  --phone 447935238972
 ```
 
 ## Using with Claude Code
@@ -91,7 +91,7 @@ From the Claude Code CLI:
 /whatsapp-debug validate-tenant test-business-001
 
 # Phone format testing
-/whatsapp-debug check-phone-formats 447448682282
+/whatsapp-debug check-phone-formats 447935238972
 
 # Error simulation
 /whatsapp-debug simulate-failure database-timeout
@@ -111,7 +111,7 @@ node debugger-cli.js health-check
 node debugger-cli.js validate-tenant your-business-id
 
 # 3. Test phone formats
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 
 # 4. Test error handling
 node debugger-cli.js simulate-failure missing-from
@@ -138,7 +138,7 @@ node debugger-cli.js replay-conversation fixtures/customer-issue.json
 node debugger-cli.js test-conversation "message1" "message2" "message3"
 
 # 2. Test across formats
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 
 # 3. Simulate edge cases
 node debugger-cli.js simulate-failure invalid-format
@@ -176,7 +176,7 @@ All commands generate structured reports with:
 
 ```bash
 --business-id <id>    # Multi-tenant context (default: test-business-001)
---phone <number>      # Customer phone number (default: 447448682282)
+--phone <number>      # Customer phone number (default: 447935238972)
 --provider <provider> # WhatsApp provider: twilio|meta (default: twilio)
 --output <file>       # Save output to file (for mock webhooks)
 --message <text>      # Message content (for mock webhooks)
@@ -210,14 +210,14 @@ Create shell scripts for common test suites:
 #!/bin/bash
 node debugger-cli.js health-check
 node debugger-cli.js validate-tenant test-001
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 ```
 
 ### 3. Debugging Phone Issues
 Always test both formats:
 ```bash
-node debugger-cli.js check-phone-formats 447448682282
-node debugger-cli.js check-phone-formats +447448682282
+node debugger-cli.js check-phone-formats 447935238972
+node debugger-cli.js check-phone-formats +447935238972
 ```
 
 ### 4. Systematic Error Testing

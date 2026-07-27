@@ -33,10 +33,10 @@ Created comprehensive validation modules for critical bot functionality:
   - `generatePhoneFormatReport(results)` - Formatted reporting
 
 **Formats Tested**:
-- E.164 format (+447448682282)
-- International without + (447448682282)
-- WhatsApp format (whatsapp:+447448682282)
-- UK national format (07448682282)
+- E.164 format (+447935238972)
+- International without + (447935238972)
+- WhatsApp format (whatsapp:+447935238972)
+- UK national format (07935238972)
 
 ### 2. Simulators (`simulators/`)
 
@@ -159,7 +159,7 @@ node debugger-cli.js validate-tenant test-business-001
 
 ### Test Phone Format Normalization
 ```bash
-node debugger-cli.js check-phone-formats 447448682282 --business-id test-001
+node debugger-cli.js check-phone-formats 447935238972 --business-id test-001
 ```
 
 ### Simulate Error Scenario
@@ -188,7 +188,7 @@ The `/whatsapp-debug` skill is now fully functional:
 # From Claude Code
 /whatsapp-debug health-check
 /whatsapp-debug validate-tenant test-business-001
-/whatsapp-debug check-phone-formats 447448682282
+/whatsapp-debug check-phone-formats 447935238972
 /whatsapp-debug simulate-failure database-timeout
 ```
 

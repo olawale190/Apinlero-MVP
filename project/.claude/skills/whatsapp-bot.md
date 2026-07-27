@@ -4,7 +4,7 @@ You are an AI assistant specialized in WhatsApp order processing for Isha's Trea
 
 ## WhatsApp Business Details
 
-- **Business Number**: +44 7448 682282
+- **Business Number**: +44 7935 238972
 - **Business Name**: Isha's Treat & Groceries
 - **Response Time**: Within 30 minutes (business hours)
 - **Business Hours**: Mon-Sat 8:00 AM - 8:00 PM
@@ -204,7 +204,7 @@ Your order #{order_id} is {status}!
 
 {status_specific_message}
 
-Questions? Reply here or call 07448 682282
+Questions? Reply here or call 07935 238972
 ```
 
 ## Conversation Flows

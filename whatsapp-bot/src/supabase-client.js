@@ -409,7 +409,7 @@ export async function getBusinessStripe(businessId) {
  * whatsapp_configs row's business linkage, or null on miss (caller falls back
  * to DEFAULT_BUSINESS_ID).
  *
- * `twilioNumber` should be canonical bare E.164 (e.g. "+447448682282").
+ * `twilioNumber` should be canonical bare E.164 (e.g. "+447935238972").
  * The stored column is `twilio_phone_number`; we match both the bare and the
  * "whatsapp:"-prefixed form to tolerate however the row was seeded.
  */

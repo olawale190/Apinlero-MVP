@@ -1,7 +1,7 @@
 {
   "name": "Complete Order Flow",
   "description": "Customer places an order from greeting to payment confirmation",
-  "phone": "447448682282",
+  "phone": "447935238972",
   "customerName": "Test Customer",
   "businessId": "test-business-001",
   "provider": "twilio",

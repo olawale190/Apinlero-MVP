@@ -12,7 +12,7 @@ const API_VERSION = 'v22.0';
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`;
 
 // Test recipient - the number you added in Meta Developer Console
-const TEST_RECIPIENT = '447448682282'; // UK number from your screenshot
+const TEST_RECIPIENT = '447935238972'; // UK number from your screenshot
 
 async function sendTestMessage() {
   console.log('🚀 Testing WhatsApp API Connection...\n');

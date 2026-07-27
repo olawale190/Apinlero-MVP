@@ -12,7 +12,7 @@ import CartDrawer from '../components/CartDrawer';
 import StorefrontFooter from '../components/StorefrontFooter';
 
 // Isha's Treat WhatsApp number (UK format)
-const WHATSAPP_NUMBER = '+447448682282';
+const WHATSAPP_NUMBER = '+447935238972';
 const WHATSAPP_MESSAGE = 'Hi! I would like to place an order from Isha\'s Treat.';
 
 interface ShopProps {

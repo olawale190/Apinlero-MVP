@@ -7,7 +7,7 @@ VALUES (
   'Isha''s Treat & Groceries',
   'ishas-treat',
   'owner@ishastreat.com',
-  '+447448682282',
+  '+447935238972',
   true,
   now()
 )
@@ -15,7 +15,7 @@ ON CONFLICT (slug)
 DO UPDATE SET
   is_active = true,
   name = 'Isha''s Treat & Groceries',
-  phone = '+447448682282';
+  phone = '+447935238972';
 
 -- Step 2: Get the business ID for inserting products
 DO $$

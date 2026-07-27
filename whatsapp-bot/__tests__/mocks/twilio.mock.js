@@ -13,7 +13,7 @@ export const mockTwilioClient = jest.fn(() => ({
 export const createSuccessResponse = (overrides = {}) => ({
   sid: 'SM' + Math.random().toString(36).substring(7),
   status: 'sent',
-  to: 'whatsapp:+447448682282',
+  to: 'whatsapp:+447935238972',
   from: 'whatsapp:+14155238886',
   body: 'Test message',
   dateCreated: new Date(),

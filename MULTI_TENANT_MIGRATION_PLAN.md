@@ -435,13 +435,13 @@ INSERT INTO whatsapp_configs (
 
 **Scenario 2: Customer Record Isolation**
 ```bash
-# Same phone number (+447448682282) messages both businesses
+# Same phone number (+447935238972) messages both businesses
 # Expected: 2 separate customer records created
 # - One in Isha's Treat
 # - One in Test Business
 
 # Verify:
-SELECT business_id, phone, name FROM customers WHERE phone = '447448682282';
+SELECT business_id, phone, name FROM customers WHERE phone = '447935238972';
 -- Should return 2 rows
 ```
 

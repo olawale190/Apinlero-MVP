@@ -303,7 +303,7 @@ INSERT INTO businesses (
   id, name, slug, owner_email, phone, address, city, country, currency, timezone, plan, monthly_message_limit, is_active, created_at
 ) VALUES (
   '550e8400-e29b-41d4-a716-446655440000'::UUID,
-  'Isha''s Treat & Groceries', 'ishas-treat', 'isha@ishas-treat.com', '+447448682282',
+  'Isha''s Treat & Groceries', 'ishas-treat', 'isha@ishas-treat.com', '+447935238972',
   'South London', 'London', 'United Kingdom', 'GBP', 'Europe/London', 'pilot', 10000, true, NOW()
 ) ON CONFLICT (slug) DO UPDATE SET updated_at = NOW();
 

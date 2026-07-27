@@ -53,10 +53,10 @@ VALIDATORS (2 modules)
    - Cross-tenant data leak detection
 
 ✅ Phone format normalization testing (4 formats)
-   - E.164 format (+447448682282)
-   - International without + (447448682282)
-   - WhatsApp format (whatsapp:+447448682282)
-   - UK national format (07448682282)
+   - E.164 format (+447935238972)
+   - International without + (447935238972)
+   - WhatsApp format (whatsapp:+447935238972)
+   - UK national format (07935238972)
 
 SIMULATORS (10 error scenarios)
 ✅ Error scenario simulation
@@ -183,7 +183,7 @@ node debugger-cli.js health-check
 node debugger-cli.js validate-tenant test-business-001
 
 # Phone format testing
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 
 # Error scenario simulation
 node debugger-cli.js simulate-failure database-timeout

@@ -20,7 +20,7 @@ const TTL_MS = 5 * 60 * 1000; // 5 minutes
 const STOREFRONT_BASE_HOST = process.env.STOREFRONT_BASE_HOST || 'apinlero.com';
 
 /**
- * Normalize any WhatsApp number to canonical bare E.164: "+447448682282".
+ * Normalize any WhatsApp number to canonical bare E.164: "+447935238972".
  * Strips a "whatsapp:" prefix and whitespace; ensures a leading +.
  */
 export function normalizeNumber(num) {

@@ -157,7 +157,7 @@ export const testCustomers = [
   {
     id: 'cust-001',
     business_id: 'test-business-001',
-    phone: '+447448682282',
+    phone: '+447935238972',
     name: 'Test Customer',
     email: 'test@example.com',
     address: '123 Test Street',

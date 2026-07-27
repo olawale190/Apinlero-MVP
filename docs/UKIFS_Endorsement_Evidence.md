@@ -50,7 +50,7 @@ Small and medium businesses in the UK, particularly in the African & Caribbean r
 - Name: Isha's Treat & Groceries
 - Industry: African & Caribbean Wholesale/Retail
 - Location: London, UK
-- Phone: 07448682282
+- Phone: 07935238972
 
 **Pilot Objectives:**
 - [ ] Test order placement from customer storefront

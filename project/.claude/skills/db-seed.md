@@ -106,14 +106,14 @@ INSERT INTO orders (customer_name, phone_number, delivery_address, channel, item
 ### Test Business (Multi-Tenant)
 ```sql
 INSERT INTO businesses (name, slug, owner_email, phone, address, city, plan) VALUES
-('Isha''s Treat & Groceries', 'ishas-treat', 'isha@example.com', '+447448682282', '123 Peckham Rye', 'London', 'starter');
+('Isha''s Treat & Groceries', 'ishas-treat', 'isha@example.com', '+447935238972', '123 Peckham Rye', 'London', 'starter');
 
 -- Get the business ID
 WITH new_business AS (
   SELECT id FROM businesses WHERE slug = 'ishas-treat'
 )
 INSERT INTO whatsapp_configs (business_id, phone_number_id, webhook_verify_token, provider, display_phone_number, business_name)
-SELECT id, 'TEST_PHONE_NUMBER_ID', 'test_verify_token_123', 'meta', '+447448682282', 'Isha''s Treat'
+SELECT id, 'TEST_PHONE_NUMBER_ID', 'test_verify_token_123', 'meta', '+447935238972', 'Isha''s Treat'
 FROM new_business;
 ```
 

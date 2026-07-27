@@ -208,7 +208,7 @@ Thank you for your first order. We're delighted to serve you authentic African &
 
 Your order #{order_id} is being prepared.
 
-Questions? WhatsApp us at 07448 682282
+Questions? WhatsApp us at 07935 238972
 ```
 
 ### VIP Recognition

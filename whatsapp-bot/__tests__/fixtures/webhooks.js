@@ -3,140 +3,140 @@ export const twilioWebhookFixtures = {
   // Simple greeting message
   simpleTextMessage: {
     MessageSid: 'SM1234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'Hello',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
     MessagingServiceSid: 'MGtest_service_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Order message with product and quantity
   orderMessage: {
     MessageSid: 'SM2234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '2x palm oil',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Complete order with address
   completeOrderMessage: {
     MessageSid: 'SM3234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '2x palm oil to SE15 4AA',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Yoruba product order
   yorubaOrder: {
     MessageSid: 'SM4234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '3x epo pupa to E1 6AN',
     NumMedia: '0',
     ProfileName: 'Isha Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Multi-item order
   multiItemOrder: {
     MessageSid: 'SM5234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '2x palm oil, 3x egusi and 1x plantain to SE15 4AA',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Confirmation message
   confirmationMessage: {
     MessageSid: 'SM6234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'yes',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Decline message
   declineMessage: {
     MessageSid: 'SM7234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'no',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Payment method selection - cash
   cashPaymentMessage: {
     MessageSid: 'SM8234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'cash on delivery',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Payment method selection - card
   cardPaymentMessage: {
     MessageSid: 'SM9234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'pay by card',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Help request
   helpMessage: {
     MessageSid: 'SM0234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'help',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Menu request
   menuMessage: {
     MessageSid: 'SMa234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: 'menu',
     NumMedia: '0',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Image message (product photo)
   imageMessage: {
     MessageSid: 'SMb234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '',
     NumMedia: '1',
@@ -144,13 +144,13 @@ export const twilioWebhookFixtures = {
     MediaContentType0: 'image/jpeg',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   },
 
   // Voice message
   voiceMessage: {
     MessageSid: 'SMc234567890abcdef1234567890abcdef',
-    From: 'whatsapp:+447448682282',
+    From: 'whatsapp:+447935238972',
     To: 'whatsapp:+14155238886',
     Body: '',
     NumMedia: '1',
@@ -158,7 +158,7 @@ export const twilioWebhookFixtures = {
     MediaContentType0: 'audio/ogg',
     ProfileName: 'Test Customer',
     AccountSid: 'ACtest_account_sid',
-    WaId: '447448682282'
+    WaId: '447935238972'
   }
 };
 
@@ -178,10 +178,10 @@ export const metaWebhookFixtures = {
           },
           contacts: [{
             profile: { name: 'Test Customer' },
-            wa_id: '447448682282'
+            wa_id: '447935238972'
           }],
           messages: [{
-            from: '447448682282',
+            from: '447935238972',
             id: 'wamid.test123456789',
             timestamp: '1234567890',
             type: 'text',
@@ -207,10 +207,10 @@ export const metaWebhookFixtures = {
           },
           contacts: [{
             profile: { name: 'Test Customer' },
-            wa_id: '447448682282'
+            wa_id: '447935238972'
           }],
           messages: [{
-            from: '447448682282',
+            from: '447935238972',
             id: 'wamid.test123456790',
             timestamp: '1234567890',
             type: 'text',
@@ -233,13 +233,13 @@ export const metaWebhookFixtures = {
 // Helper function to create custom webhook payload
 export const createTwilioWebhook = (overrides = {}) => ({
   MessageSid: `SM${Math.random().toString(36).substring(7)}`,
-  From: 'whatsapp:+447448682282',
+  From: 'whatsapp:+447935238972',
   To: 'whatsapp:+14155238886',
   Body: 'Test message',
   NumMedia: '0',
   ProfileName: 'Test Customer',
   AccountSid: 'ACtest_account_sid',
-  WaId: '447448682282',
+  WaId: '447935238972',
   ...overrides
 });
 
@@ -257,10 +257,10 @@ export const createMetaWebhook = (messageBody, overrides = {}) => ({
         },
         contacts: [{
           profile: { name: 'Test Customer' },
-          wa_id: '447448682282'
+          wa_id: '447935238972'
         }],
         messages: [{
-          from: '447448682282',
+          from: '447935238972',
           id: `wamid.test${Date.now()}`,
           timestamp: Math.floor(Date.now() / 1000).toString(),
           type: 'text',

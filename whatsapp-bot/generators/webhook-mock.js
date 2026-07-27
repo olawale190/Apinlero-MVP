@@ -19,7 +19,7 @@ import crypto from 'crypto';
  */
 function generateTwilioWebhook({
   message = 'Hi',
-  phone = '447448682282',
+  phone = '447935238972',
   businessPhone = '+14155238886',
   messageId = null
 }) {
@@ -60,7 +60,7 @@ function generateTwilioWebhook({
  */
 function generateMetaWebhook({
   message = 'Hi',
-  phone = '447448682282',
+  phone = '447935238972',
   businessPhone = '123456789',
   messageId = null,
   timestamp = null
@@ -127,7 +127,7 @@ function generateWebhookWithContext({
   provider = 'twilio',
   businessId = 'test-business-001',
   message = 'Hi',
-  phone = '447448682282',
+  phone = '447935238972',
 }) {
   let webhook;
 
@@ -163,7 +163,7 @@ function generateMediaWebhook({
   provider = 'twilio',
   mediaType = 'image',
   mediaUrl = 'https://example.com/image.jpg',
-  phone = '447448682282',
+  phone = '447935238972',
 }) {
   if (provider === 'twilio') {
     const webhook = generateTwilioWebhook({ message: '', phone });

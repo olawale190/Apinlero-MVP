@@ -27,7 +27,7 @@ import {
  */
 export async function testMessage({
   message = 'Hi',
-  phone = '447448682282',
+  phone = '447935238972',
   customerName = 'Test Customer',
   businessId = 'test-business-001',
   provider = 'twilio',
@@ -52,11 +52,11 @@ export async function testMessage({
     // Extract phone number based on provider
     let normalizedPhone;
     if (provider === 'twilio') {
-      // Twilio format: whatsapp:+447448682282
+      // Twilio format: whatsapp:+447935238972
       const from = webhook.From;
       normalizedPhone = from.replace('whatsapp:', '').replace('+', '');
     } else {
-      // Meta format: 447448682282 (no prefix)
+      // Meta format: 447935238972 (no prefix)
       normalizedPhone = webhook.entry[0].changes[0].value.messages[0].from;
     }
 
@@ -114,7 +114,7 @@ export async function testMessage({
  */
 export async function testConversation({
   messages = ['Hi', '2x palm oil', 'yes', 'cash'],
-  phone = '447448682282',
+  phone = '447935238972',
   customerName = 'Test Customer',
   businessId = 'test-business-001',
   provider = 'twilio',
@@ -175,7 +175,7 @@ export async function testConversation({
 /**
  * Test phone number format normalization
  *
- * @param {string} basePhone - Base phone number (e.g., '447448682282')
+ * @param {string} basePhone - Base phone number (e.g., '447935238972')
  * @param {string} businessId - Business ID
  * @returns {Promise<Object>} Normalization test results
  */
@@ -183,9 +183,9 @@ export async function testPhoneFormats(basePhone, businessId = 'test-business-00
   console.log(`\n🧪 Testing phone number formats for: ${basePhone}`);
 
   const formats = [
-    basePhone,                           // 447448682282
-    `+${basePhone}`,                    // +447448682282
-    `0${basePhone.substring(2)}`,       // 07448682282 (UK format)
+    basePhone,                           // 447935238972
+    `+${basePhone}`,                    // +447935238972
+    `0${basePhone.substring(2)}`,       // 07935238972 (UK format)
   ];
 
   const results = [];

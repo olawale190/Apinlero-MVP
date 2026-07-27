@@ -6,7 +6,7 @@ export const shopConfig: ShopConfig = {
   tagline: 'African & Caribbean Wholesale',
   currency: '£',
   deliveryFee: 5,
-  phone: '07448682282',
+  phone: '07935238972',
   location: 'London, UK'
 };
 

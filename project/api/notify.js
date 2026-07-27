@@ -210,7 +210,7 @@ export default async function handler(req, res) {
               <p>We'll notify you when your order is ready${deliveryMethod === 'delivery' ? ' for delivery' : ' for collection'}.</p>
 
               <p style="color: #6b7280; font-size: 14px;">
-                Questions? Reply to this email or WhatsApp us at 07448682282
+                Questions? Reply to this email or WhatsApp us at 07935238972
               </p>
             </div>
 

@@ -86,7 +86,7 @@ PRODUCT -[BELONGS_TO]-> CATEGORY
 
 | Channel | Description | Delivery Fee |
 |---------|-------------|--------------|
-| WhatsApp | Message-based orders via +44 7448 682282 | £5.00 |
+| WhatsApp | Message-based orders via +44 7935 238972 | £5.00 |
 | Web | Online storefront at apinlero.vercel.app | £5.00 |
 | Phone | Telephone orders | £5.00 |
 | Walk-in | In-person at shop | £0.00 |

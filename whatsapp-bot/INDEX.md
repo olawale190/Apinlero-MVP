@@ -12,7 +12,7 @@ node debugger-cli.js health-check
 node debugger-cli.js validate-tenant test-business-001
 
 # Test phone formats
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 ```
 
 ---
@@ -92,7 +92,7 @@ System health and status
 ```bash
 node debugger-cli.js health-check
 node debugger-cli.js validate-tenant your-business-id
-node debugger-cli.js check-phone-formats 447448682282
+node debugger-cli.js check-phone-formats 447935238972
 ```
 
 ### 2. Troubleshooting Customer Issues
@@ -183,7 +183,7 @@ Use the `/whatsapp-debug` skill:
 ```bash
 /whatsapp-debug health-check
 /whatsapp-debug validate-tenant test-business-001
-/whatsapp-debug check-phone-formats 447448682282
+/whatsapp-debug check-phone-formats 447935238972
 /whatsapp-debug simulate-failure database-timeout
 /whatsapp-debug test-message "2x palm oil to SE15 4AA"
 ```

@@ -56,7 +56,7 @@ async function seedDatabase() {
           name: 'Isha\'s Treat & Groceries',
           slug: 'ishas-treat',
           owner_email: 'owner@ishastreat.com', // Change this to actual owner email
-          phone: '+447448682282',
+          phone: '+447935238972',
           is_active: true,
           created_at: new Date().toISOString()
         })

@@ -31,17 +31,17 @@ curl -s -X POST "$BASE_URL/webhook/meta" \
         "value": {
           "messaging_product": "whatsapp",
           "metadata": {
-            "display_phone_number": "447448682282",
+            "display_phone_number": "447935238972",
             "phone_number_id": "test-phone-id"
           },
           "contacts": [{
             "profile": {
               "name": "Test Customer"
             },
-            "wa_id": "447448682282"
+            "wa_id": "447935238972"
           }],
           "messages": [{
-            "from": "447448682282",
+            "from": "447935238972",
             "id": "test-msg-001",
             "timestamp": "1234567890",
             "text": {
@@ -68,17 +68,17 @@ curl -s -X POST "$BASE_URL/webhook/meta" \
         "value": {
           "messaging_product": "whatsapp",
           "metadata": {
-            "display_phone_number": "447448682282",
+            "display_phone_number": "447935238972",
             "phone_number_id": "test-phone-id"
           },
           "contacts": [{
             "profile": {
               "name": "Test Customer"
             },
-            "wa_id": "447448682282"
+            "wa_id": "447935238972"
           }],
           "messages": [{
-            "from": "447448682282",
+            "from": "447935238972",
             "id": "test-msg-002",
             "timestamp": "1234567890",
             "text": {
@@ -105,17 +105,17 @@ curl -s -X POST "$BASE_URL/webhook/meta" \
         "value": {
           "messaging_product": "whatsapp",
           "metadata": {
-            "display_phone_number": "447448682282",
+            "display_phone_number": "447935238972",
             "phone_number_id": "test-phone-id"
           },
           "contacts": [{
             "profile": {
               "name": "Test Customer"
             },
-            "wa_id": "447448682282"
+            "wa_id": "447935238972"
           }],
           "messages": [{
-            "from": "447448682282",
+            "from": "447935238972",
             "id": "test-msg-003",
             "timestamp": "1234567890",
             "text": {
@@ -142,17 +142,17 @@ curl -s -X POST "$BASE_URL/webhook/meta" \
         "value": {
           "messaging_product": "whatsapp",
           "metadata": {
-            "display_phone_number": "447448682282",
+            "display_phone_number": "447935238972",
             "phone_number_id": "test-phone-id"
           },
           "contacts": [{
             "profile": {
               "name": "Test Customer"
             },
-            "wa_id": "447448682282"
+            "wa_id": "447935238972"
           }],
           "messages": [{
-            "from": "447448682282",
+            "from": "447935238972",
             "id": "test-msg-004",
             "timestamp": "1234567890",
             "text": {

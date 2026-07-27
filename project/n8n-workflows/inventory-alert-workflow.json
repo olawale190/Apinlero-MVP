@@ -117,7 +117,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"to\": \"{{ $env.OWNER_PHONE || '+447448682282' }}\",\n  \"message\": {{ JSON.stringify($json.message) }},\n  \"type\": \"inventory_alert\"\n}"
+        "jsonBody": "={\n  \"to\": \"{{ $env.OWNER_PHONE || '+447935238972' }}\",\n  \"message\": {{ JSON.stringify($json.message) }},\n  \"type\": \"inventory_alert\"\n}"
       },
       "id": "send-whatsapp-critical",
       "name": "Send WhatsApp (Critical)",

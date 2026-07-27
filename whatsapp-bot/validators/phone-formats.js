@@ -2,10 +2,10 @@
  * Phone Format Validator
  *
  * Tests phone number normalization and customer matching across different formats:
- * - E.164 format (+447448682282)
- * - National format (07448682282)
- * - International without + (447448682282)
- * - WhatsApp format (whatsapp:+447448682282)
+ * - E.164 format (+447935238972)
+ * - National format (07935238972)
+ * - International without + (447935238972)
+ * - WhatsApp format (whatsapp:+447935238972)
  *
  * Ensures that all formats normalize to the same value and match the same customer.
  */
@@ -31,7 +31,7 @@ export function normalizePhoneNumber(phone) {
 /**
  * Generate test formats for a phone number
  *
- * @param {string} basePhone - Base phone number (e.g., 447448682282)
+ * @param {string} basePhone - Base phone number (e.g., 447935238972)
  * @returns {Array<Object>} Array of format variations
  */
 export function generatePhoneFormats(basePhone) {

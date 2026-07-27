@@ -204,7 +204,7 @@ const handleFailedDelivery = async (orderId, reason) => {
   await sendNotification(orderId, `
     Delivery attempt failed: ${reason}
     Rescheduled for: ${nextSlot}
-    Contact us to arrange alternative: 07448 682282
+    Contact us to arrange alternative: 07935 238972
   `);
 
   return nextSlot;
@@ -314,14 +314,14 @@ const deliveryNotifications = {
     ✅ Delivered!
     Your order has been delivered.
     Thank you for shopping with Isha's Treat!
-    Questions? WhatsApp: 07448 682282
+    Questions? WhatsApp: 07935 238972
   `,
 
   failed: (order, reason) => `
     ⚠️ Delivery Attempt Failed
     Reason: {reason}
     We'll try again tomorrow.
-    To reschedule: 07448 682282
+    To reschedule: 07935 238972
   `
 };
 ```
