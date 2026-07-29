@@ -104,6 +104,13 @@ export async function encryptStripeKey(secretKey: string): Promise<string> {
  * @returns The decrypted Stripe secret key
  */
 export async function decryptStripeKey(encryptedKey: string): Promise<string> {
+  // MIGRATION: plaintext keys pass straight through — this must work even when
+  // ENCRYPTION_KEY is not configured in the edge runtime.
+  if (encryptedKey.startsWith('sk_')) {
+    console.warn('WARNING: Stripe key is stored in plaintext. Please re-save to encrypt.');
+    return encryptedKey;
+  }
+
   const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
 
   if (!encryptionKey || encryptionKey.length < 32) {
@@ -113,10 +120,6 @@ export async function decryptStripeKey(encryptedKey: string): Promise<string> {
   // Check for encryption version prefix
   if (encryptedKey.startsWith('enc_v1:')) {
     encryptedKey = encryptedKey.slice(7); // Remove prefix
-  } else if (encryptedKey.startsWith('sk_')) {
-    // MIGRATION: If it's still plaintext, return as-is but log warning
-    console.warn('WARNING: Stripe key is stored in plaintext. Please re-save to encrypt.');
-    return encryptedKey;
   }
 
   const combined = base64ToBytes(encryptedKey);

@@ -127,37 +127,63 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // SECURITY: Verify the authenticated user owns this business
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
+    // SECURITY: Guest checkout — storefront customers are not logged in, so a
+    // session (let alone business ownership) cannot be required here.
+    // Authorization comes from the order itself: a payment intent can only be
+    // created for an existing, unpaid order of this business, and the charge
+    // amount is taken from the order's stored total — never from the client.
+    if (!orderId) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        JSON.stringify({ error: 'orderId is required' }),
         {
-          status: 401,
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, business_id, total, payment_status')
+      .eq('id', orderId)
+      .single();
 
-    if (authError || !user) {
+    if (orderError || !order) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        JSON.stringify({ error: 'Order not found' }),
         {
-          status: 401,
+          status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    // Check if user owns this business
-    if (user.email !== business.owner_email) {
+    if (order.business_id && order.business_id !== businessId) {
       return new Response(
-        JSON.stringify({ error: 'Forbidden - You do not own this business' }),
+        JSON.stringify({ error: 'Order does not belong to this business' }),
         {
           status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if ((order.payment_status || '').toUpperCase() === 'PAID') {
+      return new Response(
+        JSON.stringify({ error: 'Order is already paid' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const orderTotal = Number(order.total);
+    if (!orderTotal || orderTotal <= 0 || Math.abs(orderTotal - amount) > 0.01) {
+      return new Response(
+        JSON.stringify({ error: 'Amount does not match order total' }),
+        {
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
@@ -219,7 +245,7 @@ Deno.serve(async (req: Request) => {
 
     // Minimum charge validation (Stripe minimum is 30p for GBP)
     const minimumCharge = 30; // pence
-    const amountInPence = Math.round(amount * 100);
+    const amountInPence = Math.round(orderTotal * 100); // server-side order total, not client amount
 
     if (amountInPence < minimumCharge) {
       return new Response(
