@@ -8,6 +8,7 @@
 
 import { parseMessage, matchProduct, getDeliveryZone, isCompleteOrder } from './message-parser.js';
 import { penceToPounds } from './currency.js';
+import { isMeasureUnit, reconcilePackSize } from './pack-size.js';
 import {
   getProducts,
   createOrder,
@@ -976,6 +977,7 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
   const notFoundItems = [];
   const outOfStock = [];   // products the customer asked for but we have none of
   const capped = [];       // products where we reduced the qty to what's in stock
+  const sizeMismatches = []; // asked for a size we don't stock — ask, never guess
 
   for (const item of items) {
     // Accept both raw parsed items ({product}) and already-resolved order
@@ -1005,9 +1007,48 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
     }
 
     if (product) {
+      // ---- Pack-size reconciliation -------------------------------------
+      // "2kg rice" is an AMOUNT, not a count of bags. Without this, quantity=2
+      // was multiplied against a 10kg bag and the customer was quoted £40 for
+      // 20kg when they wanted ~£4 of rice. Only applies when the customer used
+      // a measure (kg/g/l/ml); "2 bags" still means two bags.
+      let packQty = null;
+      if (isMeasureUnit(item.unit)) {
+        // Sibling sizes = catalogue entries matching what the customer actually
+        // typed ("rice"), which is a better net than similarity to the one
+        // product we happened to match first.
+        const needle = itemName.toLowerCase();
+        const family = products.filter(
+          p => p.name && p.name.toLowerCase().includes(needle),
+        );
+
+        const reconciled = reconcilePackSize(
+          Number(item.quantity) || 1,
+          item.unit,
+          family.length ? family : [product],
+        );
+
+        if (reconciled && reconciled.sizeMismatch) {
+          // We don't sell it in that size. Ask instead of guessing a price.
+          sizeMismatches.push({
+            requested: reconciled.requested,
+            productName: product.name,
+            options: reconciled.options,
+          });
+          continue;
+        }
+
+        if (reconciled && reconciled.product) {
+          product = reconciled.product;
+          // `item` is the loop's const binding, so carry the resolved count in
+          // a local instead of reassigning it.
+          packQty = reconciled.quantity;
+        }
+      }
+
       // Stock enforcement (vendor sets stock up front; we never oversell)
       const state = availabilityState(product);
-      const requestedQty = Number(item.quantity) || 1;
+      const requestedQty = packQty ?? (Number(item.quantity) || 1);
       const inStock = Number(product.stock_quantity ?? 0);
 
       if (state === 'out_of_stock') {
@@ -1025,7 +1066,10 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
         product_id: product.id,
         product_name: product.name,
         quantity: qty,
-        unit: item.unit,
+        // Once a measure has been resolved to packs, the customer's own unit is
+        // no longer the right label — "1kg of Aani Rice 5kg" reads as an error.
+        // Show how the shop sells it instead.
+        unit: packQty !== null ? (product.unit || 'each') : item.unit,
         product_unit: product.unit || null,
         price: penceToPounds(product.price),
         subtotal: penceToPounds(product.price) * qty
@@ -1034,6 +1078,21 @@ async function handleNewOrder(phone, customerName, parsed, conversation) {
       notFound.push(itemName);
       notFoundItems.push({ ...item, product: itemName });
     }
+  }
+
+  // Asked for a size we don't sell (e.g. "2kg rice" when rice comes in 5kg and
+  // 10kg bags). Tell them what the options are instead of pricing a guess.
+  if (orderItems.length === 0 && sizeMismatches.length > 0) {
+    const m = sizeMismatches[0];
+    const lines = m.options
+      .map(o => `\u2022 ${o.product.name} \u2014 \u00a3${penceToPounds(o.product.price).toFixed(2)}`)
+      .join('\n');
+
+    return {
+      text:
+        `We don't sell that in ${m.requested}, but here's what we have:\n\n` +
+        `${lines}\n\nWhich one would you like? \ud83d\udc9a`,
+    };
   }
 
   // If everything the customer asked for is out of stock, say so with alternatives
