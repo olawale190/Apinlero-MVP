@@ -13,13 +13,17 @@ import {
   sendButtonMessage,
   parseWebhook,
   verifyWebhook,
+  validateWebhookSignature,
   cleanPhoneNumber
 } from './whatsapp-cloud-service.js';
 import { handleIncomingMessage, handlePaymentSucceeded } from './message-handler.js';
 import { validateEnvironment, getWhatsAppProvider } from './validateEnv.js';
 import { checkKGDependencies } from './kg-preprocessor.js';
 import { constructWebhookEvent, peekEventBusinessId } from './payments.js';
-import { resolveBusinessByTwilioNumber } from './tenant-resolver.js';
+import {
+  resolveBusinessByTwilioNumber,
+  resolveBusinessByMetaPhoneNumberId,
+} from './tenant-resolver.js';
 
 dotenv.config();
 
@@ -85,8 +89,18 @@ app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (re
 
 // Parse URL-encoded bodies (Twilio sends form data)
 app.use(express.urlencoded({ extended: false }));
-// Parse JSON for Meta and n8n webhooks
-app.use(express.json());
+// Parse JSON for Meta and n8n webhooks.
+//
+// `verify` stashes the raw bytes so the Meta webhook can check its
+// X-Hub-Signature-256 HMAC, which is computed over the exact body Meta sent —
+// re-serialising the parsed object would not reproduce it byte for byte.
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 
 const PORT = process.env.PORT || 3000;
 
@@ -201,9 +215,21 @@ app.post('/webhook/twilio', async (req, res) => {
  */
 app.post('/webhook/meta', async (req, res) => {
   const startTime = Date.now();
-  console.log('📨 Meta webhook received (via n8n router)');
 
   try {
+    // ------------------------------------------------------------------
+    // Meta's NATIVE payload — what the Cloud API actually posts when you
+    // register this URL in Meta for Developers. Previously this endpoint only
+    // understood the flattened shape an n8n router produces, so a webhook
+    // wired straight to Meta was rejected as "missing required fields". Both
+    // shapes are now accepted; the n8n path below is unchanged.
+    // ------------------------------------------------------------------
+    if (req.body?.object === 'whatsapp_business_account') {
+      return await handleNativeMetaWebhook(req, res, startTime);
+    }
+
+    console.log('📨 Meta webhook received (via n8n router)');
+
     const {
       businessId,
       businessName,
@@ -288,6 +314,117 @@ app.post('/webhook/meta', async (req, res) => {
     res.status(500).json({ error: 'Error processing message' });
   }
 });
+
+/**
+ * Handle a native Meta WhatsApp Cloud API webhook.
+ *
+ * Differences from the n8n path, which are the whole reason this exists:
+ *   - Meta nests the message in entry[].changes[].value.messages[]
+ *   - Meta identifies the receiving business by an opaque `phone_number_id`,
+ *     never by our phone number, so the tenant is resolved from that
+ *   - Meta does not send us an access token; it comes from the vendor's row
+ *     or META_ACCESS_TOKEN
+ *
+ * Always answers 200 quickly. Meta retries any non-2xx with backoff, and a
+ * retry storm on a message we already processed would double-reply to the
+ * customer.
+ */
+async function handleNativeMetaWebhook(req, res, startTime) {
+  console.log('📨 Meta webhook received (native Cloud API)');
+
+  // Verify the payload really came from Meta before acting on it. Skipped only
+  // when META_APP_SECRET is unset, so local testing still works.
+  const appSecret = process.env.META_APP_SECRET;
+  if (appSecret) {
+    const signature = req.get('x-hub-signature-256');
+    let valid = false;
+    try {
+      valid = validateWebhookSignature(
+        req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body),
+        signature,
+        appSecret,
+      );
+    } catch {
+      valid = false; // malformed/short signature — treat as a failure, never throw
+    }
+    if (!valid) {
+      console.warn('⚠️ [Meta] Rejected webhook: bad X-Hub-Signature-256');
+      return res.sendStatus(403);
+    }
+  } else {
+    console.warn(
+      '⚠️ [Meta] META_APP_SECRET not set — webhook signatures are NOT being ' +
+        'verified. Anyone who finds this URL can forge customer messages.',
+    );
+  }
+
+  const parsed = parseWebhook(req.body);
+
+  // Delivery receipts and read receipts land here too. Acknowledge and move on.
+  if (!parsed || parsed.type !== 'message') {
+    return res.sendStatus(200);
+  }
+
+  const { phoneNumberId, from, body, profileName, messageId, messageType } = parsed;
+
+  if (!from || !body) {
+    console.warn(`⚠️ [Meta] Ignoring ${messageType} message with no usable text`);
+    return res.sendStatus(200);
+  }
+
+  // Which vendor was messaged?
+  const business = await resolveBusinessByMetaPhoneNumberId(phoneNumberId);
+  if (!business) {
+    console.error(
+      `❌ [Meta] No business mapped to phone_number_id=${phoneNumberId}. Add it ` +
+        'to whatsapp_configs.meta_phone_number_id — the message is dropped.',
+    );
+    return res.sendStatus(200);
+  }
+
+  const accessToken = business.metaAccessToken || process.env.META_ACCESS_TOKEN;
+  if (!accessToken) {
+    console.error(
+      '❌ [Meta] No access token for this business and META_ACCESS_TOKEN is ' +
+        'unset — cannot reply.',
+    );
+    return res.sendStatus(200);
+  }
+
+  console.log(
+    `📩 [Meta] ${business.businessName || business.businessId} | From: ${from} | ${body}`,
+  );
+
+  try {
+    const response = await handleIncomingMessage({
+      from: cleanPhoneNumber(from),
+      customerName: profileName || null,
+      text: body,
+      messageId,
+      provider: 'meta',
+      businessId: business.businessId,
+      businessName: business.businessName,
+      storefrontUrl: business.storefrontUrl,
+      messageType,
+      accessToken,
+    });
+
+    if (response && response.text) {
+      const sent = await sendTextMessage(phoneNumberId, accessToken, from, response.text);
+      if (sent.success) {
+        console.log(`✅ [Meta] Replied to ${from} (${Date.now() - startTime}ms)`);
+      } else {
+        console.error(`❌ [Meta] Send failed: ${sent.error}`);
+      }
+    }
+  } catch (error) {
+    // Swallow rather than 500: a non-2xx makes Meta redeliver this same
+    // message, and the customer would get the reply twice.
+    console.error('❌ [Meta] Handler error:', error);
+  }
+
+  return res.sendStatus(200);
+}
 
 /**
  * Direct Meta webhook verification (for testing without n8n)

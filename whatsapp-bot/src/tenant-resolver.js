@@ -10,7 +10,11 @@
  * not-yet-seeded) deployment keeps working.
  */
 
-import { getBusinessByTwilioNumber, getBusinessIdentity } from './supabase-client.js';
+import {
+  getBusinessByTwilioNumber,
+  getBusinessByMetaPhoneNumberId,
+  getBusinessIdentity,
+} from './supabase-client.js';
 
 // Cache: normalized number → { entry, ts }. Short TTL so a newly onboarded
 // vendor (or an edited row) is picked up without a redeploy.
@@ -66,6 +70,48 @@ export async function resolveBusinessByTwilioNumber(toNumber) {
     businessName: config.businessName || identity?.businessName || null,
     storefrontUrl: buildStorefrontUrl(identity?.slug),
     twilioNumber: key,
+  };
+  cache.set(key, { entry, ts: Date.now() });
+  return entry;
+}
+
+/**
+ * Resolve the vendor for an incoming Meta Cloud API message.
+ *
+ * The Twilio path routes on the `To` phone number; Meta instead identifies the
+ * receiving business by an opaque `phone_number_id` on the webhook metadata, so
+ * this is the Cloud API equivalent of resolveBusinessByTwilioNumber.
+ *
+ * Cached in the same map under a `meta:` prefix, so the two key spaces can
+ * never collide.
+ *
+ * @param {string} phoneNumberId - value.metadata.phone_number_id from Meta
+ * @returns {Promise<{businessId, businessName, storefrontUrl, metaPhoneNumberId, metaAccessToken}|null>}
+ */
+export async function resolveBusinessByMetaPhoneNumberId(phoneNumberId) {
+  const id = phoneNumberId ? String(phoneNumberId).trim() : null;
+  if (!id) return null;
+
+  const key = `meta:${id}`;
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.ts < TTL_MS) {
+    return cached.entry;
+  }
+
+  const config = await getBusinessByMetaPhoneNumberId(id);
+  if (!config || !config.businessId) {
+    console.warn(`[tenant-resolver] no business for meta phone_number_id=${id}`);
+    cache.set(key, { entry: null, ts: Date.now() });
+    return null;
+  }
+
+  const identity = await getBusinessIdentity(config.businessId);
+  const entry = {
+    businessId: config.businessId,
+    businessName: config.businessName || identity?.businessName || null,
+    storefrontUrl: buildStorefrontUrl(identity?.slug),
+    metaPhoneNumberId: id,
+    metaAccessToken: config.metaAccessToken || null,
   };
   cache.set(key, { entry, ts: Date.now() });
   return entry;

@@ -437,6 +437,55 @@ export async function getBusinessByTwilioNumber(twilioNumber) {
 }
 
 /**
+ * Resolve a business from Meta's phone_number_id.
+ *
+ * Meta does not tell us which of our numbers a message arrived on by phone
+ * number — it sends the opaque `phone_number_id` from the WhatsApp Business
+ * Account. That is the multi-tenant key for the Cloud API, the way
+ * twilio_phone_number is for Twilio.
+ *
+ * Also returns the per-business access token when one is stored, so each
+ * vendor can send from their own WABA. Falls back to META_ACCESS_TOKEN at the
+ * call site when it is null.
+ */
+export async function getBusinessByMetaPhoneNumberId(phoneNumberId) {
+  if (!phoneNumberId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('whatsapp_configs')
+      .select('business_id, business_name, meta_phone_number_id, meta_access_token, provider')
+      .eq('is_active', true)
+      .eq('meta_phone_number_id', String(phoneNumberId).trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      // 42703 = column does not exist → the Meta columns migration hasn't been
+      // applied yet. Say so plainly; this is the one failure that looks like
+      // "no such business" but is really a missing migration.
+      if (error.code === '42703') {
+        console.error(
+          '[tenant] whatsapp_configs is missing the Meta columns. Apply ' +
+            'add-meta-cloud-api-columns.sql, then retry.',
+        );
+      }
+      return null;
+    }
+    if (!data) return null;
+
+    return {
+      businessId: data.business_id,
+      businessName: data.business_name || null,
+      metaPhoneNumberId: data.meta_phone_number_id,
+      metaAccessToken: data.meta_access_token || null,
+    };
+  } catch (err) {
+    console.warn('[tenant] getBusinessByMetaPhoneNumberId failed:', err.message);
+    return null;
+  }
+}
+
+/**
  * Fetch the vendor's own WhatsApp sender number (bare E.164) by business id, so
  * webhook-driven outbound messages (payment receipts, status updates) can be
  * sent FROM the vendor's number. Returns null if not configured (caller falls

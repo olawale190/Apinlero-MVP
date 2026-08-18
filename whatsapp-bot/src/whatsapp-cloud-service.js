@@ -473,10 +473,14 @@ export function validateWebhookSignature(payload, signature, appSecret) {
 
   const receivedSignature = signature.replace('sha256=', '');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature),
-    Buffer.from(receivedSignature)
-  );
+  // timingSafeEqual throws on a length mismatch, which a forged or truncated
+  // header trivially produces — compare lengths first so a bad signature is a
+  // clean `false` rather than an exception that 500s the webhook.
+  const expected = Buffer.from(expectedSignature, 'utf8');
+  const received = Buffer.from(receivedSignature, 'utf8');
+  if (expected.length !== received.length) return false;
+
+  return crypto.timingSafeEqual(expected, received);
 }
 
 /**
