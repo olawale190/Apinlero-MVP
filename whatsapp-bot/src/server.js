@@ -24,6 +24,7 @@ import {
   resolveBusinessByTwilioNumber,
   resolveBusinessByMetaPhoneNumberId,
 } from './tenant-resolver.js';
+import { startKeepalive } from './keepalive.js';
 
 dotenv.config();
 
@@ -627,6 +628,11 @@ app.post('/webhook', async (req, res) => {
 // ============================================================================
 // START SERVER
 // ============================================================================
+
+// Keep the Supabase project awake. Free-tier projects pause after 7 days with
+// no database activity, which takes the storefront, dashboard and this bot
+// down together — it happened on 2026-08-08. Bridge only; Pro is the real fix.
+startKeepalive();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`
