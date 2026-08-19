@@ -216,7 +216,7 @@ PORT=3000
 | **Landing Page** | `https://apinlero.com` | Vercel |
 | **Dashboard** | `https://app.apinlero.com` | Vercel |
 | **Isha's Store** | `https://ishas-treat.apinlero.com` | Vercel |
-| **WhatsApp Bot** | `https://web-production-63e51.up.railway.app` | Railway |
+| **WhatsApp Bot** | `https://apinlero-whatsapp-bot-production.up.railway.app` | Railway |
 | **n8n Workflows** | `https://main-production-668a.up.railway.app` | Railway |
 
 ---
@@ -269,10 +269,17 @@ npx vercel --prod --yes --force
 
 ### WhatsApp Bot (Railway)
 
+**Pushing to GitHub does NOT deploy the bot.** On 2026-08-19 three commits sat
+on GitHub `main` while the live service kept serving old code. Deploy it
+explicitly — the script also verifies the new code is actually running, which
+"Deployed" in the Railway UI does not tell you:
+
 ```bash
 cd Apinlero_MVP/whatsapp-bot
-git push railway main
+./deploy.sh
 ```
+
+(The old `git push railway main` remote no longer exists.)
 
 ---
 
@@ -354,12 +361,28 @@ There are **two separate GitHub repos** for this project:
 
 **RULE**: When making changes that need to go live, you MUST edit files in `/tmp/apinlero` and push to `olawale190/apinlero`. Changes to `Apinlero_MVP/project/` will NOT be deployed.
 
+**RULE**: If `/tmp/apinlero` doesn't exist locally, clone it first:
+```bash
+git clone https://github.com/olawale190/apinlero.git /tmp/apinlero
+```
+Then make changes there and push to `olawale190/apinlero`.
+
 **RULE**: The `App.tsx` in `/tmp/apinlero/frontend/src/App.tsx` MUST include hostname-based routing:
-- `app.apinlero.com` → `SaaSDashboard` (login + dashboard)
-- Business subdomains → `IshasTreatStore` (storefront)
-- Root domain / localhost → `Landing` page + path-based `/app` route
+- `app.apinlero.com` → `SaaSDashboard` (login + dashboard for business owners)
+- Business subdomains (`{slug}.apinlero.com`) → customer-facing storefront
+- Root domain `apinlero.com` / localhost → public marketing landing page (pricing, sign up)
 
 If hostname detection is removed or broken, `app.apinlero.com` will show the landing page instead of the dashboard.
+
+### Domain → Purpose Map
+
+| Domain | Audience | What it shows |
+|--------|----------|---------------|
+| `apinlero.com` | Public / prospective businesses | Marketing site, pricing, sign-up |
+| `app.apinlero.com` | Business owners (after sign-up) | Dashboard to manage store, orders, inventory |
+| `{slug}.apinlero.com` | End customers | Storefront to browse & order products |
+
+**Never deploy pricing/marketing changes to `app.apinlero.com` thinking it is the public website — it is the business management dashboard.**
 
 ### DO NOT add www ↔ root domain redirects in vercel.json
 
